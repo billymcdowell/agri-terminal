@@ -1,14 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  RiBarChart2Line,
-  RiCalendarEventLine,
-  RiDashboardLine,
-  RiLeafLine,
-  RiNewspaperLine,
-  RiRefreshLine,
-  RiSettings3Line,
-} from "@remixicon/react";
+import { RiRefreshLine } from "@remixicon/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,59 +99,6 @@ function App() {
       </header>
 
       <div className="terminal-main">
-        <nav className="rail" aria-label="Main navigation">
-          <Button
-            className="rail-button active"
-            size="icon"
-            variant="ghost"
-            aria-label="Workspace"
-          >
-            <RiDashboardLine />
-          </Button>
-          <Button
-            className="rail-button"
-            size="icon"
-            variant="ghost"
-            aria-label="Charts"
-          >
-            <RiBarChart2Line />
-          </Button>
-          <Button
-            className="rail-button"
-            size="icon"
-            variant="ghost"
-            aria-label="Crops"
-          >
-            <RiLeafLine />
-          </Button>
-          <Button
-            className="rail-button"
-            size="icon"
-            variant="ghost"
-            aria-label="Calendar"
-          >
-            <RiCalendarEventLine />
-          </Button>
-          <Button
-            className="rail-button"
-            size="icon"
-            variant="ghost"
-            aria-label="News"
-          >
-            <RiNewspaperLine />
-          </Button>
-          <div className="mt-auto">
-            <Button
-              className="rail-button"
-              size="icon"
-              variant="ghost"
-              aria-label="Settings"
-            >
-              <RiSettings3Line />
-            </Button>
-          </div>
-        </nav>
-
         <main className="workspace">
           <div className="workspace-heading">
             <div>
@@ -175,9 +114,6 @@ function App() {
               >
                 <RiRefreshLine className={refreshing ? "animate-spin" : ""} />
                 Reload cached
-              </Button>
-              <Button variant="secondary" size="sm">
-                Add panel
               </Button>
             </div>
           </div>
