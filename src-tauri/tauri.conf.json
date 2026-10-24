@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "agri-terminal",
-        "width": 800,
-        "height": 600
+        "title": "AgriTerminal",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 640
       }
     ],
     "security": {

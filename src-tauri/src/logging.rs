@@ -1,9 +1,10 @@
 use std::path::Path;
 
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::util::SubscriberInitExt;
 
-pub struct LoggingState(pub std::sync::Mutex<WorkerGuard>);
+pub struct LoggingState {
+    pub _guard: std::sync::Mutex<WorkerGuard>,
+}
 
 pub fn initialize(log_directory: &Path) -> Result<WorkerGuard, String> {
     std::fs::create_dir_all(log_directory)

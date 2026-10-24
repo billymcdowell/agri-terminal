@@ -1,6 +1,8 @@
 use chrono::NaiveDate;
 
-use crate::core::{DataSource, Observation, SeriesId, SourceError, SourceId, Unit};
+use crate::core::{
+    Cadence, DataSource, Observation, SeriesId, SourceError, SourceId, SourceRecord, Unit,
+};
 
 const CORN_FIXTURE: &str = include_str!("../../../tests/fixtures/corn_daily.csv");
 
@@ -11,9 +13,16 @@ impl DataSource for CornFixtureSource {
     fn id(&self) -> &'static str {
         "fixture-corn"
     }
-
-    async fn fetch(&self) -> Result<Vec<Observation>, SourceError> {
-        corn_daily_fixture().map_err(SourceError::Parse)
+    fn name(&self) -> &'static str {
+        "Corn price fixture"
+    }
+    fn cadence(&self) -> Cadence {
+        Cadence::Daily
+    }
+    async fn fetch(&self) -> Result<Vec<SourceRecord>, SourceError> {
+        corn_daily_fixture()
+            .map(|records| records.into_iter().map(SourceRecord::Price).collect())
+            .map_err(SourceError::Parse)
     }
 }
 
