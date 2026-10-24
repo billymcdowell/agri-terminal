@@ -1,5 +1,6 @@
 mod commands;
 mod core;
+mod sources;
 mod store;
 
 use tauri::Manager;

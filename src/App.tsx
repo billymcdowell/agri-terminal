@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   RiBarChart2Line,
@@ -26,9 +26,22 @@ import { useSeries, useSources } from "@/state/use-series";
 const SERIES_ID = "price.ZC.close";
 const RANGES = ["1M", "3M", "1Y", "ALL"] as const;
 
+function formatAge(timestamp: string, now: number) {
+  const elapsedMinutes = Math.max(
+    0,
+    Math.floor((now - new Date(timestamp).getTime()) / 60_000),
+  );
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m old`;
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `${elapsedHours}h old`;
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  return `${elapsedDays}d ${elapsedHours % 24}h old`;
+}
+
 function App() {
   const [range, setRange] = useState<(typeof RANGES)[number]>("ALL");
   const [refreshing, setRefreshing] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const queryClient = useQueryClient();
   const series = useSeries(SERIES_ID);
   const sources = useSources();
@@ -52,6 +65,11 @@ function App() {
   const fixtureSource = sources.data?.find(
     (source) => source.sourceId === "fixture-corn",
   );
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function refresh() {
     setRefreshing(true);
@@ -255,7 +273,7 @@ function App() {
                   <span className="freshness">
                     <i className="freshness-dot" />
                     {latest
-                      ? `STALE DEMO FIXTURE · ${latest.period} · ${latest.sourceId}`
+                      ? `STALE DEMO FIXTURE · ${latest.sourceId} · ${formatAge(latest.releasedAt, now)}`
                       : "Waiting for local observations"}
                   </span>
                   <span>{allBars.length} observations · cached locally</span>

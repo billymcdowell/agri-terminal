@@ -40,6 +40,13 @@ pub fn refresh_source(app: AppHandle, source_id: String) -> Result<(), String> {
     if source_id != "fixture-corn" {
         return Err(format!("Unknown source: {source_id}"));
     }
+    let state = app.state::<DbState>();
+    let connection = state
+        .0
+        .lock()
+        .map_err(|_| "Database lock is unavailable".to_string())?;
+    store::refresh_fixture(&connection)?;
+    drop(connection);
     app.emit("data-updated", vec!["price.ZC.close"])
         .map_err(|error| format!("Notify price panels: {error}"))
 }
