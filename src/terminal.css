@@ -1,0 +1,325 @@
+:root {
+  color-scheme: dark;
+  font-family: "Geist Mono Variable", monospace;
+  background: #0c100d;
+  color: #e3e8df;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 760px;
+  min-height: 100vh;
+  margin: 0;
+  background: #0c100d;
+  color: #e3e8df;
+}
+
+button {
+  font: inherit;
+}
+
+.terminal-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 48px 1fr 26px;
+}
+.terminal-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(167, 180, 164, 0.14);
+  padding: 0 16px;
+  background: #101411;
+}
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 230px;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid rgba(138, 172, 117, 0.5);
+  color: #a1bd8c;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.brand-name {
+  font-family: "Instrument Sans Variable", sans-serif;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  font-size: 15px;
+}
+.brand-meta {
+  color: #69746b;
+  font-size: 9px;
+  margin-left: 7px;
+  letter-spacing: 0.08em;
+}
+.topbar-center {
+  color: #889188;
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #8a958a;
+  font-size: 10px;
+}
+.connection-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #b88d58;
+  box-shadow: 0 0 9px #b88d5866;
+}
+.terminal-main {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  min-height: 0;
+}
+.rail {
+  border-right: 1px solid rgba(167, 180, 164, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 6px;
+  background: #101411;
+}
+.rail .rail-button {
+  width: 34px;
+  height: 34px;
+  color: #768077;
+}
+.rail .rail-button.active {
+  color: #b8c8aa;
+  background: rgba(138, 172, 117, 0.13);
+}
+.workspace {
+  min-width: 0;
+  padding: 18px 22px 22px;
+}
+.workspace-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.eyebrow {
+  color: #7d897d;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.page-title {
+  margin: 5px 0 0;
+  font:
+    600 22px/1.1 "Instrument Sans Variable",
+    sans-serif;
+  letter-spacing: -0.035em;
+}
+.workspace-actions {
+  display: flex;
+  gap: 7px;
+}
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 12px;
+  align-items: start;
+}
+.terminal-card {
+  background: #101411;
+  border-color: rgba(167, 180, 164, 0.13);
+  border-radius: 8px;
+  box-shadow: none;
+}
+.chart-card {
+  min-height: 540px;
+}
+.chart-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(167, 180, 164, 0.12);
+  padding-bottom: 12px;
+}
+.chart-instrument {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+.instrument-symbol {
+  color: #dce4d7;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.instrument-name {
+  color: #738076;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.chart-price {
+  text-align: right;
+}
+.price-value {
+  color: #e5eadf;
+  font-size: 21px;
+  letter-spacing: -0.04em;
+}
+.price-change {
+  margin-top: 4px;
+  color: #a6bd92;
+  font-size: 10px;
+}
+.chart-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 11px;
+  color: #778278;
+  font-size: 9px;
+}
+.range-switcher {
+  display: flex;
+  gap: 2px;
+}
+.range-switcher .range-button {
+  color: #768176;
+  height: 24px;
+  min-width: 33px;
+  padding: 0 6px;
+  font-size: 9px;
+}
+.range-switcher .range-button.selected {
+  color: #c1d0b3;
+  background: rgba(138, 172, 117, 0.13);
+}
+.chart-container {
+  height: 380px;
+  margin: 6px -12px 0;
+}
+.price-chart-canvas {
+  height: 100%;
+  width: 100%;
+}
+.chart-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(167, 180, 164, 0.1);
+  padding-top: 10px;
+  color: #778278;
+  font-size: 9px;
+}
+.freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.freshness-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c49458;
+}
+.side-stack {
+  display: grid;
+  gap: 12px;
+}
+.side-card-title {
+  font:
+    550 13px "Instrument Sans Variable",
+    sans-serif;
+  letter-spacing: -0.01em;
+}
+.side-card-subtitle {
+  color: #758076;
+  font-size: 9px;
+  line-height: 1.6;
+  margin-top: 4px;
+}
+.metric-label {
+  color: #788379;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.metric-value {
+  color: #dce3d8;
+  font-size: 19px;
+  margin-top: 7px;
+  letter-spacing: -0.04em;
+}
+.metric-foot {
+  color: #788379;
+  font-size: 9px;
+  margin-top: 5px;
+}
+.source-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-top: 13px;
+  margin-top: 12px;
+  border-top: 1px solid rgba(167, 180, 164, 0.1);
+}
+.source-name {
+  font-size: 10px;
+  color: #c8d0c5;
+}
+.source-detail {
+  color: #748074;
+  font-size: 9px;
+  margin-top: 4px;
+}
+.empty-chart {
+  height: 390px;
+}
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  border-top: 1px solid rgba(167, 180, 164, 0.12);
+  background: #101411;
+  color: #748075;
+  font-size: 9px;
+}
+.status-left,
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.status-pill {
+  color: #b79a70;
+}
+
+@media (max-width: 1050px) {
+  .content-grid {
+    grid-template-columns: minmax(0, 1fr) 230px;
+  }
+  .workspace {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
