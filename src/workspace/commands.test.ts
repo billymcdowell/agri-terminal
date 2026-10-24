@@ -19,6 +19,10 @@ describe("planCommand", () => {
     expect(planCommand("stress")).toEqual({ type: "open", params: { kind: "crop-stress", linkGroup: "A" } });
     expect(planCommand("moves")).toEqual({ type: "open", params: { kind: "moves", linkGroup: "A" } });
   });
+  it("loads known templates and rejects unknown ones", () => {
+    expect(planCommand("TEMPLATE trader")).toEqual({ type: "template", id: "trader" });
+    expect(planCommand("TEMPLATE pirate")).toMatchObject({ type: "error" });
+  });
   it("switches workspaces by name", () => {
     expect(planCommand("WS Morning desk")).toEqual({ type: "workspace", name: "Morning desk" });
   });

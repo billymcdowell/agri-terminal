@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "templates": [
+    {
+      "id": "farmer",
+      "name": "Farmer",
+      "description": "Prices, local weather and drought, crop condition, and the release calendar.",
+      "panels": [
+        { "kind": "market" },
+        { "kind": "weather", "ref": 0, "direction": "right" },
+        { "kind": "drought", "region": "home", "ref": 1, "direction": "within" },
+        { "kind": "crop-condition", "ref": 0, "direction": "below" },
+        { "kind": "news", "ref": 1, "direction": "below" },
+        { "kind": "calendar", "ref": 3, "direction": "within" }
+      ]
+    },
+    {
+      "id": "trader",
+      "name": "Trader",
+      "description": "Prices, positioning, flagged moves with possible drivers, headlines, and releases.",
+      "panels": [
+        { "kind": "market" },
+        { "kind": "cot", "ref": 0, "direction": "right" },
+        { "kind": "moves", "ref": 1, "direction": "within" },
+        { "kind": "news", "ref": 0, "direction": "below" },
+        { "kind": "calendar", "ref": 1, "direction": "below" }
+      ]
+    },
+    {
+      "id": "analyst",
+      "name": "Analyst",
+      "description": "The crop stress timeline beside balance sheets, positioning, and crop condition.",
+      "panels": [
+        { "kind": "crop-stress" },
+        { "kind": "market", "ref": 0, "direction": "below" },
+        { "kind": "wasde", "ref": 0, "direction": "right" },
+        { "kind": "cot", "ref": 2, "direction": "within" },
+        { "kind": "crop-condition", "ref": 2, "direction": "below" },
+        { "kind": "moves", "ref": 4, "direction": "within" }
+      ]
+    },
+    {
+      "id": "student",
+      "name": "Student",
+      "description": "A gentle start: prices, the supply and demand balance sheet, crop condition, and the calendar.",
+      "panels": [
+        { "kind": "market" },
+        { "kind": "wasde", "ref": 0, "direction": "right" },
+        { "kind": "crop-condition", "ref": 1, "direction": "within" },
+        { "kind": "calendar", "ref": 0, "direction": "below" },
+        { "kind": "news", "ref": 1, "direction": "below" }
+      ]
+    }
+  ]
+}

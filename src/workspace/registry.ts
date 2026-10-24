@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { ConfigSchema } from "@/lib/config-schema";
 import type { PanelComponentProps, PanelParams } from "./types";
 
 export type PanelDefinition = {
@@ -8,6 +9,8 @@ export type PanelDefinition = {
   /** Command-bar text that opens this panel. */
   command: string;
   defaultConfig: Partial<PanelParams>;
+  /** Drives the panel's settings form; panels without one have no settings. */
+  configSchema?: ConfigSchema;
   component: ComponentType<PanelComponentProps>;
 };
 

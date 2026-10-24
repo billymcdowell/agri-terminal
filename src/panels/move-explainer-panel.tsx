@@ -1,17 +1,14 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { explainMoves, type Driver, type MoveExplanation } from "@/lib/ipc";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import type { PanelComponentProps } from "@/workspace/types";
 import { EXPLAINER_TEXT } from "./explainer-text";
 import { PanelHeader, usePanelCommodity } from "./panel-header";
 
-const THRESHOLDS = [1.5, 2, 2.5, 3];
 /** Most recent flagged moves shown; older ones stay available through a higher threshold. */
 const MAX_MOVES = 25;
 const driverKey = (symbol: string, move: MoveExplanation, driver: Driver) => `${symbol}|${move.move.date}|${driver.kind}|${driver.title}`;
@@ -39,7 +36,7 @@ function DriverRow({ driver, pinned, onPin, onDismiss }: { driver: Driver; pinne
 
 export function MoveExplainerPanel({ api, params }: PanelComponentProps) {
   const { commodity, change } = usePanelCommodity(params, api);
-  const [threshold, setThreshold] = useState(2);
+  const threshold = params.threshold ?? 2;
   const moves = useQuery({ queryKey: ["moves", commodity, threshold], queryFn: () => explainMoves(commodity, threshold) });
   const [pinned, setPinned] = usePersistedValue<string[]>("explainer.pinned", []);
   const [dismissed, setDismissed] = usePersistedValue<string[]>("explainer.dismissed", []);
@@ -52,10 +49,7 @@ export function MoveExplainerPanel({ api, params }: PanelComponentProps) {
       <PanelHeader eyebrow={EXPLAINER_TEXT.eyebrow} title={EXPLAINER_TEXT.heading(commodity)} api={api} params={params} commodity={commodity} onCommodityChange={change} />
       <p className="panel-freshness">{EXPLAINER_TEXT.intro}</p>
       <div className="explainer-controls">
-        <label htmlFor="explainer-threshold">Sensitivity</label>
-        <NativeSelect size="sm" id="explainer-threshold" value={threshold} onChange={(event) => setThreshold(Number(event.currentTarget.value))}>
-          {THRESHOLDS.map((value) => <NativeSelectOption key={value} value={value}>{value} standard deviations</NativeSelectOption>)}
-        </NativeSelect>
+        <span>Sensitivity: {threshold} standard deviations (change it in panel settings)</span>
         {dismissedCount > 0 && <Button size="xs" variant="ghost" onClick={() => setDismissed([])}>{EXPLAINER_TEXT.restore(dismissedCount)}</Button>}
       </div>
       {moves.data?.length === 0 && <p className="panel-freshness">{EXPLAINER_TEXT.noMoves}</p>}

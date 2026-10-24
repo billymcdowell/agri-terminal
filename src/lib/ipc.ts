@@ -72,6 +72,22 @@ export function runBacktest() { return invoke<BacktestReport>("run_backtest"); }
 export function getSetting(key: string) { return invoke<string | null>("get_setting", { key }); }
 export function setSetting(key: string, value: string) { return invoke<void>("set_setting", { key, value }); }
 
+export type PriceAlert = { id: string; symbol: string; direction: "above" | "below"; threshold: number };
+export type AlertRecord = PriceAlert & { enabled: boolean; triggered: boolean };
+export type AlertFired = { id: string; title: string; body: string };
+export function listAlerts() { return invoke<AlertRecord[]>("list_alerts"); }
+export function saveAlert(alert: PriceAlert) { return invoke<void>("save_alert", { alert }); }
+export function deleteAlert(id: string) { return invoke<void>("delete_alert", { id }); }
+export function setAlertEnabled(id: string, enabled: boolean) { return invoke<void>("set_alert_enabled", { id, enabled }); }
+export function subscribeToAlerts(callback: (alert: AlertFired) => void) {
+  return listen<AlertFired>("alert-fired", (event) => callback(event.payload));
+}
+
+export function getDataDirectory() { return invoke<string>("get_data_directory"); }
+export function listSeries() { return invoke<string[]>("list_series"); }
+export function exportSeriesCsv(seriesId: string) { return invoke<string>("export_series_csv", { seriesId }); }
+export function exportWorkspace(id: string) { return invoke<string>("export_workspace", { id }); }
+
 export type SavedWorkspace = [id: string, name: string, json: string];
 export function listWorkspaces() { return invoke<SavedWorkspace[]>("list_workspaces"); }
 export function saveWorkspace(id: string, name: string, json: string) { return invoke<void>("save_workspace", { id, name, json }); }

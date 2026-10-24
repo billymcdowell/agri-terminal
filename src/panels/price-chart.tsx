@@ -109,6 +109,7 @@ export function PriceChart({ bars, markers = [] }: PriceChartProps) {
   return (
     <div
       ref={containerRef}
+      role="img"
       className="price-chart-canvas"
       aria-label="Futures daily price chart"
     />

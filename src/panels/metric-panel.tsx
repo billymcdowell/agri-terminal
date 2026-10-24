@@ -78,7 +78,7 @@ export function MetricPanel({ api, params }: PanelComponentProps) {
               ))}
             </TableBody>
           </Table>
-          <p className="panel-freshness" data-status={freshness.status}>
+          <p className="panel-freshness" role="status" data-status={freshness.status}>
             {freshness.label}{source ? ` · ${source.name}` : ""}
             {source?.error ? ` · ${source.error}` : ""}
           </p>

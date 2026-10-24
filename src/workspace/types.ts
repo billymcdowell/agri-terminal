@@ -4,6 +4,8 @@ export type PanelParams = {
   region?: string;
   linkGroup?: string;
   workspaceName?: string;
+  /** Move explainer sensitivity in standard deviations. */
+  threshold?: number;
 };
 
 export type PanelApiLike = {

@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
-import { listCalendarEvents, subscribeToDataUpdates } from "@/lib/ipc";
+import { listCalendarEvents, subscribeToAlerts, subscribeToDataUpdates } from "@/lib/ipc";
+import { usePersistedValue } from "@/state/use-persisted-list";
+import { useLinkGroups } from "./link-groups";
 import { dueAlerts } from "./release-alerts";
 
 const SENT_PREFIX = "report-alert:";
@@ -45,4 +47,35 @@ export function useReleaseAlerts() {
     const timer = window.setInterval(() => void check(), 15 * 60_000);
     return () => window.clearInterval(timer);
   }, []);
+}
+
+type StoredGroups = Record<string, { commodity: string }>;
+
+/** Restores link-group commodities on launch and saves them as they change. */
+export function useLinkGroupPersistence() {
+  const [saved, save, ready] = usePersistedValue<StoredGroups | null>("link-groups", null);
+  const hydrated = useRef(false);
+  useEffect(() => {
+    if (!ready || hydrated.current) return;
+    hydrated.current = true;
+    for (const [group, value] of Object.entries(saved ?? {})) useLinkGroups.getState().setCommodity(group, value.commodity);
+  }, [ready, saved]);
+  useEffect(() => useLinkGroups.subscribe((state) => { if (hydrated.current) save(state.groups); }), [save]);
+}
+
+/** Shows a system notification whenever the backend reports that a price alert fired. */
+export function useAlertNotifications() {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    subscribeToAlerts(async (alert) => {
+      void queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      try {
+        if (!(await isPermissionGranted()) && (await requestPermission()) !== "granted") return;
+        sendNotification({ title: alert.title, body: alert.body });
+      } catch { /* The web preview has no notifications. */ }
+    }).then((stop) => { if (cancelled) stop(); else unlisten = stop; }).catch(() => undefined);
+    return () => { cancelled = true; unlisten?.(); };
+  }, [queryClient]);
 }

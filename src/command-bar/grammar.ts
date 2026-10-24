@@ -9,6 +9,9 @@ export type Command =
   | { kind: "cropCondition" }
   | { kind: "stress" }
   | { kind: "moves" }
+  | { kind: "alerts" }
+  | { kind: "settings" }
+  | { kind: "template"; id: string }
   | { kind: "workspace"; name: string };
 
 const commodity = /^[A-Z]{2,3}$/;
@@ -21,6 +24,9 @@ export function parseCommand(input: string): Command | null {
   if (head === "CALENDAR" && parts.length === 1) return { kind: "calendar" };
   if (head === "NEWS" && parts.length === 1) return { kind: "news" };
   if (head === "STRESS" && parts.length === 1) return { kind: "stress" };
+  if (head === "TEMPLATE" && parts.length === 2) return { kind: "template", id: parts[1].toLowerCase() };
+  if (head === "SETTINGS" && parts.length === 1) return { kind: "settings" };
+  if (head === "ALERTS" && parts.length === 1) return { kind: "alerts" };
   if (head === "MOVES" && parts.length === 1) return { kind: "moves" };
   if (head === "CROP" && (parts.length === 1 || (parts.length === 2 && parts[1].toUpperCase() === "CONDITION"))) return { kind: "cropCondition" };
   if (head === "WX" && parts.length > 1) return { kind: "weather", region: parts.slice(1).join(" ").toUpperCase() };

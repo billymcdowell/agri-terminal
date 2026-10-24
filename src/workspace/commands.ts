@@ -1,9 +1,11 @@
 import { parseCommand } from "@/command-bar/grammar";
 import { COMMODITIES, findRegion } from "@/lib/regions";
+import { getTemplate } from "./templates";
 import type { PanelParams } from "./types";
 
 export type CommandPlan =
   | { type: "workspace"; name: string }
+  | { type: "template"; id: string }
   /** Open the panel, or bring forward an existing one of the same kind, and retarget the link group. */
   | { type: "open"; params: PanelParams; retarget?: { group: string; commodity: string } }
   | { type: "error"; message: string };
@@ -31,8 +33,14 @@ export function planCommand(input: string): CommandPlan {
       return { type: "open", params: { kind: "crop-condition", linkGroup: DEFAULT_GROUP } };
     case "wasde":
       return { type: "open", params: { kind: "wasde", linkGroup: DEFAULT_GROUP } };
+    case "template":
+      return getTemplate(command.id) ? { type: "template", id: command.id } : { type: "error", message: `Unknown template ${command.id}. Try farmer, trader, analyst or student.` };
     case "stress":
       return { type: "open", params: { kind: "crop-stress", linkGroup: DEFAULT_GROUP } };
+    case "settings":
+      return { type: "open", params: { kind: "settings" } };
+    case "alerts":
+      return { type: "open", params: { kind: "alerts" } };
     case "moves":
       return { type: "open", params: { kind: "moves", linkGroup: DEFAULT_GROUP } };
     case "calendar":

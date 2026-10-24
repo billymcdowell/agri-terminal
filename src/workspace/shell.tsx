@@ -9,14 +9,18 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { listWorkspaces, saveWorkspace } from "@/lib/ipc";
 import { registerBuiltInPanels, type MarketComponent } from "@/panels/register";
+import { usePersistedValue } from "@/state/use-persisted-list";
 import { planCommand, type CommandPlan } from "@/workspace/commands";
+import { Onboarding } from "@/workspace/onboarding";
+import { panelTitle } from "@/workspace/panel-title";
+import { getTemplate, linkGroupTargets, planTemplate, TEMPLATES, type Profile } from "@/workspace/templates";
 import { GROUP_COLORS, LINK_GROUPS, useLinkGroups } from "@/workspace/link-groups";
 import { panelRootContent } from "@/workspace/panel-root";
 import { getPanel, listPanels } from "@/workspace/registry";
 import { openPopout } from "@/workspace/popout";
 import { restoreWorkspace, serializeWorkspace } from "@/workspace/serialization";
 import type { PanelApiLike, PanelParams } from "@/workspace/types";
-import { useDataUpdateInvalidation, useReleaseAlerts } from "@/workspace/use-workspace-effects";
+import { useAlertNotifications, useDataUpdateInvalidation, useLinkGroupPersistence, useReleaseAlerts } from "@/workspace/use-workspace-effects";
 import { createRoot, type Root } from "react-dom/client";
 
 type Props = { MarketOverview: MarketComponent };
@@ -27,11 +31,6 @@ const DEFAULT_WORKSPACE = { id: "default", name: "Market overview" };
 type DockLayout = Parameters<DockviewApi["fromJSON"]>[0];
 
 const slugify = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "default";
-
-function panelTitle(params: PanelParams) {
-  const title = getPanel(params.kind)?.title ?? params.kind;
-  return params.kind === "drought" && params.region ? `${title} · ${params.region.toUpperCase()}` : title;
-}
 
 function PanelHost({ api, params, name }: { api: PanelApiLike; params: PanelParams; name: string }) {
   const definition = getPanel(params.kind ?? name);
@@ -44,6 +43,9 @@ export function WorkspaceShell({ MarketOverview }: Props) {
   registerBuiltInPanels(MarketOverview);
   useDataUpdateInvalidation();
   useReleaseAlerts();
+  useAlertNotifications();
+  useLinkGroupPersistence();
+  const [profile, setProfile, profileReady] = usePersistedValue<(Profile & { skipped?: boolean }) | null>("profile", null);
   const queryClient = useQueryClient();
   const dockApi = useRef<DockviewApi | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -189,6 +191,33 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     }
   }, []);
 
+  /** Replaces the dock with a template's panels and points link groups at the profile's crops. */
+  const applyTemplate = useCallback((templateId: string, chosen: Pick<Profile, "commodities" | "region">) => {
+    const api = dockApi.current;
+    const template = getTemplate(templateId);
+    if (!api || !template) return;
+    for (const [group, commodity] of Object.entries(linkGroupTargets(chosen.commodities))) useLinkGroups.getState().setCommodity(group, commodity);
+    api.clear();
+    const ids: string[] = [];
+    for (const item of planTemplate(template, chosen)) {
+      const id = crypto.randomUUID();
+      ids.push(id);
+      const merged = { ...getPanel(item.params.kind)?.defaultConfig, ...item.params };
+      api.addPanel({
+        id,
+        component: "panel",
+        title: panelTitle(merged),
+        params: merged,
+        position: item.position ? { referencePanel: ids[item.position.index], direction: item.position.direction } : undefined,
+      });
+    }
+  }, []);
+
+  const completeOnboarding = useCallback((chosen: Profile) => {
+    setProfile(chosen);
+    applyTemplate(chosen.role, chosen);
+  }, [applyTemplate, setProfile]);
+
   const execute = useCallback(async (plan: CommandPlan) => {
     if (plan.type === "error") { setCommandError(plan.message); return; }
     if (plan.type === "workspace") {
@@ -196,12 +225,14 @@ export function WorkspaceShell({ MarketOverview }: Props) {
       // Match an existing workspace by display name first, so renamed workspaces can be switched to.
       const match = (await listWorkspaces().catch(() => [])).find(([id, name]) => id === slugify(plan.name) || name.toLowerCase() === plan.name.toLowerCase());
       await loadWorkspace(match?.[0] ?? slugify(plan.name), match?.[1] ?? plan.name);
+    } else if (plan.type === "template") {
+      applyTemplate(plan.id, profile ?? { commodities: ["ZC"], region: "ia" });
     } else {
       if (plan.retarget) useLinkGroups.getState().setCommodity(plan.retarget.group, plan.retarget.commodity);
       addPanel(plan.params);
     }
     setCommand(""); setCommandError(""); setPaletteOpen(false);
-  }, [addPanel, loadWorkspace, saveLayout]);
+  }, [addPanel, applyTemplate, loadWorkspace, profile, saveLayout]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -236,9 +267,15 @@ export function WorkspaceShell({ MarketOverview }: Props) {
         </div>
       </div>
       <div className="dockview-host" ref={hostRef} />
+      <Onboarding
+        open={profileReady && profile === null}
+        onComplete={completeOnboarding}
+        onSkip={() => setProfile({ role: "student", commodities: ["ZC"], region: "ia", skipped: true })}
+      />
       <CommandDialog open={paletteOpen} onOpenChange={(open) => { setPaletteOpen(open); if (!open) setCommandError(""); }} title="Command bar" description="Open a panel or switch workspace.">
         <Command>
           <CommandInput
+            aria-label="Command"
             value={command}
             onValueChange={(value) => { setCommand(value); setCommandError(""); }}
             placeholder="ZC · ZC COT · WASDE · CROP CONDITION · DROUGHT IOWA · WX IOWA · NEWS · CALENDAR · WS name"
@@ -263,6 +300,13 @@ export function WorkspaceShell({ MarketOverview }: Props) {
                 </CommandItem>
               ))}
               <CommandItem value="WS switch workspace" onSelect={() => setCommand("WS ")}>Switch workspace<span className="command-hint">WS name</span></CommandItem>
+            </CommandGroup>
+            <CommandGroup heading="Templates">
+              {TEMPLATES.map((template) => (
+                <CommandItem key={template.id} value={`template ${template.name} ${template.description}`} onSelect={() => void execute({ type: "template", id: template.id })}>
+                  {template.name} template<span className="command-hint">TEMPLATE {template.id}</span>
+                </CommandItem>
+              ))}
             </CommandGroup>
             {savedWorkspaces.length > 0 && (
               <CommandGroup heading="Workspaces">

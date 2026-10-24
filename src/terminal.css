@@ -374,3 +374,21 @@ button {
 .driver-row details { color: #9ba69a; font-size: 11px; }
 .driver-row details ul { margin: 6px 0 0 16px; }
 .driver-actions { display: flex; gap: 4px; }
+.panel-settings { padding: 12px 0; border-bottom: 1px solid rgba(167,180,164,.12); }
+.schema-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+.schema-field { display: grid; gap: 4px; font-size: 11px; color: #9ba69a; }
+.schema-check { display: flex; align-items: center; gap: 6px; }
+.schema-hint { margin: 0; color: #879187; font-size: 10px; }
+.onboarding-group { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; font-size: 12px; }
+.onboarding-group legend { margin-bottom: 6px; font-size: 11px; color: #9ba69a; letter-spacing: .06em; text-transform: uppercase; }
+.onboarding-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.onboarding-role { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid #343a34; border-radius: 8px; cursor: pointer; }
+.onboarding-role[data-selected="true"] { border-color: #88ac75; }
+.onboarding-role small { display: block; color: #879187; font-size: 11px; }
+
+/* Accessibility: a visible keyboard focus ring on every control, and no motion for users who opt out. */
+.workspace-shell :focus-visible,
+.terminal-shell :focus-visible { outline: 2px solid #a8c393; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

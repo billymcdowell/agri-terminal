@@ -1,4 +1,8 @@
+import { useState } from "react";
+import { RiSettings3Line } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
+import { SchemaForm } from "@/components/schema-form";
+import { getPanel } from "@/workspace/registry";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { COMMODITIES } from "@/lib/regions";
 import { GROUP_COLORS, nextLinkGroup, useLinkGroups } from "@/workspace/link-groups";
@@ -27,7 +31,10 @@ type PanelHeaderProps = {
 
 export function PanelHeader({ eyebrow, title, api, params, commodity, onCommodityChange }: PanelHeaderProps) {
   const group = params.linkGroup;
+  const schema = getPanel(params.kind)?.configSchema;
+  const [configuring, setConfiguring] = useState(false);
   return (
+    <>
     <div className="workspace-panel-heading">
       <div>
         <span className="eyebrow">{eyebrow}</span>
@@ -44,6 +51,11 @@ export function PanelHeader({ eyebrow, title, api, params, commodity, onCommodit
           <span aria-hidden="true" style={{ color: group ? GROUP_COLORS[group] : "#829083" }}>●</span>
           {group ? `LINK ${group}` : "UNLINKED"}
         </Button>
+        {schema && (
+          <Button size="xs" variant="ghost" aria-label="Panel settings" aria-expanded={configuring} onClick={() => setConfiguring((open) => !open)}>
+            <RiSettings3Line aria-hidden="true" />
+          </Button>
+        )}
         {commodity && onCommodityChange && (
           <NativeSelect size="sm" aria-label="Commodity" value={commodity} onChange={(event) => onCommodityChange(event.currentTarget.value)}>
             {COMMODITIES.map((symbol) => <NativeSelectOption key={symbol} value={symbol}>{symbol}</NativeSelectOption>)}
@@ -51,5 +63,11 @@ export function PanelHeader({ eyebrow, title, api, params, commodity, onCommodit
         )}
       </div>
     </div>
+    {schema && configuring && (
+      <section className="panel-settings" aria-label="Panel settings">
+        <SchemaForm schema={schema} values={params as Record<string, unknown>} onChange={(key, value) => api.updateParameters({ [key]: value === "" ? null : value })} />
+      </section>
+    )}
+    </>
   );
 }
