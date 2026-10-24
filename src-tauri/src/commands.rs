@@ -12,6 +12,18 @@ use crate::{
 
 pub struct DbState(pub Mutex<Connection>);
 
+fn with_connection<T>(
+    app: &AppHandle,
+    operation: impl FnOnce(&Connection) -> Result<T, String>,
+) -> Result<T, String> {
+    let state = app.state::<DbState>();
+    let connection = state
+        .0
+        .lock()
+        .map_err(|_| "Database lock is unavailable".to_string())?;
+    operation(&connection)
+}
+
 #[tauri::command]
 pub fn get_series(
     state: State<'_, DbState>,
@@ -54,40 +66,30 @@ pub fn get_databento_key_status() -> bool {
 pub async fn refresh_source(app: AppHandle, source_id: String) -> Result<(), String> {
     match source_id.as_str() {
         "fixture-corn" => {
-            let state = app.state::<DbState>();
-            let connection = state
-                .0
-                .lock()
-                .map_err(|_| "Database lock is unavailable".to_string())?;
-            store::refresh_fixture(&connection)?;
+            with_connection(&app, store::refresh_fixture)?;
         }
         "databento" => {
             let observations = match databento::DatabentoSource.fetch().await {
                 Ok(observations) => observations,
                 Err(error) => {
-                    let state = app.state::<DbState>();
-                    let connection = state
-                        .0
-                        .lock()
-                        .map_err(|_| "Database lock is unavailable".to_string())?;
-                    store::mark_source_error(&connection, "databento", &error.to_string())?;
+                    let message = error.to_string();
+                    with_connection(&app, |connection| {
+                        store::mark_source_error(connection, "databento", &message)
+                    })?;
                     let _ = app.emit("source-status", "databento:error");
-                    return Err(error.to_string());
+                    return Err(message);
                 }
             };
-            let state = app.state::<DbState>();
-            let connection = state
-                .0
-                .lock()
-                .map_err(|_| "Database lock is unavailable".to_string())?;
-            store::append_observations_as_revisions(&connection, &observations)?;
-            store::mark_source_success(
-                &connection,
-                "databento",
-                "Databento · GLBX.MDP3",
-                Utc::now(),
-                false,
-            )?;
+            with_connection(&app, |connection| {
+                store::append_observations_as_revisions(connection, &observations)?;
+                store::mark_source_success(
+                    connection,
+                    "databento",
+                    "Databento · GLBX.MDP3",
+                    Utc::now(),
+                    false,
+                )
+            })?;
         }
         _ => return Err(format!("Unknown source: {source_id}")),
     }
