@@ -5,6 +5,7 @@ use rusqlite::Connection;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::{
+    alerts::{self, AlertRecord, PriceAlert},
     analytics::{
         attribution::{self, MoveExplanation},
         backtest::{self, BacktestReport, LabelFile},
@@ -264,8 +265,14 @@ pub async fn refresh_source(app: AppHandle, source_id: String) -> Result<(), Str
             crate::core::SourceRecord::Metric(row) => row.series_id.0.clone(),
         })
         .collect();
+    let prices_changed = records
+        .iter()
+        .any(|record| matches!(record, crate::core::SourceRecord::Price(_)));
     app.emit("data-updated", changed)
         .map_err(|error| format!("Notify price panels: {error}"))?;
+    if prices_changed {
+        evaluate_alerts(&app)?;
+    }
     app.emit("source-status", format!("{source_id}:ok"))
         .map_err(|error| format!("Notify source status: {error}"))
 }
@@ -419,4 +426,127 @@ pub fn crop_stress_timeline(
     Ok(combined::crop_stress_timeline(
         &prices, &condition, &drought,
     ))
+}
+
+/// Checks every enabled price alert against the newest stored closes and emits `alert-fired`
+/// for each one that newly crosses its threshold.
+fn evaluate_alerts(app: &AppHandle) -> Result<(), String> {
+    let fired = with_connection(app, |connection| {
+        let records = store::list_alerts(connection)?;
+        let mut latest = std::collections::HashMap::new();
+        for symbol in ["ZC", "ZS", "ZW"] {
+            let bars = store::query_series(
+                connection,
+                &format!("price.{symbol}.close"),
+                None,
+                None,
+                None,
+            )?;
+            if let Some(bar) = bars.last() {
+                latest.insert(symbol.to_string(), (bar.period, bar.close));
+            }
+        }
+        let mut fired = Vec::new();
+        for change in alerts::evaluate(&records, &latest) {
+            store::set_alert_triggered(connection, &change.id, change.triggered)?;
+            fired.extend(change.fired);
+        }
+        Ok(fired)
+    })?;
+    for alert in fired {
+        app.emit("alert-fired", alert)
+            .map_err(|error| format!("Notify alert: {error}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_alerts(state: State<'_, DbState>) -> Result<Vec<AlertRecord>, String> {
+    let connection = state
+        .0
+        .lock()
+        .map_err(|_| "Database lock is unavailable".to_string())?;
+    store::list_alerts(&connection)
+}
+
+#[tauri::command]
+pub fn save_alert(app: AppHandle, alert: PriceAlert) -> Result<(), String> {
+    alerts::validate(&alert)?;
+    with_connection(&app, |connection| store::save_alert(connection, &alert))?;
+    evaluate_alerts(&app)
+}
+
+#[tauri::command]
+pub fn delete_alert(state: State<'_, DbState>, id: String) -> Result<(), String> {
+    let connection = state
+        .0
+        .lock()
+        .map_err(|_| "Database lock is unavailable".to_string())?;
+    store::delete_alert(&connection, &id)
+}
+
+#[tauri::command]
+pub fn set_alert_enabled(app: AppHandle, id: String, enabled: bool) -> Result<(), String> {
+    with_connection(&app, |connection| {
+        store::set_alert_enabled(connection, &id, enabled)
+    })?;
+    evaluate_alerts(&app)
+}
+
+fn data_directory(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map_err(|error| format!("Find app data directory: {error}"))
+}
+
+#[tauri::command]
+pub fn get_data_directory(app: AppHandle) -> Result<String, String> {
+    Ok(data_directory(&app)?.display().to_string())
+}
+
+#[tauri::command]
+pub fn list_series(state: State<'_, DbState>) -> Result<Vec<String>, String> {
+    let connection = state
+        .0
+        .lock()
+        .map_err(|_| "Database lock is unavailable".to_string())?;
+    store::list_series_ids(&connection)
+}
+
+/// Writes every stored revision of a series to `exports/<series>.csv` and returns the path.
+#[tauri::command]
+pub fn export_series_csv(app: AppHandle, series_id: String) -> Result<String, String> {
+    let csv = with_connection(&app, |connection| {
+        if series_id.contains("price.") {
+            crate::export::prices_to_csv(&store::query_series(
+                connection, &series_id, None, None, None,
+            )?)
+        } else {
+            crate::export::metrics_to_csv(&store::query_metric_revisions(connection, &series_id)?)
+        }
+    })?;
+    let path = crate::export::write_export(
+        &data_directory(&app)?.join("exports"),
+        &format!("{series_id}.csv"),
+        &csv,
+    )?;
+    Ok(path.display().to_string())
+}
+
+/// Writes a saved workspace's layout JSON to `exports/workspace-<id>.json`.
+#[tauri::command]
+pub fn export_workspace(app: AppHandle, id: String) -> Result<String, String> {
+    let json = with_connection(&app, |connection| {
+        store::list_workspaces(connection)?
+            .into_iter()
+            .find(|(saved_id, _, _)| *saved_id == id)
+            .map(|(_, _, json)| json)
+            .ok_or_else(|| format!("No saved workspace {id}"))
+    })?;
+    let path = crate::export::write_export(
+        &data_directory(&app)?.join("exports"),
+        &format!("workspace-{id}.json"),
+        &json,
+    )?;
+    Ok(path.display().to_string())
 }

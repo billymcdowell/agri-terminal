@@ -4,6 +4,7 @@ use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::{
+    alerts::{AlertRecord, PriceAlert},
     core::{
         CalendarEvent, MetricObservation, NewsItem, Observation, SeriesId, SourceId, SourceRecord,
         SourceStatus, Unit, WeatherForecast, WeatherSnapshot,
@@ -175,6 +176,92 @@ fn migrate(connection: &Connection) -> Result<(), String> {
             )
             .map_err(|error| format!("Create settings schema: {error}"))?;
     }
+    if version < 10 {
+        connection
+            .execute_batch(
+                "BEGIN;
+                CREATE TABLE alerts (
+                    id TEXT PRIMARY KEY,
+                    json TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    triggered INTEGER NOT NULL DEFAULT 0
+                );
+                PRAGMA user_version = 10;
+                COMMIT;",
+            )
+            .map_err(|error| format!("Create alerts schema: {error}"))?;
+    }
+    Ok(())
+}
+
+pub fn save_alert(connection: &Connection, alert: &PriceAlert) -> Result<(), String> {
+    let json = serde_json::to_string(alert).map_err(|error| format!("Serialize alert: {error}"))?;
+    // Editing an alert re-arms it, since its threshold may now be on the other side of the price.
+    connection
+        .execute(
+            "INSERT INTO alerts (id, json) VALUES (?1, ?2)
+             ON CONFLICT(id) DO UPDATE SET json = excluded.json, triggered = 0",
+            params![alert.id, json],
+        )
+        .map_err(|error| format!("Save alert: {error}"))?;
+    Ok(())
+}
+
+pub fn list_alerts(connection: &Connection) -> Result<Vec<AlertRecord>, String> {
+    let mut statement = connection
+        .prepare("SELECT json, enabled, triggered FROM alerts ORDER BY id")
+        .map_err(|error| format!("Prepare alert list: {error}"))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(|error| format!("Query alerts: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Read alert: {error}"))?;
+    rows.into_iter()
+        .map(|(json, enabled, triggered)| {
+            Ok(AlertRecord {
+                alert: serde_json::from_str(&json)
+                    .map_err(|error| format!("Parse stored alert: {error}"))?,
+                enabled: enabled != 0,
+                triggered: triggered != 0,
+            })
+        })
+        .collect()
+}
+
+pub fn delete_alert(connection: &Connection, id: &str) -> Result<(), String> {
+    connection
+        .execute("DELETE FROM alerts WHERE id = ?1", [id])
+        .map_err(|error| format!("Delete alert: {error}"))?;
+    Ok(())
+}
+
+pub fn set_alert_enabled(connection: &Connection, id: &str, enabled: bool) -> Result<(), String> {
+    connection
+        .execute(
+            "UPDATE alerts SET enabled = ?2, triggered = 0 WHERE id = ?1",
+            params![id, enabled],
+        )
+        .map_err(|error| format!("Update alert: {error}"))?;
+    Ok(())
+}
+
+pub fn set_alert_triggered(
+    connection: &Connection,
+    id: &str,
+    triggered: bool,
+) -> Result<(), String> {
+    connection
+        .execute(
+            "UPDATE alerts SET triggered = ?2 WHERE id = ?1",
+            params![id, triggered],
+        )
+        .map_err(|error| format!("Update alert state: {error}"))?;
     Ok(())
 }
 
@@ -925,6 +1012,20 @@ pub fn list_news_between(
     Ok(items)
 }
 
+/// Every series id with stored observations, for the export list.
+pub fn list_series_ids(connection: &Connection) -> Result<Vec<String>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT DISTINCT series_id FROM observations UNION SELECT DISTINCT series_id FROM metric_observations ORDER BY 1",
+        )
+        .map_err(|error| format!("Prepare series list: {error}"))?;
+    statement
+        .query_map([], |row| row.get(0))
+        .map_err(|error| format!("Query series list: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Read series id: {error}"))
+}
+
 pub fn get_setting(connection: &Connection, key: &str) -> Result<Option<String>, String> {
     connection
         .query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
@@ -1176,6 +1277,42 @@ mod tests {
         save_news_items(&connection, &[story("ZC"), story("ZS")]).unwrap();
         assert_eq!(list_news_items(&connection, "ZC").unwrap().len(), 1);
         assert_eq!(list_news_items(&connection, "ZS").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn alerts_are_saved_listed_rearmed_and_deleted() {
+        let connection = test_db();
+        let alert = PriceAlert {
+            id: "a1".into(),
+            symbol: "ZC".into(),
+            direction: crate::alerts::Direction::Above,
+            threshold: 4.5,
+        };
+        save_alert(&connection, &alert).unwrap();
+        set_alert_triggered(&connection, "a1", true).unwrap();
+        assert!(list_alerts(&connection).unwrap()[0].triggered);
+        // Editing re-arms.
+        save_alert(
+            &connection,
+            &PriceAlert {
+                threshold: 5.0,
+                ..alert
+            },
+        )
+        .unwrap();
+        let stored = list_alerts(&connection).unwrap();
+        assert_eq!(
+            (
+                stored[0].alert.threshold,
+                stored[0].triggered,
+                stored[0].enabled
+            ),
+            (5.0, false, true)
+        );
+        set_alert_enabled(&connection, "a1", false).unwrap();
+        assert!(!list_alerts(&connection).unwrap()[0].enabled);
+        delete_alert(&connection, "a1").unwrap();
+        assert!(list_alerts(&connection).unwrap().is_empty());
     }
 
     #[test]

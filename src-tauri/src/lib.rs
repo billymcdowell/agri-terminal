@@ -1,6 +1,8 @@
+mod alerts;
 mod analytics;
 mod commands;
 mod core;
+mod export;
 mod logging;
 mod scheduler;
 mod sources;
@@ -57,6 +59,14 @@ pub fn run() {
             commands::explain_moves,
             commands::crop_stress_timeline,
             commands::run_backtest,
+            commands::list_alerts,
+            commands::save_alert,
+            commands::delete_alert,
+            commands::set_alert_enabled,
+            commands::get_data_directory,
+            commands::list_series,
+            commands::export_series_csv,
+            commands::export_workspace,
             commands::get_setting,
             commands::set_setting
         ])
