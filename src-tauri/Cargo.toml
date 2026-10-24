@@ -38,6 +38,9 @@ tracing-subscriber = "0.3.23"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 tauri-plugin-notification = "2"
 tauri-plugin-store = "2"
+databento = "0.63.0"
+time = "0.3"
+tracing-appender = "0.2.5"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

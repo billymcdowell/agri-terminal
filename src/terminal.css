@@ -220,6 +220,12 @@ button {
   border-radius: 50%;
   background: #c49458;
 }
+.freshness-dot.fresh {
+  background: #8aac75;
+}
+.freshness-dot.stale {
+  background: #c49458;
+}
 .side-stack {
   display: grid;
   gap: 12px;
@@ -270,6 +276,27 @@ button {
   color: #748074;
   font-size: 9px;
   margin-top: 4px;
+}
+.source-dialog-section {
+  display: grid;
+  gap: 12px;
+}
+.source-dialog-note {
+  margin: 2px 0 0;
+  color: #899388;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.source-dialog-success {
+  margin: 0;
+  color: #a8c594;
+  font-size: 11px;
+}
+.source-dialog-error {
+  margin: 0;
+  color: #e38b7a;
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 .empty-chart {
   height: 390px;

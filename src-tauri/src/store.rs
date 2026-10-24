@@ -4,9 +4,11 @@ use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{Connection, params};
 
 use crate::{
-    core::{Observation, SourceStatus},
+    core::{Observation, SeriesId, SourceId, SourceStatus, Unit},
     sources::fixture::corn_daily_fixture,
 };
+
+const DEMO_SERIES_ID: &str = "demo.price.ZC.close";
 
 pub fn open(path: &Path) -> Result<Connection, String> {
     if let Some(parent) = path.parent() {
@@ -79,7 +81,7 @@ pub fn upsert_observations(
         for observation in observations {
             statement
                 .execute(params![
-                    observation.series_id,
+                    &observation.series_id.0,
                     observation.period.to_string(),
                     observation.revision,
                     observation.released_at.to_rfc3339(),
@@ -87,8 +89,8 @@ pub fn upsert_observations(
                     observation.high,
                     observation.low,
                     observation.close,
-                    observation.unit,
-                    observation.source_id,
+                    observation.unit.as_str(),
+                    &observation.source_id.0,
                     observation.fetched_at.to_rfc3339(),
                 ])
                 .map_err(|error| format!("Insert observation: {error}"))?;
@@ -136,7 +138,7 @@ pub fn query_series(
                 let released_at: String = row.get(2)?;
                 let fetched_at: String = row.get(9)?;
                 Ok(Observation {
-                    series_id: row.get(0)?,
+                    series_id: SeriesId::from(row.get::<_, String>(0)?),
                     period: NaiveDate::parse_from_str(&period, "%Y-%m-%d").map_err(|error| {
                         rusqlite::Error::FromSqlConversionFailure(
                             1,
@@ -157,8 +159,20 @@ pub fn query_series(
                     high: row.get(4)?,
                     low: row.get(5)?,
                     close: row.get(6)?,
-                    unit: row.get(7)?,
-                    source_id: row.get(8)?,
+                    unit: {
+                        let stored_unit: String = row.get(7)?;
+                        Unit::from_storage(&stored_unit).map_err(|error| {
+                            rusqlite::Error::FromSqlConversionFailure(
+                                7,
+                                rusqlite::types::Type::Text,
+                                Box::new(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    error,
+                                )),
+                            )
+                        })?
+                    },
+                    source_id: SourceId::from(row.get::<_, String>(8)?),
                     fetched_at: DateTime::parse_from_rfc3339(&fetched_at)
                         .map_err(|error| {
                             rusqlite::Error::FromSqlConversionFailure(
@@ -178,6 +192,95 @@ pub fn query_series(
     Ok(rows)
 }
 
+pub fn append_observations_as_revisions(
+    connection: &Connection,
+    observations: &[Observation],
+) -> Result<usize, String> {
+    let transaction = connection
+        .unchecked_transaction()
+        .map_err(|error| format!("Start revision transaction: {error}"))?;
+    let mut inserted = 0;
+    {
+        let mut revision_query = transaction
+            .prepare(
+                "SELECT COALESCE(MAX(revision), -1) + 1 FROM observations
+                 WHERE series_id = ?1 AND period = ?2",
+            )
+            .map_err(|error| format!("Prepare revision query: {error}"))?;
+        let mut insert = transaction
+            .prepare(
+                "INSERT INTO observations
+                (series_id, period, revision, released_at, open, high, low, close, unit, source_id, fetched_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            )
+            .map_err(|error| format!("Prepare revision insert: {error}"))?;
+        for observation in observations {
+            let revision: i64 = revision_query
+                .query_row(
+                    params![&observation.series_id.0, observation.period.to_string()],
+                    |row| row.get(0),
+                )
+                .map_err(|error| format!("Read observation revision: {error}"))?;
+            insert
+                .execute(params![
+                    &observation.series_id.0,
+                    observation.period.to_string(),
+                    revision,
+                    observation.released_at.to_rfc3339(),
+                    observation.open,
+                    observation.high,
+                    observation.low,
+                    observation.close,
+                    observation.unit.as_str(),
+                    &observation.source_id.0,
+                    observation.fetched_at.to_rfc3339(),
+                ])
+                .map_err(|error| format!("Insert observation revision: {error}"))?;
+            inserted += 1;
+        }
+    }
+    transaction
+        .commit()
+        .map_err(|error| format!("Commit observation revisions: {error}"))?;
+    Ok(inserted)
+}
+
+pub fn mark_source_success(
+    connection: &Connection,
+    source_id: &str,
+    name: &str,
+    last_ok: DateTime<Utc>,
+    is_demo: bool,
+) -> Result<(), String> {
+    connection
+        .execute(
+            "INSERT INTO source_status (source_id, name, state, last_ok, error, is_demo)
+             VALUES (?1, ?2, 'ok', ?3, NULL, ?4)
+             ON CONFLICT(source_id) DO UPDATE SET
+                name = excluded.name, state = excluded.state, last_ok = excluded.last_ok,
+                error = NULL, is_demo = excluded.is_demo",
+            params![source_id, name, last_ok.to_rfc3339(), is_demo],
+        )
+        .map_err(|error| format!("Update source status: {error}"))?;
+    Ok(())
+}
+
+pub fn mark_source_error(
+    connection: &Connection,
+    source_id: &str,
+    error: &str,
+) -> Result<(), String> {
+    connection
+        .execute(
+            "INSERT INTO source_status (source_id, name, state, error, is_demo)
+             VALUES (?1, 'Databento', 'error', ?2, 0)
+             ON CONFLICT(source_id) DO UPDATE SET state = 'error', error = excluded.error",
+            params![source_id, error],
+        )
+        .map_err(|db_error| format!("Update source error status: {db_error}"))?;
+    Ok(())
+}
+
 pub fn list_sources(connection: &Connection) -> Result<Vec<SourceStatus>, String> {
     let mut statement = connection
         .prepare("SELECT source_id, name, state, last_ok, error, is_demo FROM source_status ORDER BY name")
@@ -186,7 +289,7 @@ pub fn list_sources(connection: &Connection) -> Result<Vec<SourceStatus>, String
         .query_map([], |row| {
             let last_ok: Option<String> = row.get(3)?;
             Ok(SourceStatus {
-                source_id: row.get(0)?,
+                source_id: SourceId::from(row.get::<_, String>(0)?),
                 name: row.get(1)?,
                 state: row.get(2)?,
                 last_ok: last_ok
@@ -214,8 +317,8 @@ pub fn list_sources(connection: &Connection) -> Result<Vec<SourceStatus>, String
 fn seed_fixture_if_empty(connection: &Connection) -> Result<(), String> {
     let count: i64 = connection
         .query_row(
-            "SELECT COUNT(*) FROM observations WHERE series_id = 'price.ZC.close'",
-            [],
+            "SELECT COUNT(*) FROM observations WHERE series_id = ?1",
+            [DEMO_SERIES_ID],
             |row| row.get(0),
         )
         .map_err(|error| format!("Check fixture data: {error}"))?;
@@ -226,8 +329,8 @@ fn seed_fixture_if_empty(connection: &Connection) -> Result<(), String> {
 
     let last_ok: Option<String> = connection
         .query_row(
-            "SELECT MAX(released_at) FROM observations WHERE series_id = 'price.ZC.close'",
-            [],
+            "SELECT MAX(released_at) FROM observations WHERE series_id = ?1",
+            [DEMO_SERIES_ID],
             |row| row.get(0),
         )
         .map_err(|error| format!("Read fixture freshness: {error}"))?;

@@ -1,8 +1,21 @@
 use chrono::NaiveDate;
 
-use crate::core::Observation;
+use crate::core::{DataSource, Observation, SeriesId, SourceError, SourceId, Unit};
 
 const CORN_FIXTURE: &str = include_str!("../../../tests/fixtures/corn_daily.csv");
+
+pub struct CornFixtureSource;
+
+#[async_trait::async_trait]
+impl DataSource for CornFixtureSource {
+    fn id(&self) -> &'static str {
+        "fixture-corn"
+    }
+
+    async fn fetch(&self) -> Result<Vec<Observation>, SourceError> {
+        corn_daily_fixture().map_err(SourceError::Parse)
+    }
+}
 
 pub fn corn_daily_fixture() -> Result<Vec<Observation>, String> {
     let mut reader = csv::Reader::from_reader(CORN_FIXTURE.as_bytes());
@@ -28,15 +41,15 @@ pub fn corn_daily_fixture() -> Result<Vec<Observation>, String> {
             .ok_or("Invalid fixture timestamp")?
             .and_utc();
         observations.push(Observation {
-            series_id: "price.ZC.close".into(),
+            series_id: SeriesId::from("demo.price.ZC.close"),
             period,
             released_at,
             open,
             high,
             low,
             close,
-            unit: "USD/bushel".into(),
-            source_id: "fixture-corn".into(),
+            unit: Unit::UsdPerBushel,
+            source_id: SourceId::from("fixture-corn"),
             fetched_at: released_at,
             revision: 0,
         });

@@ -36,8 +36,20 @@ export function refreshSource(sourceId: string) {
   return invoke<void>("refresh_source", { sourceId });
 }
 
+export function saveDatabentoKey(key: string) {
+  return invoke<void>("save_databento_key", { key });
+}
+
+export function getDatabentoKeyStatus() {
+  return invoke<boolean>("get_databento_key_status");
+}
+
 export function subscribeToDataUpdates(
   callback: (seriesIds: string[]) => void,
 ) {
   return listen<string[]>("data-updated", (event) => callback(event.payload));
+}
+
+export function subscribeToSourceStatus(callback: (status: string) => void) {
+  return listen<string>("source-status", (event) => callback(event.payload));
 }

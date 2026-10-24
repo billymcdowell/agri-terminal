@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RiRefreshLine } from "@remixicon/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,22 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PriceChart } from "@/panels/price-chart";
-import { refreshSource } from "@/lib/ipc";
+import {
+  getDatabentoKeyStatus,
+  refreshSource,
+  saveDatabentoKey,
+} from "@/lib/ipc";
 import { useSeries, useSources } from "@/state/use-series";
 
 const SERIES_ID = "price.ZC.close";
@@ -34,9 +48,19 @@ function App() {
   const [range, setRange] = useState<(typeof RANGES)[number]>("ALL");
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [sourceMessage, setSourceMessage] = useState("");
+  const [sourceError, setSourceError] = useState("");
+  const [savingKey, setSavingKey] = useState(false);
   const queryClient = useQueryClient();
   const series = useSeries(SERIES_ID);
   const sources = useSources();
+  const keyStatus = useQuery({
+    queryKey: ["databento-key-status"],
+    queryFn: getDatabentoKeyStatus,
+    staleTime: 60_000,
+  });
 
   const allBars = series.data ?? [];
   const bars = useMemo(() => {
@@ -57,6 +81,12 @@ function App() {
   const fixtureSource = sources.data?.find(
     (source) => source.sourceId === "fixture-corn",
   );
+  const databentoSource = sources.data?.find(
+    (source) => source.sourceId === "databento",
+  );
+  const isDemo = latest?.sourceId !== "databento";
+  const ageMs = latest ? now - new Date(latest.fetchedAt).getTime() : 0;
+  const isStale = isDemo || ageMs > 36 * 60 * 60 * 1000;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -65,16 +95,37 @@ function App() {
 
   async function refresh() {
     setRefreshing(true);
+    setSourceError("");
     try {
-      await refreshSource("fixture-corn");
+      await refreshSource(keyStatus.data ? "databento" : "fixture-corn");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["series", SERIES_ID] }),
         queryClient.invalidateQueries({ queryKey: ["sources"] }),
       ]);
-    } catch {
-      // The chart remains available from SQLite while the bridge is unavailable.
+    } catch (error) {
+      setSourceError(String(error));
+      setSourcesOpen(true);
+      void queryClient.invalidateQueries({ queryKey: ["sources"] });
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function storeApiKey() {
+    setSavingKey(true);
+    setSourceError("");
+    setSourceMessage("");
+    try {
+      await saveDatabentoKey(apiKey);
+      setApiKey("");
+      await queryClient.invalidateQueries({
+        queryKey: ["databento-key-status"],
+      });
+      setSourceMessage("API key saved in the operating system keychain.");
+    } catch (error) {
+      setSourceError(String(error));
+    } finally {
+      setSavingKey(false);
     }
   }
 
@@ -113,7 +164,14 @@ function App() {
                 disabled={refreshing}
               >
                 <RiRefreshLine className={refreshing ? "animate-spin" : ""} />
-                Reload cached
+                {keyStatus.data ? "Refresh prices" : "Reload cached"}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSourcesOpen(true)}
+              >
+                Data sources
               </Button>
             </div>
           </div>
@@ -125,11 +183,15 @@ function App() {
                   <div>
                     <div className="chart-instrument">
                       <span className="instrument-symbol">ZC · CORN</span>
-                      <Badge variant="outline">SIMULATED</Badge>
+                      <Badge variant="outline">
+                        {isDemo ? "SIMULATED" : "CBOT"}
+                      </Badge>
                       <Badge variant="secondary">DAILY</Badge>
                     </div>
                     <div className="instrument-name">
-                      Corn · synthetic demonstration series
+                      {isDemo
+                        ? "Corn · synthetic demonstration series"
+                        : "Corn futures · continuous front month"}
                     </div>
                   </div>
                   <div className="chart-price">
@@ -153,7 +215,9 @@ function App() {
                   </div>
                 </div>
                 <div className="chart-meta-row">
-                  <span>OHLC · Daily sample</span>
+                  <span>
+                    {isDemo ? "OHLC · Daily sample" : "OHLC · Daily bars"}
+                  </span>
                   <div className="range-switcher" aria-label="Chart range">
                     {RANGES.map((item) => (
                       <Button
@@ -207,9 +271,11 @@ function App() {
                 )}
                 <div className="chart-footer">
                   <span className="freshness">
-                    <i className="freshness-dot" />
+                    <i
+                      className={`freshness-dot ${isStale ? "stale" : "fresh"}`}
+                    />
                     {latest
-                      ? `STALE DEMO FIXTURE · ${latest.sourceId} · ${formatAge(latest.releasedAt, now)}`
+                      ? `${isStale ? "STALE" : "FRESH"}${isDemo ? " DEMO FIXTURE" : ""} · ${latest.sourceId} · ${formatAge(latest.fetchedAt, now)}`
                       : "Waiting for local observations"}
                   </span>
                   <span>{allBars.length} observations · cached locally</span>
@@ -224,7 +290,9 @@ function App() {
                     Market snapshot
                   </CardTitle>
                   <div className="side-card-subtitle">
-                    Latest sample close. This is not a market quote.
+                    {isDemo
+                      ? "Latest sample close. This is not a market quote."
+                      : "Latest available corn futures daily bar from Databento."}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -250,15 +318,17 @@ function App() {
                   <div className="source-row">
                     <div>
                       <div className="source-name">
-                        {fixtureSource?.name ?? "Corn price fixture"}
+                        {isDemo
+                          ? (fixtureSource?.name ?? "Corn price fixture")
+                          : (databentoSource?.name ?? "Databento")}
                       </div>
                       <div className="source-detail">
-                        {fixtureSource?.isDemo
-                          ? "Recorded sample data"
-                          : "Source status unavailable"}
+                        {isDemo
+                          ? "Synthetic sample data"
+                          : "Licensed provider · cached locally"}
                       </div>
                     </div>
-                    <Badge variant="outline">DEMO</Badge>
+                    <Badge variant="outline">{isDemo ? "DEMO" : "LIVE"}</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -285,10 +355,14 @@ function App() {
                     <div>
                       <div className="source-name">Price source</div>
                       <div className="source-detail">
-                        Fixture · no API key required
+                        {isDemo
+                          ? "Fixture · no API key required"
+                          : "Databento · daily bars"}
                       </div>
                     </div>
-                    <Badge variant="outline">LOCAL</Badge>
+                    <Badge variant="outline">
+                      {isDemo ? "LOCAL" : "SYNCED"}
+                    </Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -301,7 +375,11 @@ function App() {
         <div className="status-left">
           <span className="status-pill">
             <i className="connection-dot" />
-            STALE DEMO DATA
+            {isDemo
+              ? "STALE DEMO DATA"
+              : isStale
+                ? "STALE MARKET DATA"
+                : "MARKET DATA CURRENT"}
           </span>
           <span>OFFLINE READY</span>
           <span>OBSERVATIONS {allBars.length.toString().padStart(3, "0")}</span>
@@ -311,6 +389,82 @@ function App() {
           <span>AG TERMINAL / 0.1</span>
         </div>
       </footer>
+
+      <Dialog open={sourcesOpen} onOpenChange={setSourcesOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Data sources</DialogTitle>
+            <DialogDescription>
+              Futures prices are requested from Databento with your own key. The
+              key stays in the operating system keychain.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="source-dialog-section">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="source-name">Databento · GLBX.MDP3</div>
+                <div className="source-detail">
+                  {keyStatus.data ? "Key saved" : "No key saved"}
+                  {databentoSource?.lastOk
+                    ? ` · Updated ${formatAge(databentoSource.lastOk, now)}`
+                    : ""}
+                </div>
+              </div>
+              <Badge variant={keyStatus.data ? "secondary" : "outline"}>
+                {keyStatus.data ? "READY" : "OPTIONAL"}
+              </Badge>
+            </div>
+            {databentoSource?.error && (
+              <p className="source-dialog-error">{databentoSource.error}</p>
+            )}
+            <div className="mt-4 grid gap-2">
+              <Label htmlFor="databento-key">API key</Label>
+              <Input
+                id="databento-key"
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                placeholder={
+                  keyStatus.data
+                    ? "Enter a replacement key"
+                    : "Paste your Databento key"
+                }
+                onChange={(event) => setApiKey(event.currentTarget.value)}
+              />
+              <p className="source-dialog-note">
+                Refresh requests 30 days of daily bars, and a background update
+                runs every 24 hours after a key is saved. Databento usage
+                charges may apply. Synthetic sample data remains available
+                offline.
+              </p>
+            </div>
+            {sourceMessage && (
+              <p className="source-dialog-success">{sourceMessage}</p>
+            )}
+            {sourceError && (
+              <p className="source-dialog-error">{sourceError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSourcesOpen(false)}>
+              Close
+            </Button>
+            <Button
+              onClick={storeApiKey}
+              disabled={!apiKey.trim() || savingKey}
+            >
+              {savingKey ? "Saving…" : "Save key"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void refresh()}
+              disabled={!keyStatus.data || refreshing}
+            >
+              {refreshing ? "Loading…" : "Load prices"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,11 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getSeries, listSources, subscribeToDataUpdates } from "@/lib/ipc";
+import {
+  getSeries,
+  listSources,
+  subscribeToDataUpdates,
+  subscribeToSourceStatus,
+} from "@/lib/ipc";
 
 export function useSeries(seriesId: string) {
   const queryClient = useQueryClient();
@@ -33,5 +38,26 @@ export function useSeries(seriesId: string) {
 }
 
 export function useSources() {
-  return useQuery({ queryKey: ["sources"], queryFn: listSources });
+  const queryClient = useQueryClient();
+  const query = useQuery({ queryKey: ["sources"], queryFn: listSources });
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    subscribeToSourceStatus(() => {
+      void queryClient.invalidateQueries({ queryKey: ["sources"] });
+    })
+      .then((stopListening) => {
+        if (cancelled) stopListening();
+        else unlisten = stopListening;
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [queryClient]);
+
+  return query;
 }
