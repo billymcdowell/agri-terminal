@@ -21,30 +21,44 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PriceChart } from "@/panels/price-chart";
+import { PriceChart, type MoveMarker } from "@/panels/price-chart";
 import {
+  explainMoves,
   getDatabentoKeyStatus,
+  getSecretStatus,
   refreshSource,
+  saveSecret,
   saveDatabentoKey,
+  setSourceEnabled,
+  testConnection,
+  type SourceStatus,
 } from "@/lib/ipc";
+import { formatAge } from "@/lib/freshness";
 import { useSeries, useSources } from "@/state/use-series";
+import { WorkspaceShell } from "@/workspace/shell";
 
-const SERIES_ID = "price.ZC.close";
+const COMMODITY_NAMES: Record<string, string> = { ZC: "Corn", ZS: "Soybeans", ZW: "Wheat" };
 const RANGES = ["1W", "1M", "ALL"] as const;
 
-function formatAge(timestamp: string, now: number) {
-  const elapsedMinutes = Math.max(
-    0,
-    Math.floor((now - new Date(timestamp).getTime()) / 60_000),
-  );
-  if (elapsedMinutes < 60) return `${elapsedMinutes}m old`;
-  const elapsedHours = Math.floor(elapsedMinutes / 60);
-  if (elapsedHours < 24) return `${elapsedHours}h old`;
-  const elapsedDays = Math.floor(elapsedHours / 24);
-  return `${elapsedDays}d ${elapsedHours % 24}h old`;
+function SourceControl({ source }: { source: SourceStatus }) {
+  const queryClient = useQueryClient();
+  const [key, setKey] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const needsKey = ["usda-nass", "usda-fas"].includes(source.sourceId);
+  const keyStatus = useQuery({ queryKey: ["secret-status", source.sourceId], queryFn: () => getSecretStatus(source.sourceId), enabled: needsKey });
+  async function perform(action: () => Promise<unknown>, success: string) {
+    setBusy(true); setMessage("");
+    try { await action(); setMessage(success); await queryClient.invalidateQueries({ queryKey: ["sources"] }); await queryClient.invalidateQueries({ queryKey: ["secret-status", source.sourceId] }); }
+    catch (error) { setMessage(String(error)); }
+    finally { setBusy(false); }
+  }
+  return <div className="source-control"><div className="source-control-heading"><div><div className="source-name">{source.name}</div><div className="source-detail">{source.state.toUpperCase()} · {source.lastOk ? `Updated ${new Date(source.lastOk).toLocaleString()}` : "Never refreshed"}{source.nextExpected ? ` · Next ${new Date(source.nextExpected).toLocaleString()}` : ""}</div></div><Badge variant={source.enabled ? "secondary" : "outline"}>{source.enabled ? "ENABLED" : "PAUSED"}</Badge></div>{needsKey && <div className="source-control-key"><Input aria-label={`${source.name} API key`} type="password" autoComplete="off" value={key} onChange={(event) => setKey(event.currentTarget.value)} placeholder={keyStatus.data ? "Saved in OS keychain · replace key" : "API key · stored in OS keychain"} /><Button size="sm" variant="outline" disabled={!key.trim() || busy} onClick={() => void perform(async () => { await saveSecret(source.sourceId, key); setKey(""); }, "Key saved in OS keychain.")}>Save key</Button></div>}<div className="source-control-actions"><Button size="xs" variant="ghost" disabled={busy || !source.enabled} onClick={() => void perform(() => testConnection(source.sourceId), "Connection successful.")}>Test connection</Button><Button size="xs" variant="ghost" disabled={busy || !source.enabled} onClick={() => void perform(() => refreshSource(source.sourceId), "Source refreshed.")}>Refresh now</Button><Button size="xs" variant="ghost" onClick={() => void perform(() => setSourceEnabled(source.sourceId, !source.enabled), source.enabled ? "Source paused." : "Source enabled.")}>{source.enabled ? "Pause" : "Enable"}</Button></div>{(source.error || message) && <p className="source-dialog-error">{message || source.error}</p>}</div>;
 }
 
-function App() {
+export function MarketOverview({ commodity }: { commodity: string }) {
+  const commodityName = COMMODITY_NAMES[commodity] ?? commodity;
+  const seriesId = `price.${commodity}.close`;
   const [range, setRange] = useState<(typeof RANGES)[number]>("ALL");
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -54,13 +68,27 @@ function App() {
   const [sourceError, setSourceError] = useState("");
   const [savingKey, setSavingKey] = useState(false);
   const queryClient = useQueryClient();
-  const series = useSeries(SERIES_ID);
+  const series = useSeries(seriesId);
   const sources = useSources();
   const keyStatus = useQuery({
     queryKey: ["databento-key-status"],
     queryFn: getDatabentoKeyStatus,
     staleTime: 60_000,
   });
+
+  const moves = useQuery({
+    queryKey: ["moves", commodity, 2],
+    queryFn: () => explainMoves(commodity, 2),
+  });
+  const markers = useMemo<MoveMarker[]>(
+    () =>
+      (moves.data ?? []).map((item) => ({
+        date: item.move.date,
+        direction: item.move.logReturn >= 0 ? "up" : "down",
+        text: `${Math.abs(item.move.zScore).toFixed(1)} SD`,
+      })),
+    [moves.data],
+  );
 
   const allBars = series.data ?? [];
   const bars = useMemo(() => {
@@ -84,7 +112,7 @@ function App() {
   const databentoSource = sources.data?.find(
     (source) => source.sourceId === "databento",
   );
-  const isDemo = latest?.sourceId !== "databento";
+  const isDemo = latest !== undefined && latest.sourceId !== "databento";
   const ageMs = latest ? now - new Date(latest.fetchedAt).getTime() : 0;
   const isStale = isDemo || ageMs > 36 * 60 * 60 * 1000;
 
@@ -99,7 +127,7 @@ function App() {
     try {
       await refreshSource(keyStatus.data ? "databento" : "fixture-corn");
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["series", SERIES_ID] }),
+        queryClient.invalidateQueries({ queryKey: ["series", seriesId] }),
         queryClient.invalidateQueries({ queryKey: ["sources"] }),
       ]);
     } catch (error) {
@@ -182,7 +210,7 @@ function App() {
                 <div className="chart-card-head">
                   <div>
                     <div className="chart-instrument">
-                      <span className="instrument-symbol">ZC · CORN</span>
+                      <span className="instrument-symbol">{commodity} · {commodityName.toUpperCase()}</span>
                       <Badge variant="outline">
                         {isDemo ? "SIMULATED" : "CBOT"}
                       </Badge>
@@ -190,8 +218,8 @@ function App() {
                     </div>
                     <div className="instrument-name">
                       {isDemo
-                        ? "Corn · synthetic demonstration series"
-                        : "Corn futures · continuous front month"}
+                        ? `${commodityName} · synthetic demonstration series`
+                        : `${commodityName} futures · continuous front month`}
                     </div>
                   </div>
                   <div className="chart-price">
@@ -256,15 +284,16 @@ function App() {
                   </Empty>
                 ) : bars.length > 0 ? (
                   <div className="chart-container">
-                    <PriceChart bars={bars} />
+                    <PriceChart bars={bars} markers={markers} />
                   </div>
                 ) : (
                   <Empty className="empty-chart">
                     <EmptyHeader>
-                      <EmptyTitle>No price observations yet</EmptyTitle>
+                      <EmptyTitle>No {commodityName.toLowerCase()} prices yet</EmptyTitle>
                       <EmptyDescription>
-                        Once a source has written prices to local storage, the
-                        chart will appear here.
+                        {keyStatus.data
+                          ? "Use Refresh prices to load daily bars into local storage."
+                          : "Add a Databento key under Data sources to load daily bars. Only the corn demonstration series works without a key."}
                       </EmptyDescription>
                     </EmptyHeader>
                   </Empty>
@@ -328,7 +357,7 @@ function App() {
                           : "Licensed provider · cached locally"}
                       </div>
                     </div>
-                    <Badge variant="outline">{isDemo ? "DEMO" : "LIVE"}</Badge>
+                    <Badge variant="outline">{!latest ? "NO DATA" : isDemo ? "DEMO" : "LIVE"}</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -445,6 +474,9 @@ function App() {
               <p className="source-dialog-error">{sourceError}</p>
             )}
           </div>
+          <div className="source-controls-list">
+            {sources.data?.filter((source) => !["databento", "fixture-corn"].includes(source.sourceId)).map((source) => <SourceControl key={source.sourceId} source={source} />)}
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSourcesOpen(false)}>
               Close
@@ -469,4 +501,6 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return <WorkspaceShell MarketOverview={MarketOverview} />;
+}

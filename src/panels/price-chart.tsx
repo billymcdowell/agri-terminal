@@ -3,18 +3,22 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  createSeriesMarkers,
+  type ISeriesMarkersPluginApi,
   type IChartApi,
   type ISeriesApi,
   type Time,
 } from "lightweight-charts";
 import type { PriceBar } from "@/lib/ipc";
 
-type PriceChartProps = { bars: PriceBar[] };
+export type MoveMarker = { date: string; direction: "up" | "down"; text: string };
+type PriceChartProps = { bars: PriceBar[]; markers?: MoveMarker[] };
 
-export function PriceChart({ bars }: PriceChartProps) {
+export function PriceChart({ bars, markers = [] }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const data = useMemo(
     () =>
       bars.map((bar) => ({
@@ -65,6 +69,7 @@ export function PriceChart({ bars }: PriceChartProps) {
 
     chartRef.current = chart;
     seriesRef.current = series;
+    markersRef.current = createSeriesMarkers(series, []);
     const resizeObserver = new ResizeObserver(([entry]) => {
       if (entry)
         chart.resize(entry.contentRect.width, entry.contentRect.height);
@@ -76,8 +81,25 @@ export function PriceChart({ bars }: PriceChartProps) {
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      markersRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const dates = new Set(bars.map((bar) => bar.period));
+    markersRef.current?.setMarkers(
+      markers
+        .filter((marker) => dates.has(marker.date))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((marker) => ({
+          time: marker.date as Time,
+          position: marker.direction === "up" ? ("belowBar" as const) : ("aboveBar" as const),
+          shape: marker.direction === "up" ? ("arrowUp" as const) : ("arrowDown" as const),
+          color: marker.direction === "up" ? "#8aac75" : "#d77b68",
+          text: marker.text,
+        })),
+    );
+  }, [markers, bars]);
 
   useEffect(() => {
     seriesRef.current?.setData(data);
@@ -88,7 +110,7 @@ export function PriceChart({ bars }: PriceChartProps) {
     <div
       ref={containerRef}
       className="price-chart-canvas"
-      aria-label="Corn futures daily price chart"
+      aria-label="Futures daily price chart"
     />
   );
 }

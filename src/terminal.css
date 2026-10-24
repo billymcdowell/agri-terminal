@@ -321,6 +321,33 @@ button {
   color: #b79a70;
 }
 
+.workspace-shell { height: 100vh; display: grid; grid-template-rows: 58px minmax(0, 1fr); background: #0c100d; }
+.workspace-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid rgba(167,180,164,.14); background: #101411; }
+.workspace-name-input { height: 25px; width: 230px; padding: 2px 0; border: 0; background: transparent; color: #e3e8df; font-size: 12px; }
+.workspace-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+.workspace-toolbar kbd { margin-left: 5px; color: #899388; font-size: 10px; }
+.dockview-host { min-width: 0; min-height: 0; }
+.dockview-theme-abyss { --dv-background-color: #0c100d; --dv-group-view-background-color: #0c100d; --dv-tabs-and-actions-container-background-color: #101411; --dv-activegroup-visiblepanel-tab-background-color: #171d18; --dv-activegroup-visiblepanel-tab-color: #dce4d7; --dv-inactivegroup-visiblepanel-tab-color: #7d897d; --dv-separator-border: rgba(167,180,164,.15); --dv-tabs-container-scrollbar-color: #677268; }
+.workspace-panel { height: 100%; padding: 18px; color: #dce4d7; background: #0c100d; }
+.workspace-panel-heading { display:flex; align-items:center; justify-content:space-between; padding-bottom:14px; border-bottom:1px solid rgba(167,180,164,.12); }
+.workspace-panel-heading h2 { margin:5px 0 0; font:600 18px "Instrument Sans Variable",sans-serif; }
+.workspace-panel > p { margin-top:24px; color:#879187; font-size:11px; }
+.commodity-input { width:80px; }
+.link-control { display:flex; align-items:center; gap:8px; margin-top:18px; color:#9ba69a; font-size:10px; }
+.panel-freshness { color:#879187; font-size:10px; margin:12px 0 0; }
+.weather-map { width:100%; height:300px; border:1px solid #343a34; border-radius:8px; overflow:hidden; margin-bottom:12px; background:#1b211d; }
+.weather-map .maplibregl-ctrl-attrib { font-size:9px; }
+.news-list { display:grid; gap:0; max-height:440px; overflow:auto; }
+.news-item { padding:12px 2px; border-bottom:1px solid #303630; }
+.news-item a { color:#e4e7df; font-size:13px; line-height:1.45; text-decoration:none; }
+.news-item a:hover { color:#a8c393; text-decoration:underline; }
+.news-meta { color:#879187; font-size:10px; margin-top:5px; }
+.source-controls-list { display:grid; max-height:340px; overflow:auto; gap:8px; }
+.source-control { padding:10px; border:1px solid rgba(167,180,164,.14); border-radius:7px; background:#0c100d; }
+.source-control-heading,.source-control-actions,.source-control-key { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.source-control-key { margin-top:9px; }
+.source-control-actions { justify-content:flex-start; margin:6px -5px -4px; }
+
 @media (max-width: 1050px) {
   .content-grid {
     grid-template-columns: minmax(0, 1fr) 230px;
@@ -330,3 +357,20 @@ button {
     padding-right: 14px;
   }
 }
+.panel-header-controls { display: flex; align-items: center; gap: 8px; }
+.link-group-button { gap: 5px; font-size: 10px; letter-spacing: .06em; color: #9ba69a; }
+.panel-freshness[data-status="stale"] { color: #c49458; }
+.panel-freshness[data-status="error"] { color: #d77b68; }
+.command-error { margin: 0; padding: 8px 14px; color: #d77b68; font-size: 12px; border-bottom: 1px solid rgba(167,180,164,.14); }
+.command-hint { margin-left: auto; color: #899388; font: 10px "Geist Mono Variable", monospace; }
+.stress-chart { height: 320px; }
+.explainer-controls { display: flex; align-items: center; gap: 10px; margin: 12px 0; font-size: 11px; color: #9ba69a; }
+.driver-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
+.driver-row { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid #303630; font-size: 13px; }
+.driver-row a { color: #e4e7df; text-decoration: none; }
+.driver-row a:hover { color: #a8c393; text-decoration: underline; }
+.driver-head { display: flex; align-items: center; gap: 8px; }
+.driver-time { color: #879187; font-size: 10px; }
+.driver-row details { color: #9ba69a; font-size: 11px; }
+.driver-row details ul { margin: 6px 0 0 16px; }
+.driver-actions { display: flex; gap: 4px; }

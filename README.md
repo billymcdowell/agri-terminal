@@ -14,11 +14,28 @@ Add a Databento API key from **Data sources**. The key is stored in the operatin
 
 ## Current implementation
 
-- Versioned SQLite schema and as-of series queries that select the latest visible revision.
-- Separate fixture and Databento source modules behind a shared async source trait.
-- Keychain storage for the Databento credential.
-- Tauri commands and events for source refresh, status, cached series, and new data.
-- React Query hooks and a candlestick price panel with range selection and a dynamic freshness label.
-- A daily Databento refresh scheduler, started only when a key exists.
+Backend (`src-tauri/src`)
 
-Workspace persistence, additional source connectors, CI checks, automated test coverage, and later roadmap phases are still outstanding. Logs rotate daily under the app data directory; SQLite, logs, plugin files, and cache each have their own location there. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md) and [the product requirements](docs/prd.md).
+- Versioned SQLite schema, as-of series queries, and revisions that never overwrite an observation.
+- One `DataSource` trait with Databento (ZC, ZS, ZW daily bars), CFTC Commitments of Traders, USDA NASS crop condition and progress, USDA FAS balance sheets and export sales, and U.S. Drought Monitor connectors. Weekly reports carry a scheduled `released_at` for backfilled history and the real fetch time for recent rows.
+- A scheduler with per-source cadence, jittered exponential backoff, `Retry-After` handling and catch-up of missed runs at startup.
+- Keychain storage for provider keys, connection tests, and a report calendar seeded from `config/report-calendar.json` (a copy in the app data directory overrides it).
+- NWS and Open-Meteo weather and GDELT plus USDA RSS news, cached locally and refreshed in the background.
+- `analytics`: an as-of join that cannot look ahead, seasonal ranges, move detection, scheduled-event and news attribution with confidence labels, a combined crop stress timeline, and a backtest harness (see `docs/backtest.md`).
+
+Frontend (`src`)
+
+- A dockview workspace with a command bar (`/`), link groups, saved workspaces, pop-out windows (`Alt+P`), and keyboard navigation (`Alt+Left/Right` to cycle panels, `Alt+W` to close).
+- Panels: price chart with flagged-move markers, COT, crop condition, supply and demand, drought, weather, news, report calendar, crop stress timeline, and move explainer.
+
+Not built yet: the declarative plugin loader, the USDA AMS basis connector, the demand pulse and other combined views, onboarding and templates, the alerts engine beyond release notifications, plugin sandboxing and the registry, and packaging. NASS and FAS parsers are tested against invented fixtures shaped from documentation because both need a key; verify them with a keyed response. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md) and [the product requirements](docs/prd.md).
+
+## Checks
+
+```bash
+npm run lint && npm test && npm run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml -- --ignored   # live provider contracts
+```
