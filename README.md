@@ -10,7 +10,7 @@ The corn fixture lives in `tests/fixtures/corn_daily.csv`. It is synthetic demon
 
 ## Price data
 
-Add a Databento API key from **Data sources**. The key is stored in the operating system keychain and is never written to SQLite or logs. **Load prices** requests 30 days of `GLBX.MDP3` daily OHLCV for the continuous corn symbol; provider usage charges may apply. After a key is saved, a background refresh runs every 24 hours. Bars retain their source, release time, fetch time, unit, and revision.
+Add a Databento API key from **Data sources**. The key is stored in the operating system keychain and is never written to SQLite or logs. **Load prices** requests 30 days of `GLBX.MDP3` daily OHLCV for the continuous corn symbol; provider usage charges may apply. CME quotes corn in U.S. cents per bushel, so values are normalized to USD per bushel before storage and display. After a key is saved, a background refresh runs every 24 hours. Bars retain their source, release time, fetch time, unit, and revision.
 
 ## Current implementation
 

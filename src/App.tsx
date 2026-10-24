@@ -30,7 +30,7 @@ import {
 import { useSeries, useSources } from "@/state/use-series";
 
 const SERIES_ID = "price.ZC.close";
-const RANGES = ["1M", "3M", "1Y", "ALL"] as const;
+const RANGES = ["1W", "1M", "ALL"] as const;
 
 function formatAge(timestamp: string, now: number) {
   const elapsedMinutes = Math.max(
@@ -65,7 +65,7 @@ function App() {
   const allBars = series.data ?? [];
   const bars = useMemo(() => {
     if (range === "ALL" || allBars.length === 0) return allBars;
-    const days = range === "1M" ? 31 : range === "3M" ? 93 : 366;
+    const days = range === "1W" ? 7 : 31;
     const lastDate = new Date(
       `${allBars[allBars.length - 1].period}T00:00:00Z`,
     );

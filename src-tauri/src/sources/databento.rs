@@ -108,10 +108,11 @@ pub async fn fetch_daily_corn(
             // The historical API's exact first-publication time is not included in OHLCV records.
             // Use fetch time as a conservative availability boundary for as-of queries.
             released_at: fetched_at,
-            open: record.open as f64 / scale,
-            high: record.high as f64 / scale,
-            low: record.low as f64 / scale,
-            close: record.close as f64 / scale,
+            // CME corn futures are quoted in U.S. cents per bushel; normalize to USD/bushel.
+            open: record.open as f64 / scale / 100.0,
+            high: record.high as f64 / scale / 100.0,
+            low: record.low as f64 / scale / 100.0,
+            close: record.close as f64 / scale / 100.0,
             unit: Unit::UsdPerBushel,
             source_id: SourceId::from("databento"),
             fetched_at,

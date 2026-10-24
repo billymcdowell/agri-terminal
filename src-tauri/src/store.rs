@@ -1,7 +1,7 @@
 use std::{fs, path::Path};
 
 use chrono::{DateTime, NaiveDate, Utc};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::{
     core::{Observation, SeriesId, SourceId, SourceStatus, Unit},
@@ -201,12 +201,13 @@ pub fn append_observations_as_revisions(
         .map_err(|error| format!("Start revision transaction: {error}"))?;
     let mut inserted = 0;
     {
-        let mut revision_query = transaction
+        let mut latest_query = transaction
             .prepare(
-                "SELECT COALESCE(MAX(revision), -1) + 1 FROM observations
-                 WHERE series_id = ?1 AND period = ?2",
+                "SELECT revision, open, high, low, close FROM observations
+                 WHERE series_id = ?1 AND period = ?2
+                 ORDER BY revision DESC LIMIT 1",
             )
-            .map_err(|error| format!("Prepare revision query: {error}"))?;
+            .map_err(|error| format!("Prepare latest observation query: {error}"))?;
         let mut insert = transaction
             .prepare(
                 "INSERT INTO observations
@@ -215,12 +216,30 @@ pub fn append_observations_as_revisions(
             )
             .map_err(|error| format!("Prepare revision insert: {error}"))?;
         for observation in observations {
-            let revision: i64 = revision_query
+            let latest: Option<(i64, f64, f64, f64, f64)> = latest_query
                 .query_row(
                     params![&observation.series_id.0, observation.period.to_string()],
-                    |row| row.get(0),
+                    |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                        ))
+                    },
                 )
-                .map_err(|error| format!("Read observation revision: {error}"))?;
+                .optional()
+                .map_err(|error| format!("Read latest observation: {error}"))?;
+            if latest.is_some_and(|(_, open, high, low, close)| {
+                open == observation.open
+                    && high == observation.high
+                    && low == observation.low
+                    && close == observation.close
+            }) {
+                continue;
+            }
+            let revision = latest.map_or(0, |(revision, ..)| revision + 1);
             insert
                 .execute(params![
                     &observation.series_id.0,
