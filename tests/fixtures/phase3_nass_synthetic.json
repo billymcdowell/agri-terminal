@@ -1,0 +1,10 @@
+{"data":[
+{"week_ending":"2026-10-18","Value":"54","short_desc":"CORN - CONDITION, MEASURED IN PCT GOOD","unit_desc":"PCT GOOD","class_desc":"ALL CLASSES","util_practice_desc":"ALL UTILIZATION PRACTICES","statisticcat_desc":"CONDITION","year":"2026"},
+{"week_ending":"2026-10-18","Value":"12","short_desc":"CORN - CONDITION, MEASURED IN PCT EXCELLENT","unit_desc":"PCT EXCELLENT","class_desc":"ALL CLASSES","util_practice_desc":"ALL UTILIZATION PRACTICES","statisticcat_desc":"CONDITION","year":"2026"},
+{"week_ending":"2026-10-18","Value":"14","short_desc":"CORN - CONDITION, MEASURED IN PCT POOR","unit_desc":"PCT POOR","class_desc":"ALL CLASSES","util_practice_desc":"ALL UTILIZATION PRACTICES","statisticcat_desc":"CONDITION","year":"2026"},
+{"week_ending":"2026-10-18","Value":"4","short_desc":"CORN - CONDITION, MEASURED IN PCT VERY POOR","unit_desc":"PCT VERY POOR","class_desc":"ALL CLASSES","util_practice_desc":"ALL UTILIZATION PRACTICES","statisticcat_desc":"CONDITION","year":"2026"},
+{"week_ending":"2026-10-18","Value":"31","short_desc":"CORN - CONDITION, MEASURED IN PCT FAIR","unit_desc":"PCT FAIR","class_desc":"ALL CLASSES","util_practice_desc":"ALL UTILIZATION PRACTICES","statisticcat_desc":"CONDITION","year":"2026"},
+{"week_ending":"2026-10-18","Value":"60","short_desc":"CORN, SILAGE - PROGRESS, MEASURED IN PCT HARVESTED","unit_desc":"PCT HARVESTED","class_desc":"ALL CLASSES","util_practice_desc":"SILAGE","statisticcat_desc":"PROGRESS","year":"2026"},
+{"week_ending":"2026-10-18","Value":"71","short_desc":"WHEAT, WINTER - CONDITION, MEASURED IN PCT GOOD","unit_desc":"PCT GOOD","class_desc":"WINTER","util_practice_desc":"ALL UTILIZATION PRACTICES","statisticcat_desc":"CONDITION","year":"2026"},
+{"week_ending":"2026-10-18","Value":"80","short_desc":"WHEAT, SPRING, (EXCL DURUM) - CONDITION, MEASURED IN PCT GOOD","unit_desc":"PCT GOOD","class_desc":"SPRING, (EXCL DURUM)","util_practice_desc":"ALL UTILIZATION PRACTICES","statisticcat_desc":"CONDITION","year":"2026"}
+]}

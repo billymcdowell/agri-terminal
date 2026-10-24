@@ -1,0 +1,22 @@
+{
+  "regions": [
+    { "id": "ia", "fips": "19", "name": "Iowa", "latitude": 42.0, "longitude": -93.5 },
+    { "id": "il", "fips": "17", "name": "Illinois", "latitude": 40.0, "longitude": -89.0 },
+    { "id": "ne", "fips": "31", "name": "Nebraska", "latitude": 41.5, "longitude": -99.0 },
+    { "id": "mn", "fips": "27", "name": "Minnesota", "latitude": 46.0, "longitude": -94.0 },
+    { "id": "in", "fips": "18", "name": "Indiana", "latitude": 40.0, "longitude": -86.0 },
+    { "id": "ks", "fips": "20", "name": "Kansas", "latitude": 38.5, "longitude": -98.0 },
+    { "id": "nd", "fips": "38", "name": "North Dakota", "latitude": 47.5, "longitude": -100.5 },
+    { "id": "sd", "fips": "46", "name": "South Dakota", "latitude": 44.5, "longitude": -100.0 },
+    { "id": "oh", "fips": "39", "name": "Ohio", "latitude": 40.5, "longitude": -82.8 }
+  ],
+  "commodities": {
+    "ZC": ["ia", "il", "ne", "mn", "in"],
+    "ZS": ["ia", "il", "ne", "mn", "in", "oh"],
+    "ZW": ["ks", "nd", "sd", "ne"]
+  },
+  "rss_feeds": [
+    { "name": "USDA NASS News", "url": "https://www.nass.usda.gov/rss/news.xml" },
+    { "name": "USDA NASS Reports", "url": "https://www.nass.usda.gov/rss/reports.xml" }
+  ]
+}

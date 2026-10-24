@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "schedules": [
+    { "id": "cftc-cot", "title": "CFTC Commitments of Traders · expected", "kind": "COT", "cadence": "weekly", "weekday": 4, "hour_utc": 19, "minute_utc": 30, "commodity": "ZC, ZS, ZW" },
+    { "id": "nass-crop-progress", "title": "USDA Crop Progress · expected in season", "kind": "NASS", "cadence": "weekly", "weekday": 0, "hour_utc": 20, "minute_utc": 0, "start_month": 4, "end_month": 11, "commodity": "ZC, ZS, ZW" },
+    { "id": "fas-export-sales", "title": "USDA Export Sales · expected", "kind": "Export Sales", "cadence": "weekly", "weekday": 3, "hour_utc": 12, "minute_utc": 30, "commodity": "ZC, ZS, ZW" },
+    { "id": "usda-wasde", "title": "USDA WASDE · expected window", "kind": "WASDE", "cadence": "monthly", "day": 10, "hour_utc": 17, "minute_utc": 0, "commodity": "ZC, ZS, ZW" }
+  ]
+}

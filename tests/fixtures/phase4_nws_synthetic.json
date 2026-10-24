@@ -1,0 +1,16 @@
+{
+  "regions": [{ "id": "ia", "name": "Iowa", "latitude": 42.0, "longitude": -93.5 }],
+  "commodities": { "ZC": ["ia"] },
+  "nws": {
+    "properties": {
+      "periods": [{
+        "startTime": "2026-06-01T12:00:00-05:00",
+        "temperature": 68,
+        "windSpeed": "10 mph",
+        "shortForecast": "Partly Sunny",
+        "probabilityOfPrecipitation": { "value": 30 },
+        "relativeHumidity": { "value": 55 }
+      }]
+    }
+  }
+}
