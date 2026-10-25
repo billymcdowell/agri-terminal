@@ -2,12 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createDockview, type DockviewApi, type IContentRenderer } from "dockview";
 import { useQueryClient } from "@tanstack/react-query";
 import "dockview/dist/styles/dockview.css";
-import { RiAddLine, RiExternalLinkLine, RiSaveLine } from "@remixicon/react";
+import { RiAddLine, RiCheckLine, RiExternalLinkLine, RiSaveLine } from "@remixicon/react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { listWorkspaces, saveWorkspace } from "@/lib/ipc";
 import { registerBuiltInPanels, type MarketComponent } from "@/panels/register";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { planCommand, type CommandPlan } from "@/workspace/commands";
@@ -20,6 +19,8 @@ import { panelRootContent } from "@/workspace/panel-root";
 import { getPanel, listPanels } from "@/workspace/registry";
 import { openPopout } from "@/workspace/popout";
 import { restoreWorkspace, serializeWorkspace } from "@/workspace/serialization";
+import { listSavedWorkspaces, readLocalLayout, removeWorkspace, slugify, storeWorkspace, uniqueWorkspaceId, upsertSummary, type WorkspaceSummary } from "@/workspace/saved-workspaces";
+import { WorkspaceMenu } from "@/workspace/workspace-menu";
 import type { PanelApiLike, PanelParams } from "@/workspace/types";
 import { useAlertNotifications, useDataUpdateInvalidation, useLinkGroupPersistence, useReleaseAlerts } from "@/workspace/use-workspace-effects";
 import { createRoot, type Root } from "react-dom/client";
@@ -27,11 +28,12 @@ import { createRoot, type Root } from "react-dom/client";
 type Props = { MarketOverview: MarketComponent };
 
 const AUTOSAVE_DELAY_MS = 700;
+/** How long the Save button says “Saved” after a save. */
+const SAVED_NOTICE_MS = 2000;
 const LAST_WORKSPACE_KEY = "agri-terminal-workspace-id";
 const DEFAULT_WORKSPACE = { id: "default", name: "Market overview" };
 type DockLayout = Parameters<DockviewApi["fromJSON"]>[0];
-
-const slugify = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "default";
+type SaveStatus = { kind: "idle" } | { kind: "saved" } | { kind: "error"; message: string };
 
 function PanelHost({ api, params, name }: { api: PanelApiLike; params: PanelParams; name: string }) {
   const definition = getPanel(params.kind ?? name);
@@ -55,27 +57,53 @@ export function WorkspaceShell({ MarketOverview }: Props) {
   const workspaceId = useRef(DEFAULT_WORKSPACE.id);
   const workspaceNameRef = useRef(DEFAULT_WORKSPACE.name);
   const [workspaceName, setWorkspaceName] = useState(DEFAULT_WORKSPACE.name);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(DEFAULT_WORKSPACE.id);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "idle" });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [command, setCommand] = useState("");
   const [commandError, setCommandError] = useState("");
   const groups = useLinkGroups((state) => state.groups);
   const palette = usePalette();
-  const [savedWorkspaces, setSavedWorkspaces] = useState<string[]>([]);
+  const [savedWorkspaces, setSavedWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const refreshSavedWorkspaces = useCallback(async () => {
+    const all = await listSavedWorkspaces().catch(() => []);
+    setSavedWorkspaces(all.map(([id, name]) => ({ id, name })));
+  }, []);
   useEffect(() => {
-    if (paletteOpen) void listWorkspaces().then((all) => setSavedWorkspaces(all.map(([, name]) => name))).catch(() => setSavedWorkspaces([]));
-  }, [paletteOpen]);
+    if (paletteOpen) void refreshSavedWorkspaces();
+  }, [paletteOpen, refreshSavedWorkspaces]);
+  useEffect(() => {
+    if (saveStatus.kind !== "saved") return;
+    const timer = window.setTimeout(() => setSaveStatus({ kind: "idle" }), SAVED_NOTICE_MS);
+    return () => window.clearTimeout(timer);
+  }, [saveStatus]);
 
+  /** Writes the dock to the open workspace. Throws when the database refuses the write. */
   const saveLayout = useCallback(async () => {
     const api = dockApi.current;
     if (!api || !restored.current) return;
-    const json = serializeWorkspace(api.toJSON());
-    try { localStorage.setItem(`agri-terminal-workspace:${workspaceId.current}`, json); } catch { /* Storage can be unavailable. */ }
-    try { await saveWorkspace(workspaceId.current, workspaceNameRef.current, json); } catch { /* The web preview has no Tauri backend. */ }
+    // Read the target before awaiting, so a switch mid-save cannot write this layout under the next workspace.
+    const workspace = { id: workspaceId.current, name: workspaceNameRef.current };
+    await storeWorkspace(workspace.id, workspace.name, serializeWorkspace(api.toJSON()));
+    setSavedWorkspaces((list) => upsertSummary(list, workspace));
   }, []);
 
   const scheduleSave = useCallback(() => {
     window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => void saveLayout(), AUTOSAVE_DELAY_MS);
+    saveTimer.current = window.setTimeout(() => {
+      saveLayout().catch((error: unknown) => setSaveStatus({ kind: "error", message: `Autosave failed: ${String(error)}` }));
+    }, AUTOSAVE_DELAY_MS);
+  }, [saveLayout]);
+
+  /** Saves straight away, cancelling any pending autosave, and reports the outcome on the Save button. */
+  const saveNow = useCallback(async () => {
+    window.clearTimeout(saveTimer.current);
+    try {
+      await saveLayout();
+      setSaveStatus({ kind: "saved" });
+    } catch (error) {
+      setSaveStatus({ kind: "error", message: `Could not save: ${String(error)}` });
+    }
   }, [saveLayout]);
 
   const addPanel = useCallback((params: PanelParams) => {
@@ -99,19 +127,24 @@ export function WorkspaceShell({ MarketOverview }: Props) {
   }, []);
 
   /**
-   * Replaces the dock with the named workspace's saved layout, or a fresh default when none is saved.
-   * Returns a message for the user when a saved layout could not be restored.
+   * Replaces the dock with the named workspace's saved layout, or a fresh default when none is saved
+   * or `fresh` is set. Returns a message for the user when a saved layout could not be restored.
    */
-  const loadWorkspace = useCallback(async (id: string, name: string): Promise<string | undefined> => {
+  const loadWorkspace = useCallback(async (id: string, name: string, fresh = false): Promise<string | undefined> => {
     const api = dockApi.current;
     if (!api) return;
+    window.clearTimeout(saveTimer.current);
     restored.current = false;
     workspaceId.current = id;
     workspaceNameRef.current = name;
     setWorkspaceName(name);
+    setActiveWorkspaceId(id);
+    setSaveStatus({ kind: "idle" });
     let json: string | undefined;
-    try { json = (await listWorkspaces()).find(([savedId]) => savedId === id)?.[2]; } catch { /* Fall through to local storage. */ }
-    try { json ??= localStorage.getItem(`agri-terminal-workspace:${id}`) ?? undefined; } catch { /* Storage can be unavailable. */ }
+    if (!fresh) {
+      try { json = (await listSavedWorkspaces()).find(([savedId]) => savedId === id)?.[2]; } catch { /* Fall through to local storage. */ }
+      json ??= readLocalLayout(id);
+    }
     let applied = false;
     let problem: string | undefined;
     if (json) {
@@ -122,8 +155,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
         // Autosave would write the default layout below over this id, so keep the unreadable one under another.
         const backupId = `${id}-unreadable-${Date.now()}`;
         const backupName = `${name} (unreadable copy)`;
-        try { await saveWorkspace(backupId, backupName, json); } catch { /* The web preview has no Tauri backend. */ }
-        try { localStorage.setItem(`agri-terminal-workspace:${backupId}`, json); } catch { /* Storage can be unavailable. */ }
+        try { await storeWorkspace(backupId, backupName, json); } catch { /* Local storage still holds the copy. */ }
         problem = `Workspace “${name}” could not be restored (${String(error)}), so a default layout was opened. The saved layout was kept as “${backupName}”.`;
       }
     }
@@ -168,9 +200,10 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     let lastId = DEFAULT_WORKSPACE.id;
     try { lastId = localStorage.getItem(LAST_WORKSPACE_KEY) ?? lastId; } catch { /* Storage can be unavailable. */ }
     void (async () => {
-      const saved = await listWorkspaces().catch(() => []);
+      const saved = await listSavedWorkspaces().catch(() => []);
       const name = saved.find(([id]) => id === lastId)?.[1] ?? DEFAULT_WORKSPACE.name;
       const problem = await loadWorkspace(lastId, name);
+      await refreshSavedWorkspaces();
       if (problem) { setCommandError(problem); setPaletteOpen(true); }
     })();
     return () => {
@@ -181,12 +214,59 @@ export function WorkspaceShell({ MarketOverview }: Props) {
       dockApi.current = null;
       restored.current = false;
     };
-  }, [queryClient, scheduleSave, loadWorkspace]);
+  }, [queryClient, scheduleSave, loadWorkspace, refreshSavedWorkspaces]);
 
   useEffect(() => {
     workspaceNameRef.current = workspaceName;
     if (restored.current) scheduleSave();
   }, [workspaceName, scheduleSave]);
+
+  /** Saves the open workspace, then opens another. Returns a message when the other could not be restored. */
+  const switchWorkspace = useCallback(async (id: string, name: string, fresh = false) => {
+    try { await saveLayout(); } catch (error) { setSaveStatus({ kind: "error", message: `Could not save before switching: ${String(error)}` }); }
+    const problem = await loadWorkspace(id, name, fresh);
+    await refreshSavedWorkspaces();
+    return problem;
+  }, [loadWorkspace, refreshSavedWorkspaces, saveLayout]);
+
+  const openSavedWorkspace = useCallback(async ({ id, name }: WorkspaceSummary) => {
+    const problem = await switchWorkspace(id, name);
+    if (problem) { setCommandError(problem); setPaletteOpen(true); }
+  }, [switchWorkspace]);
+
+  /** Copies the dock into a new workspace called `name` and carries on in the copy. */
+  const saveAsWorkspace = useCallback(async (name: string) => {
+    window.clearTimeout(saveTimer.current);
+    await saveLayout();
+    const id = uniqueWorkspaceId(name, (await listSavedWorkspaces()).map(([savedId]) => savedId));
+    workspaceId.current = id;
+    workspaceNameRef.current = name;
+    setWorkspaceName(name);
+    setActiveWorkspaceId(id);
+    await saveLayout();
+    try { localStorage.setItem(LAST_WORKSPACE_KEY, id); } catch { /* Storage can be unavailable. */ }
+    setSaveStatus({ kind: "saved" });
+  }, [saveLayout]);
+
+  const createWorkspace = useCallback(async (name: string) => {
+    const id = uniqueWorkspaceId(name, (await listSavedWorkspaces()).map(([savedId]) => savedId));
+    await switchWorkspace(id, name, true);
+    await saveLayout();
+  }, [saveLayout, switchWorkspace]);
+
+  /** Deletes the open workspace and opens the first remaining one. */
+  const deleteActiveWorkspace = useCallback(async () => {
+    const id = workspaceId.current;
+    window.clearTimeout(saveTimer.current);
+    // Stop autosave from writing the workspace back while it is being removed.
+    restored.current = false;
+    try { await removeWorkspace(id); } catch (error) { restored.current = true; throw error; }
+    const next = (await listSavedWorkspaces().catch(() => [])).find(([savedId]) => savedId !== id);
+    const problem = next ? await loadWorkspace(next[0], next[1]) : await loadWorkspace(DEFAULT_WORKSPACE.id, DEFAULT_WORKSPACE.name, true);
+    if (!next) await saveLayout();
+    await refreshSavedWorkspaces();
+    if (problem) { setCommandError(problem); setPaletteOpen(true); }
+  }, [loadWorkspace, refreshSavedWorkspaces, saveLayout]);
 
   const cyclePanel = useCallback((delta: number) => {
     const api = dockApi.current;
@@ -239,10 +319,10 @@ export function WorkspaceShell({ MarketOverview }: Props) {
   const execute = useCallback(async (plan: CommandPlan) => {
     if (plan.type === "error") { setCommandError(plan.message); return; }
     if (plan.type === "workspace") {
-      await saveLayout();
       // Match an existing workspace by display name first, so renamed workspaces can be switched to.
-      const match = (await listWorkspaces().catch(() => [])).find(([id, name]) => id === slugify(plan.name) || name.toLowerCase() === plan.name.toLowerCase());
-      const problem = await loadWorkspace(match?.[0] ?? slugify(plan.name), match?.[1] ?? plan.name);
+      const saved = await listSavedWorkspaces().catch(() => []);
+      const match = saved.find(([, name]) => name.toLowerCase() === plan.name.toLowerCase()) ?? saved.find(([id]) => id === slugify(plan.name));
+      const problem = await switchWorkspace(match?.[0] ?? slugify(plan.name), match?.[1] ?? plan.name);
       if (problem) { setCommand(""); setCommandError(problem); return; }
     } else if (plan.type === "template") {
       applyTemplate(plan.id, profile ?? { commodities: ["ZC"], region: "ia" });
@@ -251,7 +331,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
       addPanel(plan.params);
     }
     setCommand(""); setCommandError(""); setPaletteOpen(false);
-  }, [addPanel, applyTemplate, loadWorkspace, profile, saveLayout]);
+  }, [addPanel, applyTemplate, profile, switchWorkspace]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -272,7 +352,18 @@ export function WorkspaceShell({ MarketOverview }: Props) {
       <div className="workspace-toolbar">
         <div>
           <span className="eyebrow">WORKSPACE</span>
-          <Input aria-label="Workspace name" className="workspace-name-input" value={workspaceName} onChange={(event) => setWorkspaceName(event.currentTarget.value)} />
+          <div className="workspace-title">
+            <Input aria-label="Workspace name" className="workspace-name-input" size={Math.max(workspaceName.length, 8)} value={workspaceName} onChange={(event) => setWorkspaceName(event.currentTarget.value)} />
+            <WorkspaceMenu
+              currentId={activeWorkspaceId}
+              currentName={workspaceName}
+              saved={savedWorkspaces}
+              onSwitch={(workspace) => void openSavedWorkspace(workspace)}
+              onSaveAs={saveAsWorkspace}
+              onCreate={createWorkspace}
+              onDelete={deleteActiveWorkspace}
+            />
+          </div>
         </div>
         <div className="workspace-toolbar-actions">
           {LINK_GROUPS.map((group) => (
@@ -282,7 +373,10 @@ export function WorkspaceShell({ MarketOverview }: Props) {
           ))}
           <Button size="sm" variant="outline" onClick={() => void popOutActive()}><RiExternalLinkLine /> Pop out <kbd>⌥P</kbd></Button>
           <Button size="sm" variant="outline" onClick={() => setPaletteOpen(true)}><RiAddLine /> Add panel <kbd>/</kbd></Button>
-          <Button size="sm" variant="secondary" onClick={() => void saveLayout()}><RiSaveLine /> Save</Button>
+          {saveStatus.kind === "error" && <span role="alert" className="workspace-save-error" title={saveStatus.message}>{saveStatus.message}</span>}
+          <Button size="sm" variant="secondary" onClick={() => void saveNow()}>
+            {saveStatus.kind === "saved" ? <><RiCheckLine /> Saved</> : <><RiSaveLine /> Save</>}
+          </Button>
         </div>
       </div>
       <div className="dockview-host" ref={hostRef} />
@@ -329,8 +423,10 @@ export function WorkspaceShell({ MarketOverview }: Props) {
             </CommandGroup>
             {savedWorkspaces.length > 0 && (
               <CommandGroup heading="Workspaces">
-                {savedWorkspaces.map((name) => (
-                  <CommandItem key={name} value={`workspace ${name}`} onSelect={() => void execute({ type: "workspace", name })}>{name}<span className="command-hint">WS {name}</span></CommandItem>
+                {savedWorkspaces.map((workspace) => (
+                  <CommandItem key={workspace.id} value={`workspace ${workspace.name} ${workspace.id}`} onSelect={() => { setPaletteOpen(false); void openSavedWorkspace(workspace); }}>
+                    {workspace.name}{workspace.id === activeWorkspaceId && <RiCheckLine aria-label="Open" />}<span className="command-hint">WS {workspace.name}</span>
+                  </CommandItem>
                 ))}
               </CommandGroup>
             )}

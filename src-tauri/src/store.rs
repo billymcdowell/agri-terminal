@@ -337,6 +337,13 @@ pub fn list_workspaces(connection: &Connection) -> Result<Vec<(String, String, S
         .map_err(|error| format!("Read workspace: {error}"))
 }
 
+pub fn delete_workspace(connection: &Connection, id: &str) -> Result<(), String> {
+    connection
+        .execute("DELETE FROM workspaces WHERE id = ?1", params![id])
+        .map_err(|error| format!("Delete workspace: {error}"))?;
+    Ok(())
+}
+
 pub fn append_source_records(
     connection: &Connection,
     records: &[SourceRecord],
@@ -1245,6 +1252,20 @@ mod tests {
                 r#"{"version":1,"layout":{}}"#.into()
             )]
         );
+    }
+
+    #[test]
+    fn workspaces_are_kept_apart_and_deleted_by_id() {
+        let connection = test_db();
+        save_workspace(&connection, "default", "Market overview", "{}").unwrap();
+        save_workspace(&connection, "weather", "Weather", "{}").unwrap();
+        delete_workspace(&connection, "default").unwrap();
+        let names: Vec<_> = list_workspaces(&connection)
+            .unwrap()
+            .into_iter()
+            .map(|(_, name, _)| name)
+            .collect();
+        assert_eq!(names, vec!["Weather".to_string()]);
     }
 
     #[test]

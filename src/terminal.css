@@ -322,7 +322,14 @@ button {
 
 .workspace-shell { height: 100vh; display: grid; grid-template-rows: 58px minmax(0, 1fr); background: var(--tone-0c100d); }
 .workspace-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid rgba(var(--line-rgb),.14); background: var(--tone-101411); }
-.workspace-name-input { height: 25px; width: 230px; padding: 2px 0; border: 0; background: transparent; color: var(--tone-e3e8df); font-size: 12px; }
+.workspace-title { display: flex; align-items: center; gap: 2px; }
+/* The input's size attribute fits it to the name, so the workspace menu sits right beside it. */
+.workspace-name-input { height: 25px; width: auto; max-width: 260px; padding: 2px 0; border: 0; background: transparent; color: var(--tone-e3e8df); font-size: 12px; }
+.workspace-menu { min-width: 240px; }
+.workspace-name-form { display: grid; gap: 16px; }
+.workspace-name-field { display: grid; gap: 6px; }
+.workspace-menu-error { margin: 0; color: var(--tone-d77b68); font-size: 12px; }
+.workspace-save-error { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tone-d77b68); font-size: 11px; }
 .workspace-toolbar-actions { display: flex; align-items: center; gap: 8px; }
 .workspace-toolbar kbd { margin-left: 5px; color: var(--tone-899388); font-size: 10px; }
 .dockview-host { min-width: 0; min-height: 0; }

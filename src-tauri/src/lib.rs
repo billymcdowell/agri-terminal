@@ -74,6 +74,7 @@ pub fn run() {
             commands::set_source_enabled,
             commands::list_workspaces,
             commands::save_workspace,
+            commands::delete_workspace,
             commands::explain_moves,
             commands::crop_stress_timeline,
             commands::run_backtest,

@@ -101,6 +101,7 @@ export function savePluginSecret(pluginId: string, name: string, value: string) 
 export type SavedWorkspace = [id: string, name: string, json: string];
 export function listWorkspaces() { return invoke<SavedWorkspace[]>("list_workspaces"); }
 export function saveWorkspace(id: string, name: string, json: string) { return invoke<void>("save_workspace", { id, name, json }); }
+export function deleteWorkspace(id: string) { return invoke<void>("delete_workspace", { id }); }
 
 export function saveDatabentoKey(key: string) {
   return invoke<void>("save_databento_key", { key });

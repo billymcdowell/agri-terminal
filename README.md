@@ -27,7 +27,7 @@ Backend (`src-tauri/src`)
 
 Frontend (`src`)
 
-- A dockview workspace with a command bar (`/`), link groups, saved workspaces, pop-out windows (`Alt+P`), and keyboard navigation (`Alt+Left/Right` to cycle panels, `Alt+W` to close).
+- A dockview workspace with a command bar (`/`), link groups, saved workspaces (the menu beside the workspace name switches between them, saves the layout as a new one, or deletes one; `WS name` switches from the command bar), pop-out windows (`Alt+P`), and keyboard navigation (`Alt+Left/Right` to cycle panels, `Alt+W` to close).
 - Panels: price chart with flagged-move markers, COT, crop condition, supply and demand, drought, weather, news, report calendar, crop stress timeline, move explainer, price alerts, and settings and export. Panel settings forms are generated from each panel's JSON schema and preview live.
 - Dark and light themes (or match the system), USD per bushel or per metric tonne display, and a release-alert lead time from 1 to 48 hours or off, all under `SETTINGS`. The terminal palette is paired dark and light tokens in `src/theme.css`; stored prices stay in USD per bushel.
 - First-run onboarding (role, crops, home state, optional keys) that loads a Farmer, Trader, Analyst or Student template from `config/workspace-templates.json`; `TEMPLATE name` reloads one. Link-group crops persist between launches.

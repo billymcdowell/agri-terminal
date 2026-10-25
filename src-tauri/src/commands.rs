@@ -242,6 +242,15 @@ pub fn save_workspace(
     store::save_workspace(&connection, &id, &name, &json)
 }
 
+#[tauri::command(async)]
+pub fn delete_workspace(state: State<'_, DbState>, id: String) -> Result<(), String> {
+    let connection = state
+        .0
+        .lock()
+        .map_err(|_| "Database lock is unavailable".to_string())?;
+    store::delete_workspace(&connection, &id)
+}
+
 #[tauri::command]
 pub async fn refresh_source(app: AppHandle, source_id: String) -> Result<(), String> {
     let source = resolve_source(&app, &source_id)?;
