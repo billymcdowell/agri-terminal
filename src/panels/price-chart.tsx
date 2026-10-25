@@ -10,6 +10,29 @@ import {
   type Time,
 } from "lightweight-charts";
 import type { PriceBar } from "@/lib/ipc";
+import { usePalette, type Palette } from "@/lib/theme";
+
+const chartOptions = (palette: Palette) => ({
+  layout: {
+    background: { type: ColorType.Solid, color: palette.chartBackground },
+    textColor: palette.text,
+    fontFamily: "'Geist Mono Variable', monospace",
+    fontSize: 11,
+  },
+  grid: { vertLines: { color: palette.grid }, horzLines: { color: palette.gridStrong } },
+  rightPriceScale: { borderColor: palette.border },
+  timeScale: { borderColor: palette.border, timeVisible: false, rightOffset: 4 },
+  crosshair: { vertLine: { color: palette.crosshair }, horzLine: { color: palette.crosshair } },
+});
+
+const seriesOptions = (palette: Palette) => ({
+  upColor: palette.up,
+  downColor: palette.down,
+  borderUpColor: palette.up,
+  borderDownColor: palette.down,
+  wickUpColor: palette.up,
+  wickDownColor: palette.down,
+});
 
 export type MoveMarker = { date: string; direction: "up" | "down"; text: string };
 type PriceChartProps = { bars: PriceBar[]; markers?: MoveMarker[] };
@@ -19,6 +42,9 @@ export function PriceChart({ bars, markers = [] }: PriceChartProps) {
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const palette = usePalette();
+  const paletteRef = useRef(palette);
+  paletteRef.current = palette;
   const data = useMemo(
     () =>
       bars.map((bar) => ({
@@ -35,37 +61,8 @@ export function PriceChart({ bars, markers = [] }: PriceChartProps) {
     const container = containerRef.current;
     if (!container) return;
 
-    const chart = createChart(container, {
-      autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: "#101411" },
-        textColor: "#828c83",
-        fontFamily: "'Geist Mono Variable', monospace",
-        fontSize: 11,
-      },
-      grid: {
-        vertLines: { color: "rgba(167, 180, 164, 0.07)" },
-        horzLines: { color: "rgba(167, 180, 164, 0.09)" },
-      },
-      rightPriceScale: { borderColor: "rgba(167, 180, 164, 0.14)" },
-      timeScale: {
-        borderColor: "rgba(167, 180, 164, 0.14)",
-        timeVisible: false,
-        rightOffset: 4,
-      },
-      crosshair: {
-        vertLine: { color: "#889488" },
-        horzLine: { color: "#889488" },
-      },
-    });
-    const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#8aac75",
-      downColor: "#d77b68",
-      borderUpColor: "#8aac75",
-      borderDownColor: "#d77b68",
-      wickUpColor: "#8aac75",
-      wickDownColor: "#d77b68",
-    });
+    const chart = createChart(container, { autoSize: true, ...chartOptions(paletteRef.current) });
+    const series = chart.addSeries(CandlestickSeries, seriesOptions(paletteRef.current));
 
     chartRef.current = chart;
     seriesRef.current = series;
@@ -86,6 +83,11 @@ export function PriceChart({ bars, markers = [] }: PriceChartProps) {
   }, []);
 
   useEffect(() => {
+    chartRef.current?.applyOptions(chartOptions(palette));
+    seriesRef.current?.applyOptions(seriesOptions(palette));
+  }, [palette]);
+
+  useEffect(() => {
     const dates = new Set(bars.map((bar) => bar.period));
     markersRef.current?.setMarkers(
       markers
@@ -95,11 +97,11 @@ export function PriceChart({ bars, markers = [] }: PriceChartProps) {
           time: marker.date as Time,
           position: marker.direction === "up" ? ("belowBar" as const) : ("aboveBar" as const),
           shape: marker.direction === "up" ? ("arrowUp" as const) : ("arrowDown" as const),
-          color: marker.direction === "up" ? "#8aac75" : "#d77b68",
+          color: marker.direction === "up" ? palette.up : palette.down,
           text: marker.text,
         })),
     );
-  }, [markers, bars]);
+  }, [markers, bars, palette]);
 
   useEffect(() => {
     seriesRef.current?.setData(data);

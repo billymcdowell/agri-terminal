@@ -11,10 +11,11 @@ import { listWorkspaces, saveWorkspace } from "@/lib/ipc";
 import { registerBuiltInPanels, type MarketComponent } from "@/panels/register";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { planCommand, type CommandPlan } from "@/workspace/commands";
+import { usePalette } from "@/lib/theme";
 import { Onboarding } from "@/workspace/onboarding";
 import { panelTitle } from "@/workspace/panel-title";
 import { getTemplate, linkGroupTargets, planTemplate, TEMPLATES, type Profile } from "@/workspace/templates";
-import { GROUP_COLORS, LINK_GROUPS, useLinkGroups } from "@/workspace/link-groups";
+import { LINK_GROUPS, useLinkGroups } from "@/workspace/link-groups";
 import { panelRootContent } from "@/workspace/panel-root";
 import { getPanel, listPanels } from "@/workspace/registry";
 import { openPopout } from "@/workspace/popout";
@@ -58,6 +59,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
   const [command, setCommand] = useState("");
   const [commandError, setCommandError] = useState("");
   const groups = useLinkGroups((state) => state.groups);
+  const palette = usePalette();
   const [savedWorkspaces, setSavedWorkspaces] = useState<string[]>([]);
   useEffect(() => {
     if (paletteOpen) void listWorkspaces().then((all) => setSavedWorkspaces(all.map(([, name]) => name))).catch(() => setSavedWorkspaces([]));
@@ -249,7 +251,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
   }, [cyclePanel, popOutActive]);
 
   return (
-    <div className="workspace-shell dark">
+    <div className="workspace-shell">
       <div className="workspace-toolbar">
         <div>
           <span className="eyebrow">WORKSPACE</span>
@@ -258,7 +260,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
         <div className="workspace-toolbar-actions">
           {LINK_GROUPS.map((group) => (
             <Badge key={group} variant="outline" aria-label={`Link group ${group} is ${groups[group].commodity}`}>
-              <span aria-hidden="true" style={{ color: GROUP_COLORS[group] }}>●</span> {group} · {groups[group].commodity}
+              <span aria-hidden="true" style={{ color: palette.groups[group] }}>●</span> {group} · {groups[group].commodity}
             </Badge>
           ))}
           <Button size="sm" variant="outline" onClick={() => void popOutActive()}><RiExternalLinkLine /> Pop out <kbd>⌥P</kbd></Button>

@@ -5,7 +5,8 @@ import { SchemaForm } from "@/components/schema-form";
 import { getPanel } from "@/workspace/registry";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { COMMODITIES } from "@/lib/regions";
-import { GROUP_COLORS, nextLinkGroup, useLinkGroups } from "@/workspace/link-groups";
+import { usePalette } from "@/lib/theme";
+import { nextLinkGroup, useLinkGroups } from "@/workspace/link-groups";
 import type { PanelApiLike, PanelParams } from "@/workspace/types";
 
 /** Resolves a panel's commodity: the link group's when linked, otherwise the panel's own. */
@@ -31,6 +32,7 @@ type PanelHeaderProps = {
 
 export function PanelHeader({ eyebrow, title, api, params, commodity, onCommodityChange }: PanelHeaderProps) {
   const group = params.linkGroup;
+  const palette = usePalette();
   const schema = getPanel(params.kind)?.configSchema;
   const [configuring, setConfiguring] = useState(false);
   return (
@@ -48,7 +50,7 @@ export function PanelHeader({ eyebrow, title, api, params, commodity, onCommodit
           aria-label={group ? `Link group ${group}. Change group` : "Not linked. Choose a link group"}
           onClick={() => api.updateParameters({ linkGroup: nextLinkGroup(group) ?? null })}
         >
-          <span aria-hidden="true" style={{ color: group ? GROUP_COLORS[group] : "#829083" }}>●</span>
+          <span aria-hidden="true" style={{ color: group ? palette.groups[group] : palette.muted }}>●</span>
           {group ? `LINK ${group}` : "UNLINKED"}
         </Button>
         {schema && (

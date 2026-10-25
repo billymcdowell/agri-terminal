@@ -22,7 +22,7 @@ export function PopoutApp({ initial, Market }: { initial: PanelParams; Market: M
   if (!definition) return <p>Unknown panel type “{params.kind}”.</p>;
   const Component = definition.component;
   return (
-    <div className="workspace-shell dark" style={{ display: "block" }}>
+    <div className="workspace-shell" style={{ display: "block" }}>
       <Component api={api} params={params} />
     </div>
   );

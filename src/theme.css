@@ -1,0 +1,93 @@
+/* Terminal palette as paired tokens: each tone is the dark value, and the light theme redefines it.
+   Tones are named by their dark hex so the dark theme reads exactly as designed; the light values are
+   the same hue and saturation at inverted lightness, darkened where needed so text and accents keep
+   at least 4.5:1 contrast on the light surfaces. */
+:root {
+  color-scheme: dark;
+  --line-rgb: 167, 180, 164;
+  --accent-rgb: 138, 172, 117;
+  --tone-0c100d: #0c100d;
+  --tone-101411: #101411;
+  --tone-171d18: #171d18;
+  --tone-1b211d: #1b211d;
+  --tone-303630: #303630;
+  --tone-343a34: #343a34;
+  --tone-677268: #677268;
+  --tone-69746b: #69746b;
+  --tone-738076: #738076;
+  --tone-748074: #748074;
+  --tone-748075: #748075;
+  --tone-758076: #758076;
+  --tone-768176: #768176;
+  --tone-778278: #778278;
+  --tone-788379: #788379;
+  --tone-7d897d: #7d897d;
+  --tone-879187: #879187;
+  --tone-889188: #889188;
+  --tone-88ac75: #88ac75;
+  --tone-899388: #899388;
+  --tone-8a958a: #8a958a;
+  --tone-8aac75: #8aac75;
+  --tone-9ba69a: #9ba69a;
+  --tone-a1bd8c: #a1bd8c;
+  --tone-a6bd92: #a6bd92;
+  --tone-a8c393: #a8c393;
+  --tone-a8c594: #a8c594;
+  --tone-b79a70: #b79a70;
+  --tone-b88d58: #b88d58;
+  --tone-c1d0b3: #c1d0b3;
+  --tone-c49458: #c49458;
+  --tone-c8d0c5: #c8d0c5;
+  --tone-d77b68: #d77b68;
+  --tone-dce3d8: #dce3d8;
+  --tone-dce4d7: #dce4d7;
+  --tone-e38b7a: #e38b7a;
+  --tone-e3e8df: #e3e8df;
+  --tone-e4e7df: #e4e7df;
+  --tone-e5eadf: #e5eadf;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --line-rgb: 40, 56, 42;
+  --accent-rgb: 70, 110, 52;
+  --tone-0c100d: #eff3f0;
+  --tone-101411: #ebefec;
+  --tone-171d18: #e2e8e3;
+  --tone-1b211d: #dee4e0;
+  --tone-303630: #c9cfc9;
+  --tone-343a34: #c5cbc5;
+  --tone-677268: #626c63;
+  --tone-69746b: #636d64;
+  --tone-738076: #616c64;
+  --tone-748074: #616b61;
+  --tone-748075: #616b62;
+  --tone-758076: #646d65;
+  --tone-768176: #636c63;
+  --tone-778278: #626b63;
+  --tone-788379: #636d64;
+  --tone-7d897d: #636d63;
+  --tone-879187: #646d64;
+  --tone-889188: #646c64;
+  --tone-88ac75: #537144;
+  --tone-899388: #636c62;
+  --tone-8a958a: #636d63;
+  --tone-8aac75: #557144;
+  --tone-9ba69a: #5a6559;
+  --tone-a1bd8c: #557040;
+  --tone-a6bd92: #566d42;
+  --tone-a8c393: #516c3c;
+  --tone-a8c594: #4e6b3a;
+  --tone-b79a70: #7e643f;
+  --tone-b88d58: #876439;
+  --tone-c1d0b3: #3d4c2f;
+  --tone-c49458: #896230;
+  --tone-c8d0c5: #323a2f;
+  --tone-d77b68: #973b28;
+  --tone-dce3d8: #20271c;
+  --tone-dce4d7: #20281b;
+  --tone-e38b7a: #852d1c;
+  --tone-e3e8df: #1b2017;
+  --tone-e4e7df: #1d2018;
+  --tone-e5eadf: #1b2015;
+}

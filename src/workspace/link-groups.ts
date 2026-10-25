@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 export const LINK_GROUPS = ["A", "B", "C"] as const;
-export const GROUP_COLORS: Record<string, string> = { A: "#88ac75", B: "#c49458", C: "#7a9db8" };
 
 /** The next group in the cycle A, B, C, off, A... */
 export function nextLinkGroup(current: string | undefined): string | undefined {
