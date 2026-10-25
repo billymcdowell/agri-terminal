@@ -10,10 +10,10 @@ pub struct CornFixtureSource;
 
 #[async_trait::async_trait]
 impl DataSource for CornFixtureSource {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         "fixture-corn"
     }
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "Corn price fixture"
     }
     fn cadence(&self) -> Cadence {

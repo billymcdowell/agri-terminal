@@ -21,10 +21,10 @@ pub struct DatabentoSource;
 
 #[async_trait::async_trait]
 impl DataSource for DatabentoSource {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         "databento"
     }
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "Databento · GLBX.MDP3"
     }
     fn cadence(&self) -> Cadence {

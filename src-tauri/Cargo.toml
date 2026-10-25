@@ -41,6 +41,7 @@ tauri-plugin-store = "2"
 databento = "0.63.0"
 time = "0.3"
 tracing-appender = "0.2.5"
+url = "2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

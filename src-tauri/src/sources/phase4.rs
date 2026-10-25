@@ -24,9 +24,6 @@ pub struct CropRegionConfig {
 #[derive(Clone, Deserialize)]
 pub struct CropRegion {
     pub id: String,
-    /// Two-digit state FIPS code used by state-level providers such as the Drought Monitor.
-    #[serde(default)]
-    pub fips: Option<String>,
     pub name: String,
     pub latitude: f64,
     pub longitude: f64,

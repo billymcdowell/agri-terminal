@@ -4,15 +4,13 @@ use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{
-    core::{Cadence, DataSource, MetricObservation, SeriesId, SourceError, SourceId, SourceRecord},
-    sources::phase4::CropRegionConfig,
+use crate::core::{
+    Cadence, DataSource, MetricObservation, SeriesId, SourceError, SourceId, SourceRecord,
 };
 
 const CFTC_URL: &str = "https://publicreporting.cftc.gov/resource/72hh-3qpy.json";
 const NASS_URL: &str = "https://quickstats.nass.usda.gov/api/api_GET/";
 const FAS_URL: &str = "https://api.fas.usda.gov/api/";
-const DROUGHT_URL: &str = "https://usdmdataservices.unl.edu/api/StateStatistics/GetDroughtSeverityStatisticsByAreaPercent";
 
 /// CFTC contract-market codes: CBOT corn, CBOT soybeans and CBOT SRW wheat (the ZW contract).
 /// Matching on names would also pull HRW and spring wheat into the same series.
@@ -25,7 +23,6 @@ const CFTC_CONTRACTS: [(&str, &str); 3] = [
 pub struct CftcSource;
 pub struct NassSource;
 pub struct FasSource;
-pub struct DroughtSource;
 
 pub fn has_secret(id: &str) -> bool {
     keyring::Entry::new("com.williammcdowell.agri-terminal", id)
@@ -35,10 +32,10 @@ pub fn has_secret(id: &str) -> bool {
 
 #[async_trait::async_trait]
 impl DataSource for CftcSource {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         "cftc-cot"
     }
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "CFTC Commitments of Traders"
     }
     fn cadence(&self) -> Cadence {
@@ -76,10 +73,10 @@ impl DataSource for CftcSource {
 
 #[async_trait::async_trait]
 impl DataSource for NassSource {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         "usda-nass"
     }
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "USDA NASS QuickStats"
     }
     fn cadence(&self) -> Cadence {
@@ -127,10 +124,10 @@ impl DataSource for NassSource {
 
 #[async_trait::async_trait]
 impl DataSource for FasSource {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         "usda-fas"
     }
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "USDA FAS OpenData"
     }
     fn cadence(&self) -> Cadence {
@@ -189,55 +186,6 @@ impl DataSource for FasSource {
             all.extend(parse_fas_esr(&rows, commodity, Utc::now())?);
         }
         Ok(all.into_iter().map(SourceRecord::Metric).collect())
-    }
-}
-
-#[async_trait::async_trait]
-impl DataSource for DroughtSource {
-    fn id(&self) -> &'static str {
-        "us-drought-monitor"
-    }
-    fn name(&self) -> &'static str {
-        "U.S. Drought Monitor"
-    }
-    fn cadence(&self) -> Cadence {
-        Cadence::Weekly
-    }
-    async fn fetch(&self) -> Result<Vec<SourceRecord>, SourceError> {
-        let config: CropRegionConfig =
-            serde_json::from_str(include_str!("../../../config/crop-regions.json"))
-                .map_err(|error| SourceError::Parse(error.to_string()))?;
-        let states = config
-            .regions
-            .iter()
-            .filter_map(|region| region.fips.as_deref())
-            .collect::<Vec<_>>()
-            .join(",");
-        let today = Utc::now().date_naive();
-        let start = today - chrono::Duration::days(365);
-        let response = reqwest::Client::new()
-            .get(DROUGHT_URL)
-            .query(&[
-                ("aoi", states.as_str()),
-                ("startdate", &start.format("%-m/%-d/%Y").to_string()),
-                ("enddate", &today.format("%-m/%-d/%Y").to_string()),
-                ("statisticsType", "1"),
-            ])
-            .header(reqwest::header::ACCEPT, "application/json")
-            .send()
-            .await
-            .map_err(|_| SourceError::Transient("Drought Monitor request failed".into()))?;
-        if !response.status().is_success() {
-            return Err(http_error(&response));
-        }
-        let rows: Vec<Value> = response
-            .json()
-            .await
-            .map_err(|error| SourceError::Parse(error.to_string()))?;
-        Ok(parse_drought_rows(&rows, Utc::now())?
-            .into_iter()
-            .map(SourceRecord::Metric)
-            .collect())
     }
 }
 
@@ -538,54 +486,17 @@ fn parse_fas_esr(
         .collect())
 }
 
-fn parse_flexible_date(value: &str) -> Option<NaiveDate> {
+pub(crate) fn parse_flexible_date(value: &str) -> Option<NaiveDate> {
     value
         .get(..10)
         .and_then(|prefix| NaiveDate::parse_from_str(prefix, "%Y-%m-%d").ok())
         .or_else(|| NaiveDate::parse_from_str(value, "%m/%d/%Y").ok())
 }
 
-fn parse_drought_rows(
-    rows: &[Value],
-    fetched: DateTime<Utc>,
-) -> Result<Vec<MetricObservation>, SourceError> {
-    let mut out = Vec::new();
-    for row in rows {
-        let Some(date) = first_string(row, &["mapDate", "MapDate", "date"]) else {
-            continue;
-        };
-        let period = parse_flexible_date(&date)
-            .ok_or_else(|| SourceError::Parse(format!("Unrecognized drought map date: {date}")))?;
-        let region = first_string(row, &["stateAbbreviation", "StateAbbreviation", "state"])
-            .unwrap_or_else(|| "US".to_string())
-            .to_lowercase();
-        // Maps are valid Tuesday and published Thursday 8:30 a.m. ET.
-        let released_at = scheduled_release(period, 2, 12, 30, fetched);
-        for level in ["D0", "D1", "D2", "D3", "D4"] {
-            let value = row
-                .get(level)
-                .or_else(|| row.get(level.to_lowercase()))
-                .and_then(parse_value);
-            if let Some(value) = value {
-                out.push(metric(
-                    &format!("drought.{region}.{level}"),
-                    period,
-                    released_at,
-                    fetched,
-                    value,
-                    "percent",
-                    "us-drought-monitor",
-                ));
-            }
-        }
-    }
-    Ok(out)
-}
-
 /// Weekly agency reports publish on a fixed schedule after their reference period. For backfilled
 /// history the first time the app saw a row says nothing about when it became public, so rows
 /// older than a week use the scheduled release; recent rows keep the later, real fetch time.
-fn scheduled_release(
+pub(crate) fn scheduled_release(
     period: NaiveDate,
     days_after: i64,
     hour_utc: u32,
@@ -602,7 +513,7 @@ fn scheduled_release(
     }
 }
 
-fn metric(
+pub(crate) fn metric(
     series: &str,
     period: NaiveDate,
     released_at: DateTime<Utc>,
@@ -625,7 +536,7 @@ fn metric(
 fn parse_number(value: &str) -> Option<f64> {
     value.replace(',', "").parse().ok()
 }
-fn parse_value(value: &Value) -> Option<f64> {
+pub(crate) fn parse_value(value: &Value) -> Option<f64> {
     value
         .as_f64()
         .or_else(|| value.as_str().and_then(parse_number))
@@ -839,22 +750,6 @@ mod tests {
     }
 
     #[test]
-    fn drought_recorded_response_maps_cumulative_categories() {
-        let rows: Vec<Value> = serde_json::from_str(include_str!(
-            "../../../tests/fixtures/drought_monitor_recorded.json"
-        ))
-        .unwrap();
-        let fetched = at("2026-10-24T12:00:00Z");
-        let parsed = parse_drought_rows(&rows, fetched).unwrap();
-        assert_eq!(parsed.len(), 10);
-        assert_eq!(parsed[0].series_id.0, "drought.ia.D0");
-        assert_eq!(parsed[0].period.to_string(), "2026-10-20");
-        assert_eq!(parsed[0].value, 1.35);
-        assert_eq!(parsed[0].released_at, fetched);
-        assert_eq!(parsed[5].released_at, at("2026-10-15T12:30:00Z"));
-    }
-
-    #[test]
     fn scheduled_release_never_claims_a_release_after_the_fetch() {
         let fetched = at("2026-10-24T12:00:00Z");
         let period = NaiveDate::from_ymd_opt(2026, 10, 23).unwrap();
@@ -897,15 +792,5 @@ mod tests {
         }
         let records = tauri::async_runtime::block_on(FasSource.fetch()).unwrap();
         assert!(!records.is_empty());
-    }
-
-    #[test]
-    #[ignore = "live Drought Monitor contract check; run in nightly CI"]
-    fn live_drought_contract() {
-        let records = tauri::async_runtime::block_on(DroughtSource.fetch()).unwrap();
-        let metrics = live_metrics(&records);
-        assert!(metrics.iter().any(|row| row.series_id.0 == "drought.ia.D0"));
-        assert!(metrics.iter().any(|row| row.series_id.0 == "drought.ks.D4"));
-        assert_unique_periods(&metrics);
     }
 }

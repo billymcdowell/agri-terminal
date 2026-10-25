@@ -70,8 +70,8 @@ pub enum SourceError {
 
 #[async_trait::async_trait]
 pub trait DataSource: Send + Sync {
-    fn id(&self) -> &'static str;
-    fn name(&self) -> &'static str;
+    fn id(&self) -> &str;
+    fn name(&self) -> &str;
     fn cadence(&self) -> Cadence;
     async fn fetch(&self) -> Result<Vec<SourceRecord>, SourceError>;
 }

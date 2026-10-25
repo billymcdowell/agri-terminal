@@ -4,6 +4,7 @@ mod commands;
 mod core;
 mod export;
 mod logging;
+mod plugins;
 mod scheduler;
 mod sources;
 mod store;
@@ -34,6 +35,23 @@ pub fn run() {
             let calendar = std::fs::read_to_string(data_directory.join("report-calendar.json"))
                 .unwrap_or_else(|_| include_str!("../../config/report-calendar.json").to_string());
             store::seed_report_calendar(&connection, &calendar).map_err(std::io::Error::other)?;
+            for loaded in plugins::registry::load_all(&data_directory.join("plugins")) {
+                if let Some(manifest) = loaded.manifest {
+                    // Installed plugins start switched off; built-ins are already registered.
+                    store::register_source(
+                        &connection,
+                        &manifest.id,
+                        &manifest.name,
+                        if manifest.source.cadence == "daily" {
+                            86_400
+                        } else {
+                            604_800
+                        },
+                        false,
+                    )
+                    .map_err(std::io::Error::other)?;
+                }
+            }
             app.manage(commands::DbState(std::sync::Mutex::new(connection)));
             scheduler::start(app.handle().clone());
             Ok(())
@@ -63,6 +81,11 @@ pub fn run() {
             commands::save_alert,
             commands::delete_alert,
             commands::set_alert_enabled,
+            commands::list_plugins,
+            commands::preview_plugin,
+            commands::install_plugin,
+            commands::remove_plugin,
+            commands::save_plugin_secret,
             commands::get_data_directory,
             commands::list_series,
             commands::export_series_csv,

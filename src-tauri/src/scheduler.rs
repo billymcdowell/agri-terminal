@@ -24,12 +24,12 @@ pub fn retry_deadline(
     retry_after.map_or(backoff, |server_time| server_time.max(backoff))
 }
 
-fn source_is_configured(id: &str) -> bool {
+fn source_is_configured(app: &AppHandle, id: &str) -> bool {
     match id {
         "databento" => databento::has_api_key(),
         "usda-nass" | "usda-fas" => fundamentals::has_secret(id),
         "fixture-corn" => false,
-        _ => true,
+        _ => commands::plugin_is_configured(app, id),
     }
 }
 
@@ -45,7 +45,7 @@ pub fn start(app: AppHandle) {
                     continue;
                 }
             };
-            for source_id in due.into_iter().filter(|id| source_is_configured(id)) {
+            for source_id in due.into_iter().filter(|id| source_is_configured(&app, id)) {
                 if let Err(error) = commands::refresh_source(app.clone(), source_id.clone()).await {
                     tracing::warn!(source = %source_id, %error, "Scheduled source refresh failed");
                 }

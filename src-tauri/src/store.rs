@@ -734,8 +734,32 @@ pub fn register_sources(connection: &Connection) -> Result<(), String> {
         ("usda-fas", "USDA FAS OpenData", 604_800),
         ("us-drought-monitor", "U.S. Drought Monitor", 604_800),
     ] {
-        connection.execute("INSERT OR IGNORE INTO source_status (source_id, name, state, is_demo, enabled, cadence_seconds) VALUES (?1, ?2, 'idle', ?3, 1, ?4)", params![id, name, id == "fixture-corn", cadence]).map_err(|error| format!("Register source {id}: {error}"))?;
+        register_source(connection, id, name, cadence, true)?;
     }
+    Ok(())
+}
+
+/// Adds a source to the status table if it is not there yet; an existing row keeps its state.
+pub fn register_source(
+    connection: &Connection,
+    id: &str,
+    name: &str,
+    cadence_seconds: i64,
+    enabled: bool,
+) -> Result<(), String> {
+    connection
+        .execute(
+            "INSERT OR IGNORE INTO source_status (source_id, name, state, is_demo, enabled, cadence_seconds) VALUES (?1, ?2, 'idle', ?3, ?4, ?5)",
+            params![id, name, id == "fixture-corn", enabled, cadence_seconds],
+        )
+        .map_err(|error| format!("Register source {id}: {error}"))?;
+    Ok(())
+}
+
+pub fn delete_source(connection: &Connection, id: &str) -> Result<(), String> {
+    connection
+        .execute("DELETE FROM source_status WHERE source_id = ?1", [id])
+        .map_err(|error| format!("Remove source {id}: {error}"))?;
     Ok(())
 }
 

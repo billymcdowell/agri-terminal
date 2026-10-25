@@ -1,0 +1,53 @@
+id = "us-drought-monitor"
+name = "U.S. Drought Monitor"
+version = "1.0.0"
+description = "Weekly percent of each state in drought, D0 to D4 (cumulative), from the National Drought Mitigation Center."
+license_note = "U.S. Drought Monitor data are public. Credit the National Drought Mitigation Center, USDA and NOAA."
+
+[permissions]
+hosts = ["usdmdataservices.unl.edu"]
+
+[source]
+cadence = "weekly"
+
+[request]
+# aoi is a comma-separated list of state FIPS codes: IA IL NE MN IN KS ND SD OH, matching config/crop-regions.json.
+url = "https://usdmdataservices.unl.edu/api/StateStatistics/GetDroughtSeverityStatisticsByAreaPercent?aoi={aoi}&startdate={today-365d:%-m/%-d/%Y}&enddate={today:%-m/%-d/%Y}&statisticsType=1"
+headers = { Accept = "application/json" }
+vars = { aoi = "19,17,31,27,18,20,38,46,39" }
+
+[response]
+format = "json"
+[response.period]
+field = "mapDate"
+
+# Maps are valid Tuesday and published Thursday 8:30 a.m. ET.
+[release]
+days_after_period = 2
+hour_utc = 12
+minute_utc = 30
+
+[[series]]
+id = "drought.{stateAbbreviation:lower}.D0"
+value = "d0"
+unit = "percent"
+
+[[series]]
+id = "drought.{stateAbbreviation:lower}.D1"
+value = "d1"
+unit = "percent"
+
+[[series]]
+id = "drought.{stateAbbreviation:lower}.D2"
+value = "d2"
+unit = "percent"
+
+[[series]]
+id = "drought.{stateAbbreviation:lower}.D3"
+value = "d3"
+unit = "percent"
+
+[[series]]
+id = "drought.{stateAbbreviation:lower}.D4"
+value = "d4"
+unit = "percent"

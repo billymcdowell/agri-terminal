@@ -13,6 +13,7 @@ use crate::{
         moves::{self, PricePoint},
     },
     core::{DataSource, MetricObservation, Observation, SourceStatus},
+    plugins::{self, registry::PluginSummary},
     sources::databento,
     store,
 };
@@ -169,17 +170,33 @@ pub fn set_source_enabled(
     store::set_source_enabled(&connection, &source_id, enabled)
 }
 
-#[tauri::command]
-pub async fn test_connection(source_id: String) -> Result<(), String> {
-    let source: Box<dyn DataSource> = match source_id.as_str() {
-        "databento" => Box::new(databento::DatabentoSource),
-        "cftc-cot" => Box::new(crate::sources::fundamentals::CftcSource),
-        "usda-nass" => Box::new(crate::sources::fundamentals::NassSource),
-        "usda-fas" => Box::new(crate::sources::fundamentals::FasSource),
-        "us-drought-monitor" => Box::new(crate::sources::fundamentals::DroughtSource),
-        _ => return Err(format!("Source {source_id} has no connection test")),
+fn plugin_directory(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(data_directory(app)?.join("plugins"))
+}
+
+/// Built-in connectors first, then manifest plugins.
+fn resolve_source(app: &AppHandle, id: &str) -> Result<Box<dyn DataSource>, String> {
+    let built_in: Option<Box<dyn DataSource>> = match id {
+        "fixture-corn" => Some(Box::new(crate::sources::fixture::CornFixtureSource)),
+        "databento" => Some(Box::new(databento::DatabentoSource)),
+        "cftc-cot" => Some(Box::new(crate::sources::fundamentals::CftcSource)),
+        "usda-nass" => Some(Box::new(crate::sources::fundamentals::NassSource)),
+        "usda-fas" => Some(Box::new(crate::sources::fundamentals::FasSource)),
+        _ => None,
     };
-    source
+    if let Some(source) = built_in {
+        return Ok(source);
+    }
+    crate::plugins::registry::find_source(&plugin_directory(app)?, id)
+        .ok_or_else(|| format!("Unknown source: {id}"))
+}
+
+#[tauri::command]
+pub async fn test_connection(app: AppHandle, source_id: String) -> Result<(), String> {
+    if source_id == "fixture-corn" {
+        return Err(format!("Source {source_id} has no connection test"));
+    }
+    resolve_source(&app, &source_id)?
         .fetch()
         .await
         .map(|_| ())
@@ -223,15 +240,7 @@ pub fn save_workspace(
 
 #[tauri::command]
 pub async fn refresh_source(app: AppHandle, source_id: String) -> Result<(), String> {
-    let source: Box<dyn DataSource> = match source_id.as_str() {
-        "fixture-corn" => Box::new(crate::sources::fixture::CornFixtureSource),
-        "databento" => Box::new(databento::DatabentoSource),
-        "cftc-cot" => Box::new(crate::sources::fundamentals::CftcSource),
-        "usda-nass" => Box::new(crate::sources::fundamentals::NassSource),
-        "usda-fas" => Box::new(crate::sources::fundamentals::FasSource),
-        "us-drought-monitor" => Box::new(crate::sources::fundamentals::DroughtSource),
-        _ => return Err(format!("Unknown source: {source_id}")),
-    };
+    let source = resolve_source(&app, &source_id)?;
     let records = match source.fetch().await {
         Ok(records) => records,
         Err(error) => {
@@ -549,4 +558,93 @@ pub fn export_workspace(app: AppHandle, id: String) -> Result<String, String> {
         &json,
     )?;
     Ok(path.display().to_string())
+}
+
+#[tauri::command]
+pub fn list_plugins(app: AppHandle) -> Result<Vec<PluginSummary>, String> {
+    Ok(plugins::registry::load_all(&plugin_directory(&app)?)
+        .into_iter()
+        .map(|loaded| loaded.summary)
+        .collect())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginPreview {
+    pub errors: Vec<String>,
+    pub summary: Option<PluginSummary>,
+}
+
+/// Validates pasted manifest text without installing it, so permissions can be reviewed first.
+#[tauri::command]
+pub fn preview_plugin(manifest: String) -> PluginPreview {
+    match plugins::manifest::load(&manifest, false) {
+        Ok(parsed) => PluginPreview {
+            errors: Vec::new(),
+            summary: Some(plugins::registry::PluginSummary::of(&parsed)),
+        },
+        Err(errors) => PluginPreview {
+            errors,
+            summary: None,
+        },
+    }
+}
+
+/// Installs a plugin switched off. It runs only after the user has reviewed its permissions and enabled it.
+#[tauri::command]
+pub fn install_plugin(app: AppHandle, manifest: String) -> Result<PluginSummary, String> {
+    let installed = plugins::registry::install(&plugin_directory(&app)?, &manifest)
+        .map_err(|errors| errors.join("\n"))?;
+    with_connection(&app, |connection| {
+        store::register_source(
+            connection,
+            &installed.id,
+            &installed.name,
+            if installed.source.cadence == "daily" {
+                86_400
+            } else {
+                604_800
+            },
+            false,
+        )
+    })?;
+    Ok(plugins::registry::PluginSummary::of(&installed))
+}
+
+#[tauri::command]
+pub fn remove_plugin(app: AppHandle, id: String) -> Result<(), String> {
+    plugins::registry::remove(&plugin_directory(&app)?, &id)?;
+    with_connection(&app, |connection| store::delete_source(connection, &id))
+}
+
+#[tauri::command]
+pub fn save_plugin_secret(
+    app: AppHandle,
+    plugin_id: String,
+    name: String,
+    value: String,
+) -> Result<(), String> {
+    let loaded = plugins::registry::load_all(&plugin_directory(&app)?);
+    let manifest = loaded
+        .into_iter()
+        .find_map(|item| item.manifest.filter(|manifest| manifest.id == plugin_id))
+        .ok_or_else(|| format!("No plugin {plugin_id}"))?;
+    if !manifest.permissions.secrets.contains(&name) {
+        return Err(format!("{plugin_id} did not declare a secret named {name}"));
+    }
+    if value.trim().is_empty() {
+        return Err("Secret cannot be empty".into());
+    }
+    plugins::source::save_secret(&plugin_id, &name, &value)
+}
+
+/// A plugin that needs a secret is skipped by the scheduler until the secret is saved.
+pub fn plugin_is_configured(app: &AppHandle, id: &str) -> bool {
+    let Ok(directory) = plugin_directory(app) else {
+        return true;
+    };
+    plugins::registry::load_all(&directory)
+        .into_iter()
+        .find_map(|item| item.manifest.filter(|manifest| manifest.id == id))
+        .is_none_or(|manifest| plugins::registry::is_configured(&manifest))
 }

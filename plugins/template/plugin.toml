@@ -1,0 +1,49 @@
+# AgriTerminal data source plugin template.
+# Copy this file, change every value, then paste it into the Plugins panel (command: PLUGINS).
+# A plugin is data, not code: it describes one HTTP request and how to read the response.
+
+id = "my-plugin"            # 3-40 characters: lowercase letters, digits and "-"
+name = "My data source"
+version = "1.0.0"
+description = "What this data is and where it comes from."
+license_note = "Credit and usage terms for the provider's data."
+
+[permissions]
+# The only hosts this plugin can reach, including after redirects. Use "*.example.com" for subdomains.
+# IP addresses, localhost and ports are never allowed.
+hosts = ["api.example.com"]
+# Keychain secrets the plugin may use. They are stored under this plugin's own name.
+secrets = ["api-key"]
+
+[source]
+cadence = "daily"           # daily or weekly
+
+[request]
+# https only. {name} comes from [request.vars]; {today}, {today-30d} and {today-30d:%m/%d/%Y} are dates.
+url = "https://api.example.com/v1/observations?station={station}&since={today-30d}"
+vars = { station = "ames" }
+headers = { Accept = "application/json" }
+# max_bytes = 5242880       # optional; at most 20 MiB
+
+[auth]
+kind = "header"             # header or query
+name = "X-Api-Key"
+secret = "api-key"          # must be listed in permissions.secrets
+
+[response]
+format = "json"             # json or csv
+rows = "/data"              # JSON pointer to the array of rows; empty for a root array
+[response.period]
+field = "date"              # the row field holding the date
+# format = "%m/%d/%Y"       # omit for ISO dates such as 2026-10-24
+
+# Optional: when rows become public, relative to their date, so joins never look ahead.
+# [release]
+# days_after_period = 1
+# hour_utc = 20
+
+# Series ids must start with "plugin.<id>.". {field} and {field:lower} insert values from the row.
+[[series]]
+id = "plugin.my-plugin.{station_id:lower}.temperature"
+value = "temp_c"
+unit = "celsius"
