@@ -98,8 +98,11 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     });
   }, []);
 
-  /** Replaces the dock with the named workspace's saved layout, or a fresh default when none is saved. */
-  const loadWorkspace = useCallback(async (id: string, name: string) => {
+  /**
+   * Replaces the dock with the named workspace's saved layout, or a fresh default when none is saved.
+   * Returns a message for the user when a saved layout could not be restored.
+   */
+  const loadWorkspace = useCallback(async (id: string, name: string): Promise<string | undefined> => {
     const api = dockApi.current;
     if (!api) return;
     restored.current = false;
@@ -110,8 +113,19 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     try { json = (await listWorkspaces()).find(([savedId]) => savedId === id)?.[2]; } catch { /* Fall through to local storage. */ }
     try { json ??= localStorage.getItem(`agri-terminal-workspace:${id}`) ?? undefined; } catch { /* Storage can be unavailable. */ }
     let applied = false;
+    let problem: string | undefined;
     if (json) {
-      try { api.fromJSON(restoreWorkspace(json).layout as DockLayout); applied = true; } catch { applied = false; }
+      try {
+        api.fromJSON(restoreWorkspace(json).layout as DockLayout);
+        applied = true;
+      } catch (error) {
+        // Autosave would write the default layout below over this id, so keep the unreadable one under another.
+        const backupId = `${id}-unreadable-${Date.now()}`;
+        const backupName = `${name} (unreadable copy)`;
+        try { await saveWorkspace(backupId, backupName, json); } catch { /* The web preview has no Tauri backend. */ }
+        try { localStorage.setItem(`agri-terminal-workspace:${backupId}`, json); } catch { /* Storage can be unavailable. */ }
+        problem = `Workspace “${name}” could not be restored (${String(error)}), so a default layout was opened. The saved layout was kept as “${backupName}”.`;
+      }
     }
     if (!applied) {
       api.clear();
@@ -120,6 +134,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     }
     restored.current = true;
     try { localStorage.setItem(LAST_WORKSPACE_KEY, id); } catch { /* Storage can be unavailable. */ }
+    return problem;
   }, [addPanel]);
 
   useEffect(() => {
@@ -155,7 +170,8 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     void (async () => {
       const saved = await listWorkspaces().catch(() => []);
       const name = saved.find(([id]) => id === lastId)?.[1] ?? DEFAULT_WORKSPACE.name;
-      await loadWorkspace(lastId, name);
+      const problem = await loadWorkspace(lastId, name);
+      if (problem) { setCommandError(problem); setPaletteOpen(true); }
     })();
     return () => {
       window.clearTimeout(saveTimer.current);
@@ -226,7 +242,8 @@ export function WorkspaceShell({ MarketOverview }: Props) {
       await saveLayout();
       // Match an existing workspace by display name first, so renamed workspaces can be switched to.
       const match = (await listWorkspaces().catch(() => [])).find(([id, name]) => id === slugify(plan.name) || name.toLowerCase() === plan.name.toLowerCase());
-      await loadWorkspace(match?.[0] ?? slugify(plan.name), match?.[1] ?? plan.name);
+      const problem = await loadWorkspace(match?.[0] ?? slugify(plan.name), match?.[1] ?? plan.name);
+      if (problem) { setCommand(""); setCommandError(problem); return; }
     } else if (plan.type === "template") {
       applyTemplate(plan.id, profile ?? { commodities: ["ZC"], region: "ia" });
     } else {
