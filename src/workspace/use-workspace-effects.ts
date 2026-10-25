@@ -4,7 +4,7 @@ import { isPermissionGranted, requestPermission, sendNotification } from "@tauri
 import { listCalendarEvents, subscribeToAlerts, subscribeToDataUpdates } from "@/lib/ipc";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { useLinkGroups } from "./link-groups";
-import { dueAlerts } from "./release-alerts";
+import { DEFAULT_LEAD_HOURS, describeLead, dueAlerts } from "./release-alerts";
 
 const SENT_PREFIX = "report-alert:";
 
@@ -28,17 +28,19 @@ export function useDataUpdateInvalidation() {
   }, [queryClient]);
 }
 
-/** Notifies once per release when it is due within 24 hours, whether or not the calendar panel is open. */
+/** Notifies once per release when it is within the chosen lead time, whether or not the calendar panel is open. */
 export function useReleaseAlerts() {
+  const [leadHours] = usePersistedValue<number>("release-alert-lead-hours", DEFAULT_LEAD_HOURS);
   useEffect(() => {
     const check = async () => {
       try {
         const events = await listCalendarEvents();
-        const pending = dueAlerts(events, Date.now(), (id) => localStorage.getItem(SENT_PREFIX + id) !== null);
+        const now = Date.now();
+        const pending = dueAlerts(events, now, (id) => localStorage.getItem(SENT_PREFIX + id) !== null, leadHours);
         if (!pending.length) return;
         if (!(await isPermissionGranted()) && (await requestPermission()) !== "granted") return;
         for (const event of pending) {
-          sendNotification({ title: `${event.kind} expected within 24 hours`, body: event.title });
+          sendNotification({ title: `${event.kind} expected ${describeLead(new Date(event.scheduledAt).getTime() - now)}`, body: event.title });
           localStorage.setItem(SENT_PREFIX + event.id, "sent");
         }
       } catch { /* The web preview has no Tauri backend or notifications. */ }
@@ -46,7 +48,7 @@ export function useReleaseAlerts() {
     void check();
     const timer = window.setInterval(() => void check(), 15 * 60_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [leadHours]);
 }
 
 type StoredGroups = Record<string, { commodity: string }>;

@@ -96,7 +96,7 @@ pub fn evaluate(
                             },
                             record.alert.threshold
                         ),
-                        body: format!("Latest close {close:.2} on {date}."),
+                        body: format!("Latest close {close:.2} USD/bu on {date}."),
                     }),
                 }),
                 (false, true) => Some(Evaluation {
@@ -139,7 +139,7 @@ mod tests {
         assert_eq!(result.len(), 1);
         let fired = result[0].fired.as_ref().unwrap();
         assert_eq!(fired.title, "ZC at or above 4.50");
-        assert_eq!(fired.body, "Latest close 4.55 on 2026-10-23.");
+        assert_eq!(fired.body, "Latest close 4.55 USD/bu on 2026-10-23.");
         assert!(result[0].triggered);
         // Already triggered and still beyond the line: nothing to do.
         assert!(evaluate(&[record(Direction::Above, 4.5, true, true)], &latest(4.6)).is_empty());

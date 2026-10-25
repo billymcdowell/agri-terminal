@@ -6,9 +6,50 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { exportSeriesCsv, exportWorkspace, getDataDirectory, listSeries, listWorkspaces } from "@/lib/ipc";
+import { useTheme, type ThemeSetting } from "@/lib/theme";
+import { UNIT_LABELS, type UnitSystem } from "@/lib/units";
 import { usePersistedValue } from "@/state/use-persisted-list";
+import { DEFAULT_LEAD_HOURS, LEAD_HOUR_OPTIONS } from "@/workspace/release-alerts";
 import type { PanelComponentProps } from "@/workspace/types";
 import { PanelHeader } from "./panel-header";
+
+const THEME_LABELS: Record<ThemeSetting, string> = { dark: "Dark", light: "Light", system: "Match system" };
+const leadLabel = (hours: number) => (hours === 0 ? "Off" : `${hours} hour${hours === 1 ? "" : "s"} before`);
+
+export function Preferences() {
+  const theme = useTheme((state) => state.setting);
+  const setTheme = useTheme((state) => state.setSetting);
+  const [units, setUnits] = usePersistedValue<UnitSystem>("units", "bushel");
+  const [leadHours, setLeadHours] = usePersistedValue<number>("release-alert-lead-hours", DEFAULT_LEAD_HOURS);
+  return (
+    <Card className="terminal-card">
+      <CardHeader><CardTitle className="side-card-title">Preferences</CardTitle></CardHeader>
+      <CardContent>
+        <div className="schema-form">
+          <div className="schema-field">
+            <Label htmlFor="pref-theme">Theme</Label>
+            <NativeSelect size="sm" id="pref-theme" value={theme} onChange={(event) => setTheme(event.currentTarget.value as ThemeSetting)}>
+              {(Object.keys(THEME_LABELS) as ThemeSetting[]).map((key) => <NativeSelectOption key={key} value={key}>{THEME_LABELS[key]}</NativeSelectOption>)}
+            </NativeSelect>
+          </div>
+          <div className="schema-field">
+            <Label htmlFor="pref-units">Price units</Label>
+            <NativeSelect size="sm" id="pref-units" value={units} onChange={(event) => setUnits(event.currentTarget.value as UnitSystem)}>
+              {(Object.keys(UNIT_LABELS) as UnitSystem[]).map((key) => <NativeSelectOption key={key} value={key}>{UNIT_LABELS[key]}</NativeSelectOption>)}
+            </NativeSelect>
+          </div>
+          <div className="schema-field">
+            <Label htmlFor="pref-lead">Release alerts</Label>
+            <NativeSelect size="sm" id="pref-lead" value={String(leadHours)} onChange={(event) => setLeadHours(Number(event.currentTarget.value))}>
+              {LEAD_HOUR_OPTIONS.map((hours) => <NativeSelectOption key={hours} value={String(hours)}>{leadLabel(hours)}</NativeSelectOption>)}
+            </NativeSelect>
+          </div>
+        </div>
+        <p className="panel-freshness">Stored prices stay in USD per bushel; units only change how they are shown. Release alerts notify before a scheduled report.</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function SettingsPanel({ api, params }: PanelComponentProps) {
   const directory = useQuery({ queryKey: ["data-directory"], queryFn: getDataDirectory });
@@ -30,6 +71,7 @@ export function SettingsPanel({ api, params }: PanelComponentProps) {
   return (
     <div className="workspace-panel">
       <PanelHeader eyebrow="SETTINGS" title="Settings and export" api={api} params={params} />
+      <Preferences />
       <Card className="terminal-card">
         <CardHeader><CardTitle className="side-card-title">Data directory</CardTitle></CardHeader>
         <CardContent>

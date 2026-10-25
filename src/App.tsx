@@ -34,6 +34,7 @@ import {
   type SourceStatus,
 } from "@/lib/ipc";
 import { formatAge } from "@/lib/freshness";
+import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
 import { useSeries, useSources } from "@/state/use-series";
 import { WorkspaceShell } from "@/workspace/shell";
 
@@ -90,7 +91,18 @@ export function MarketOverview({ commodity }: { commodity: string }) {
     [moves.data],
   );
 
-  const allBars = series.data ?? [];
+  const units = useUnits();
+  const allBars = useMemo(
+    () =>
+      (series.data ?? []).map((bar) => ({
+        ...bar,
+        open: toDisplayPrice(bar.open, commodity, units),
+        high: toDisplayPrice(bar.high, commodity, units),
+        low: toDisplayPrice(bar.low, commodity, units),
+        close: toDisplayPrice(bar.close, commodity, units),
+      })),
+    [series.data, commodity, units],
+  );
   const bars = useMemo(() => {
     if (range === "ALL" || allBars.length === 0) return allBars;
     const days = range === "1W" ? 7 : 31;
@@ -158,7 +170,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
   }
 
   return (
-    <div className="terminal-shell dark">
+    <div className="terminal-shell">
       <header className="terminal-topbar">
         <div className="brand-lockup">
           <div className="brand-mark">AT</div>
@@ -235,7 +247,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                             ? `${delta >= 0 ? "+" : ""}${delta.toFixed(2)} (${deltaPercent >= 0 ? "+" : ""}${deltaPercent.toFixed(2)}%)`
                             : "Awaiting data"}
                           <span className="ml-2 text-muted-foreground">
-                            USD / bu
+                            {UNIT_LABELS[units].replace("/", " / ")}
                           </span>
                         </div>
                       </>
@@ -329,7 +341,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                   <div className="metric-value">
                     {latest ? `$${latest.close.toFixed(2)}` : "—"}
                     <span className="ml-1 text-xs text-muted-foreground">
-                      /bu
+                      {UNIT_LABELS[units].slice(3)}
                     </span>
                   </div>
                   <div className="metric-foot">

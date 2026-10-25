@@ -29,9 +29,10 @@ Frontend (`src`)
 
 - A dockview workspace with a command bar (`/`), link groups, saved workspaces, pop-out windows (`Alt+P`), and keyboard navigation (`Alt+Left/Right` to cycle panels, `Alt+W` to close).
 - Panels: price chart with flagged-move markers, COT, crop condition, supply and demand, drought, weather, news, report calendar, crop stress timeline, move explainer, price alerts, and settings and export. Panel settings forms are generated from each panel's JSON schema and preview live.
+- Dark and light themes (or match the system), USD per bushel or per metric tonne display, and a release-alert lead time from 1 to 48 hours or off, all under `SETTINGS`. The terminal palette is paired dark and light tokens in `src/theme.css`; stored prices stay in USD per bushel.
 - First-run onboarding (role, crops, home state, optional keys) that loads a Farmer, Trader, Analyst or Student template from `config/workspace-templates.json`; `TEMPLATE name` reloads one. Link-group crops persist between launches.
 
-Not built yet: panel and analysis plugins, a plugin registry, the USDA AMS basis connector, the demand pulse and other combined views, a light theme and unit switching, release alerts with configurable lead time, and packaging. NASS and FAS parsers are tested against invented fixtures shaped from documentation because both need a key; verify them with a keyed response. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md) and [the product requirements](docs/prd.md).
+Not built yet: panel and analysis plugins, a plugin registry, the USDA AMS basis connector, the demand pulse and other combined views, and packaging. NASS and FAS parsers are tested against invented fixtures shaped from documentation because both need a key; verify them with a keyed response. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md) and [the product requirements](docs/prd.md).
 
 ## Checks
 
