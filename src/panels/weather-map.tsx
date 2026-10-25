@@ -18,8 +18,16 @@ export function WeatherMap({ locations }: { locations: WeatherForecast[] }) {
     if (!host.current) return;
     let disposed = false;
     let instance: MapLibreMapType | undefined;
-    void Promise.all([import("maplibre-gl"), import("maplibre-gl/dist/maplibre-gl.css")]).then(([maplibre]) => {
+    void Promise.all([
+      import("maplibre-gl"),
+      import("maplibre-gl/dist/maplibre-gl-worker.mjs?url"),
+      import("maplibre-gl/dist/maplibre-gl.css"),
+    ]).then(([maplibre, worker]) => {
       if (disposed || !host.current) return;
+      // MapLibre builds its worker URL at run time, so Vite never copies the worker into the build, and
+      // from a non-http page (the packaged app) it finds no URL at all. Without a worker the markers
+      // below never render; bundling the worker as an asset and naming it here fixes both.
+      maplibre.setWorkerUrl(worker.default);
       const created = new maplibre.Map({
         container: host.current,
         style: {
