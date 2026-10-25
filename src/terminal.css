@@ -392,3 +392,7 @@ button {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+.plugin-textarea { width: 100%; margin: 6px 0; padding: 8px; font: 11px "Geist Mono Variable", monospace; color: #dce4d7; background: #0c100d; border: 1px solid #343a34; border-radius: 6px; }
+.plugin-permissions { margin: 8px 0; padding-left: 16px; font-size: 12px; color: #c8d0c5; }
+.plugin-errors { margin: 8px 0; padding-left: 16px; font-size: 12px; color: #d77b68; }
+.plugin-review { margin-top: 10px; padding: 10px; border: 1px solid #343a34; border-radius: 8px; }

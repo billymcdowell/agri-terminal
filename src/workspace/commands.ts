@@ -37,6 +37,8 @@ export function planCommand(input: string): CommandPlan {
       return getTemplate(command.id) ? { type: "template", id: command.id } : { type: "error", message: `Unknown template ${command.id}. Try farmer, trader, analyst or student.` };
     case "stress":
       return { type: "open", params: { kind: "crop-stress", linkGroup: DEFAULT_GROUP } };
+    case "plugins":
+      return { type: "open", params: { kind: "plugins" } };
     case "settings":
       return { type: "open", params: { kind: "settings" } };
     case "alerts":

@@ -11,6 +11,7 @@ export type Command =
   | { kind: "moves" }
   | { kind: "alerts" }
   | { kind: "settings" }
+  | { kind: "plugins" }
   | { kind: "template"; id: string }
   | { kind: "workspace"; name: string };
 
@@ -25,6 +26,7 @@ export function parseCommand(input: string): Command | null {
   if (head === "NEWS" && parts.length === 1) return { kind: "news" };
   if (head === "STRESS" && parts.length === 1) return { kind: "stress" };
   if (head === "TEMPLATE" && parts.length === 2) return { kind: "template", id: parts[1].toLowerCase() };
+  if (head === "PLUGINS" && parts.length === 1) return { kind: "plugins" };
   if (head === "SETTINGS" && parts.length === 1) return { kind: "settings" };
   if (head === "ALERTS" && parts.length === 1) return { kind: "alerts" };
   if (head === "MOVES" && parts.length === 1) return { kind: "moves" };

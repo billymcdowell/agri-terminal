@@ -12,6 +12,7 @@ describe("command grammar", () => {
     ["MOVES", { kind: "moves" }],
     ["alerts", { kind: "alerts" }],
     ["settings", { kind: "settings" }],
+    ["plugins", { kind: "plugins" }],
     ["template Farmer", { kind: "template", id: "farmer" }],
     ["CROP CONDITION", { kind: "cropCondition" }],
     ["WX Iowa", { kind: "weather", region: "IOWA" }],

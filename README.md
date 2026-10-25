@@ -20,6 +20,7 @@ Backend (`src-tauri/src`)
 - One `DataSource` trait with Databento (ZC, ZS, ZW daily bars), CFTC Commitments of Traders, USDA NASS crop condition and progress, USDA FAS balance sheets and export sales, and U.S. Drought Monitor connectors. Weekly reports carry a scheduled `released_at` for backfilled history and the real fetch time for recent rows.
 - A scheduler with per-source cadence, jittered exponential backoff, `Retry-After` handling and catch-up of missed runs at startup.
 - Keychain storage for provider keys, connection tests, and a report calendar seeded from `config/report-calendar.json` (a copy in the app data directory overrides it).
+- A declarative plugin system: TOML manifests run by one permission-enforcing HTTP client, a validating installer, and a Plugins panel that shows permissions before anything runs. The Drought Monitor connector is a bundled manifest (see `docs/plugins.md`).
 - NWS and Open-Meteo weather and GDELT plus USDA RSS news, cached locally and refreshed in the background.
 - Price alerts that fire once per crossing and re-arm when the price moves back, CSV and workspace export into the app data directory, and a settings table.
 - `analytics`: an as-of join that cannot look ahead, seasonal ranges, move detection, scheduled-event and news attribution with confidence labels, a combined crop stress timeline, and a backtest harness (see `docs/backtest.md`).
@@ -30,7 +31,7 @@ Frontend (`src`)
 - Panels: price chart with flagged-move markers, COT, crop condition, supply and demand, drought, weather, news, report calendar, crop stress timeline, move explainer, price alerts, and settings and export. Panel settings forms are generated from each panel's JSON schema and preview live.
 - First-run onboarding (role, crops, home state, optional keys) that loads a Farmer, Trader, Analyst or Student template from `config/workspace-templates.json`; `TEMPLATE name` reloads one. Link-group crops persist between launches.
 
-Not built yet: the declarative plugin loader, the USDA AMS basis connector, the demand pulse and other combined views, a light theme and unit switching, release alerts with configurable lead time, plugin sandboxing and the registry, and packaging. NASS and FAS parsers are tested against invented fixtures shaped from documentation because both need a key; verify them with a keyed response. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md) and [the product requirements](docs/prd.md).
+Not built yet: panel and analysis plugins, a plugin registry, the USDA AMS basis connector, the demand pulse and other combined views, a light theme and unit switching, release alerts with configurable lead time, and packaging. NASS and FAS parsers are tested against invented fixtures shaped from documentation because both need a key; verify them with a keyed response. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md) and [the product requirements](docs/prd.md).
 
 ## Checks
 
