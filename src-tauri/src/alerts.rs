@@ -33,12 +33,15 @@ pub struct AlertRecord {
     pub triggered: bool,
 }
 
+/// The crossing that fired an alert. Prices are in USD per bushel; the app words the notification in
+/// the user's display unit.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AlertFired {
-    pub id: String,
-    pub title: String,
-    pub body: String,
+    #[serde(flatten)]
+    pub alert: PriceAlert,
+    pub close: f64,
+    pub date: NaiveDate,
 }
 
 pub fn validate(alert: &PriceAlert) -> Result<(), String> {
@@ -86,17 +89,9 @@ pub fn evaluate(
                     id: record.alert.id.clone(),
                     triggered: true,
                     fired: Some(AlertFired {
-                        id: record.alert.id.clone(),
-                        title: format!(
-                            "{} {} {:.2}",
-                            record.alert.symbol,
-                            match record.alert.direction {
-                                Direction::Above => "at or above",
-                                Direction::Below => "at or below",
-                            },
-                            record.alert.threshold
-                        ),
-                        body: format!("Latest close {close:.2} USD/bu on {date}."),
+                        alert: record.alert.clone(),
+                        close: *close,
+                        date: *date,
                     }),
                 }),
                 (false, true) => Some(Evaluation {
@@ -138,8 +133,19 @@ mod tests {
         let result = evaluate(&[record(Direction::Above, 4.5, false, true)], &latest(4.55));
         assert_eq!(result.len(), 1);
         let fired = result[0].fired.as_ref().unwrap();
-        assert_eq!(fired.title, "ZC at or above 4.50");
-        assert_eq!(fired.body, "Latest close 4.55 USD/bu on 2026-10-23.");
+        assert_eq!(fired.alert.threshold, 4.5);
+        assert_eq!(fired.close, 4.55);
+        assert_eq!(
+            serde_json::to_value(fired).unwrap(),
+            serde_json::json!({
+                "id": "a",
+                "symbol": "ZC",
+                "direction": "above",
+                "threshold": 4.5,
+                "close": 4.55,
+                "date": "2026-10-23"
+            })
+        );
         assert!(result[0].triggered);
         // Already triggered and still beyond the line: nothing to do.
         assert!(evaluate(&[record(Direction::Above, 4.5, true, true)], &latest(4.6)).is_empty());

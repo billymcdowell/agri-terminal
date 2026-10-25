@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { listCalendarEvents, subscribeToAlerts, subscribeToDataUpdates } from "@/lib/ipc";
+import { useUnits } from "@/lib/units";
+import { alertNotification } from "@/panels/alerts-panel";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { useLinkGroups } from "./link-groups";
 import { DEFAULT_LEAD_HOURS, describeLead, dueAlerts } from "./release-alerts";
@@ -68,6 +70,10 @@ export function useLinkGroupPersistence() {
 /** Shows a system notification whenever the backend reports that a price alert fired. */
 export function useAlertNotifications() {
   const queryClient = useQueryClient();
+  const units = useUnits();
+  // Read when an alert arrives, so a unit change applies without re-subscribing.
+  const unitsRef = useRef(units);
+  unitsRef.current = units;
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
@@ -75,7 +81,7 @@ export function useAlertNotifications() {
       void queryClient.invalidateQueries({ queryKey: ["alerts"] });
       try {
         if (!(await isPermissionGranted()) && (await requestPermission()) !== "granted") return;
-        sendNotification({ title: alert.title, body: alert.body });
+        sendNotification(alertNotification(alert, unitsRef.current));
       } catch { /* The web preview has no notifications. */ }
     }).then((stop) => { if (cancelled) stop(); else unlisten = stop; }).catch(() => undefined);
     return () => { cancelled = true; unlisten?.(); };

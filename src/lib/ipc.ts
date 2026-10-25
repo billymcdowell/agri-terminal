@@ -74,7 +74,8 @@ export function setSetting(key: string, value: string) { return invoke<void>("se
 
 export type PriceAlert = { id: string; symbol: string; direction: "above" | "below"; threshold: number };
 export type AlertRecord = PriceAlert & { enabled: boolean; triggered: boolean };
-export type AlertFired = { id: string; title: string; body: string };
+/** A crossing that fired an alert, with prices in USD per bushel. */
+export type AlertFired = PriceAlert & { close: number; date: string };
 export function listAlerts() { return invoke<AlertRecord[]>("list_alerts"); }
 export function saveAlert(alert: PriceAlert) { return invoke<void>("save_alert", { alert }); }
 export function deleteAlert(id: string) { return invoke<void>("delete_alert", { id }); }

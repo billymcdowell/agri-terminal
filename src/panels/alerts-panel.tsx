@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { deleteAlert, listAlerts, saveAlert, setAlertEnabled, type PriceAlert } from "@/lib/ipc";
+import { deleteAlert, listAlerts, saveAlert, setAlertEnabled, type AlertFired, type PriceAlert } from "@/lib/ipc";
 import { COMMODITIES } from "@/lib/regions";
 import { fromDisplayPrice, toDisplayPrice, UNIT_LABELS, useUnits, type UnitSystem } from "@/lib/units";
 import type { PanelComponentProps } from "@/workspace/types";
@@ -15,6 +15,12 @@ import { PanelHeader } from "./panel-header";
 /** Alerts are stored in USD per bushel and shown in the user's chosen unit. */
 export function describeAlert(alert: Pick<PriceAlert, "symbol" | "direction" | "threshold">, units: UnitSystem = "bushel") {
   return `${alert.symbol} at or ${alert.direction} ${toDisplayPrice(alert.threshold, alert.symbol, units).toFixed(2)} ${UNIT_LABELS[units]}`;
+}
+
+/** The system notification for a fired alert, in the user's chosen unit. */
+export function alertNotification(fired: AlertFired, units: UnitSystem = "bushel") {
+  const close = toDisplayPrice(fired.close, fired.symbol, units).toFixed(2);
+  return { title: describeAlert(fired, units), body: `Latest close ${close} ${UNIT_LABELS[units]} on ${fired.date}.` };
 }
 
 /** Parses the threshold field; returns null for anything that is not a positive price. */
