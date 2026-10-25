@@ -1,3 +1,7 @@
+//! Tauri commands. Every command that is not `async` is declared `#[tauri::command(async)]`: Tauri
+//! otherwise runs it on the main thread, where waiting on the database lock, a query, an export or
+//! the keychain freezes every window.
+
 use std::sync::Mutex;
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -32,7 +36,7 @@ fn with_connection<T>(
     operation(&connection)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_series(
     state: State<'_, DbState>,
     series_id: String,
@@ -51,7 +55,7 @@ pub fn get_series(
     Ok(observations)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_sources(state: State<'_, DbState>) -> Result<Vec<SourceStatus>, String> {
     let connection = state
         .0
@@ -60,7 +64,7 @@ pub fn list_sources(state: State<'_, DbState>) -> Result<Vec<SourceStatus>, Stri
     store::list_sources(&connection)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_metric_series(
     state: State<'_, DbState>,
     series_id: String,
@@ -72,7 +76,7 @@ pub fn get_metric_series(
     store::query_metric_series(&connection, &series_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_calendar_events(
     state: State<'_, DbState>,
 ) -> Result<Vec<crate::core::CalendarEvent>, String> {
@@ -89,7 +93,7 @@ fn crop_region_config() -> Result<crate::sources::phase4::CropRegionConfig, Stri
 }
 
 /// Cached forecasts only; `refresh_weather` fills the cache in the background.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_weather_for_commodity(
     state: State<'_, DbState>,
     commodity: String,
@@ -114,7 +118,7 @@ pub async fn refresh_weather(app: AppHandle, commodity: String) -> Result<(), St
 }
 
 /// Cached headlines only; `refresh_news` fetches new ones.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_news_for_commodity(
     state: State<'_, DbState>,
     commodity: String,
@@ -138,7 +142,7 @@ pub async fn refresh_news(app: AppHandle, commodity: String) -> Result<(), Strin
         .map_err(|error| format!("Notify news panels: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_secret(id: String, value: String) -> Result<(), String> {
     let value = value.trim();
     if value.is_empty() {
@@ -150,14 +154,14 @@ pub fn save_secret(id: String, value: String) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_secret_status(id: String) -> bool {
     keyring::Entry::new("com.williammcdowell.agri-terminal", &id)
         .and_then(|entry| entry.get_password())
         .is_ok()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_source_enabled(
     state: State<'_, DbState>,
     source_id: String,
@@ -203,17 +207,17 @@ pub async fn test_connection(app: AppHandle, source_id: String) -> Result<(), St
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_databento_key(key: String) -> Result<(), String> {
     databento::save_api_key(&key).map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_databento_key_status() -> bool {
     databento::has_api_key()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_workspaces(state: State<'_, DbState>) -> Result<Vec<(String, String, String)>, String> {
     let connection = state
         .0
@@ -222,7 +226,7 @@ pub fn list_workspaces(state: State<'_, DbState>) -> Result<Vec<(String, String,
     store::list_workspaces(&connection)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_workspace(
     state: State<'_, DbState>,
     id: String,
@@ -296,7 +300,7 @@ pub fn due_sources(app: &AppHandle) -> Result<Vec<String>, String> {
 }
 
 /// Flags unusual daily moves for a commodity and lists possible drivers for each, newest first.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn explain_moves(
     state: State<'_, DbState>,
     commodity: String,
@@ -347,7 +351,7 @@ fn explain_commodity_moves(
 }
 
 /// Compares top-ranked drivers with the labels in `backtest-labels.json` in the app data directory.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn run_backtest(app: AppHandle) -> Result<BacktestReport, String> {
     let path = app
         .path()
@@ -381,7 +385,7 @@ pub fn run_backtest(app: AppHandle) -> Result<BacktestReport, String> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_setting(state: State<'_, DbState>, key: String) -> Result<Option<String>, String> {
     let connection = state
         .0
@@ -390,7 +394,7 @@ pub fn get_setting(state: State<'_, DbState>, key: String) -> Result<Option<Stri
     store::get_setting(&connection, &key)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Result<(), String> {
     let connection = state
         .0
@@ -400,7 +404,7 @@ pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Res
 }
 
 /// Price, crop condition against its five-year range, and drought on one timeline.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn crop_stress_timeline(
     state: State<'_, DbState>,
     commodity: String,
@@ -469,7 +473,7 @@ fn evaluate_alerts(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_alerts(state: State<'_, DbState>) -> Result<Vec<AlertRecord>, String> {
     let connection = state
         .0
@@ -478,14 +482,14 @@ pub fn list_alerts(state: State<'_, DbState>) -> Result<Vec<AlertRecord>, String
     store::list_alerts(&connection)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_alert(app: AppHandle, alert: PriceAlert) -> Result<(), String> {
     alerts::validate(&alert)?;
     with_connection(&app, |connection| store::save_alert(connection, &alert))?;
     evaluate_alerts(&app)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_alert(state: State<'_, DbState>, id: String) -> Result<(), String> {
     let connection = state
         .0
@@ -494,7 +498,7 @@ pub fn delete_alert(state: State<'_, DbState>, id: String) -> Result<(), String>
     store::delete_alert(&connection, &id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_alert_enabled(app: AppHandle, id: String, enabled: bool) -> Result<(), String> {
     with_connection(&app, |connection| {
         store::set_alert_enabled(connection, &id, enabled)
@@ -508,12 +512,12 @@ fn data_directory(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .map_err(|error| format!("Find app data directory: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_data_directory(app: AppHandle) -> Result<String, String> {
     Ok(data_directory(&app)?.display().to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_series(state: State<'_, DbState>) -> Result<Vec<String>, String> {
     let connection = state
         .0
@@ -523,7 +527,7 @@ pub fn list_series(state: State<'_, DbState>) -> Result<Vec<String>, String> {
 }
 
 /// Writes every stored revision of a series to `exports/<series>.csv` and returns the path.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn export_series_csv(app: AppHandle, series_id: String) -> Result<String, String> {
     let csv = with_connection(&app, |connection| {
         if series_id.contains("price.") {
@@ -543,7 +547,7 @@ pub fn export_series_csv(app: AppHandle, series_id: String) -> Result<String, St
 }
 
 /// Writes a saved workspace's layout JSON to `exports/workspace-<id>.json`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn export_workspace(app: AppHandle, id: String) -> Result<String, String> {
     let json = with_connection(&app, |connection| {
         store::list_workspaces(connection)?
@@ -560,7 +564,7 @@ pub fn export_workspace(app: AppHandle, id: String) -> Result<String, String> {
     Ok(path.display().to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_plugins(app: AppHandle) -> Result<Vec<PluginSummary>, String> {
     Ok(plugins::registry::load_all(&plugin_directory(&app)?)
         .into_iter()
@@ -576,7 +580,7 @@ pub struct PluginPreview {
 }
 
 /// Validates pasted manifest text without installing it, so permissions can be reviewed first.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn preview_plugin(manifest: String) -> PluginPreview {
     match plugins::manifest::load(&manifest, false) {
         Ok(parsed) => PluginPreview {
@@ -591,7 +595,7 @@ pub fn preview_plugin(manifest: String) -> PluginPreview {
 }
 
 /// Installs a plugin switched off. It runs only after the user has reviewed its permissions and enabled it.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn install_plugin(app: AppHandle, manifest: String) -> Result<PluginSummary, String> {
     let installed = plugins::registry::install(&plugin_directory(&app)?, &manifest)
         .map_err(|errors| errors.join("\n"))?;
@@ -611,13 +615,13 @@ pub fn install_plugin(app: AppHandle, manifest: String) -> Result<PluginSummary,
     Ok(plugins::registry::PluginSummary::of(&installed))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_plugin(app: AppHandle, id: String) -> Result<(), String> {
     plugins::registry::remove(&plugin_directory(&app)?, &id)?;
     with_connection(&app, |connection| store::delete_source(connection, &id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_plugin_secret(
     app: AppHandle,
     plugin_id: String,
