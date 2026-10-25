@@ -42,7 +42,7 @@ impl DataSource for CftcSource {
         Cadence::Weekly
     }
     async fn fetch(&self) -> Result<Vec<SourceRecord>, SourceError> {
-        let client = reqwest::Client::new();
+        let client = http_client()?;
         let mut all = Vec::new();
         for (commodity, contract_code) in CFTC_CONTRACTS {
             let response = client
@@ -57,14 +57,11 @@ impl DataSource for CftcSource {
                 ])
                 .send()
                 .await
-                .map_err(|_| SourceError::Transient("CFTC request failed".into()))?;
+                .map_err(|error| request_error("CFTC", error))?;
             if !response.status().is_success() {
                 return Err(http_error(&response));
             }
-            let rows: Vec<CftcRow> = response
-                .json()
-                .await
-                .map_err(|error| SourceError::Parse(error.to_string()))?;
+            let rows: Vec<CftcRow> = response.json().await.map_err(parse_error)?;
             all.extend(parse_cftc_rows(&rows, commodity, Utc::now())?);
         }
         Ok(all.into_iter().map(SourceRecord::Metric).collect())
@@ -84,7 +81,7 @@ impl DataSource for NassSource {
     }
     async fn fetch(&self) -> Result<Vec<SourceRecord>, SourceError> {
         let key = secret("usda-nass")?;
-        let client = reqwest::Client::new();
+        let client = http_client()?;
         let mut all = Vec::new();
         for (commodity, symbol) in [("CORN", "zc"), ("SOYBEANS", "zs"), ("WHEAT", "zw")] {
             for (category, series_suffix) in [("PROGRESS", "progress"), ("CONDITION", "condition")]
@@ -102,14 +99,11 @@ impl DataSource for NassSource {
                     ])
                     .send()
                     .await
-                    .map_err(|_| SourceError::Transient("NASS request failed".into()))?;
+                    .map_err(|error| request_error("NASS", error))?;
                 if !response.status().is_success() {
                     return Err(http_error(&response));
                 }
-                let rows: NassResponse = response
-                    .json()
-                    .await
-                    .map_err(|error| SourceError::Parse(error.to_string()))?;
+                let rows: NassResponse = response.json().await.map_err(parse_error)?;
                 all.extend(parse_nass_rows(
                     &rows.data,
                     symbol,
@@ -135,7 +129,7 @@ impl DataSource for FasSource {
     }
     async fn fetch(&self) -> Result<Vec<SourceRecord>, SourceError> {
         let key = secret("usda-fas")?;
-        let client = reqwest::Client::new();
+        let client = http_client()?;
         let mut all = Vec::new();
         // PSD commodity codes: corn 0440000, soybeans 2222000, wheat 0011000.
         let current_year = Utc::now().year();
@@ -152,14 +146,11 @@ impl DataSource for FasSource {
                     .header("X-Api-Key", &key)
                     .send()
                     .await
-                    .map_err(|_| SourceError::Transient("FAS request failed".into()))?;
+                    .map_err(|error| request_error("FAS", error))?;
                 if !response.status().is_success() {
                     return Err(http_error(&response));
                 }
-                let rows: Vec<Value> = response
-                    .json()
-                    .await
-                    .map_err(|error| SourceError::Parse(error.to_string()))?;
+                let rows: Vec<Value> = response.json().await.map_err(parse_error)?;
                 all.extend(parse_fas_psd(
                     &rows,
                     commodity,
@@ -175,14 +166,11 @@ impl DataSource for FasSource {
                 .header("X-Api-Key", &key)
                 .send()
                 .await
-                .map_err(|_| SourceError::Transient("FAS export-sales request failed".into()))?;
+                .map_err(|error| request_error("FAS export sales", error))?;
             if !response.status().is_success() {
                 return Err(http_error(&response));
             }
-            let rows: Vec<Value> = response
-                .json()
-                .await
-                .map_err(|error| SourceError::Parse(error.to_string()))?;
+            let rows: Vec<Value> = response.json().await.map_err(parse_error)?;
             all.extend(parse_fas_esr(&rows, commodity, Utc::now())?);
         }
         Ok(all.into_iter().map(SourceRecord::Metric).collect())
@@ -199,14 +187,11 @@ async fn fetch_psd_attribute_names(
         .header("X-Api-Key", key)
         .send()
         .await
-        .map_err(|_| SourceError::Transient("FAS attribute lookup failed".into()))?;
+        .map_err(|error| request_error("FAS attribute lookup", error))?;
     if !response.status().is_success() {
         return Err(http_error(&response));
     }
-    let rows: Vec<Value> = response
-        .json()
-        .await
-        .map_err(|error| SourceError::Parse(error.to_string()))?;
+    let rows: Vec<Value> = response.json().await.map_err(parse_error)?;
     Ok(rows
         .iter()
         .filter_map(|row| {
@@ -619,9 +604,95 @@ fn http_error(response: &reqwest::Response) -> SourceError {
     }
 }
 
+/// Limits for each provider call. The scheduler refreshes sources one after another, so a request
+/// that never finishes would otherwise hold up every later refresh.
+const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+fn http_client() -> Result<reqwest::Client, SourceError> {
+    reqwest::Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
+        .build()
+        .map_err(|error| SourceError::Unavailable(describe(error)))
+}
+
+/// A request that got no HTTP response at all.
+fn request_error(provider: &str, error: reqwest::Error) -> SourceError {
+    let reason = if error.is_timeout() {
+        format!("no response within {} seconds", REQUEST_TIMEOUT.as_secs())
+    } else if error.is_connect() {
+        "could not connect; check the internet connection".to_string()
+    } else {
+        describe(error)
+    };
+    SourceError::Transient(format!("{provider} request failed: {reason}"))
+}
+
+/// A response body that could not be read or decoded.
+fn parse_error(error: reqwest::Error) -> SourceError {
+    if error.is_timeout() {
+        return SourceError::Transient(format!(
+            "response did not finish within {} seconds",
+            REQUEST_TIMEOUT.as_secs()
+        ));
+    }
+    SourceError::Parse(describe(error))
+}
+
+/// The error and its causes without the request URL. NASS takes its key as a query parameter, and
+/// these messages are stored as source status, shown in the app and written to the log.
+fn describe(error: reqwest::Error) -> String {
+    let error = error.without_url();
+    let mut text = error.to_string();
+    let mut cause = std::error::Error::source(&error);
+    while let Some(inner) = cause {
+        text.push_str(": ");
+        text.push_str(&inner.to_string());
+        cause = inner.source();
+    }
+    text
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn request_errors_never_include_a_key_from_the_url() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0u8; 2048];
+            let _ = socket.read(&mut buffer).await;
+            let body = "not json";
+            let _ = socket
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .as_bytes(),
+                )
+                .await;
+        });
+        let client = http_client().unwrap();
+        let url = format!("http://127.0.0.1:{port}/api?key=SECRET-KEY");
+        let response = client.get(&url).send().await.unwrap();
+        let decode = parse_error(response.json::<Value>().await.unwrap_err());
+        assert!(matches!(decode, SourceError::Parse(_)));
+        assert!(!decode.to_string().contains("SECRET-KEY"), "{decode}");
+
+        // Nothing listens on the port any more, so the connection is refused.
+        let refused = request_error("NASS", client.get(&url).send().await.unwrap_err());
+        assert!(!refused.to_string().contains("SECRET-KEY"), "{refused}");
+        assert!(
+            refused.to_string().contains("NASS request failed"),
+            "{refused}"
+        );
+    }
 
     fn at(value: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(value)
