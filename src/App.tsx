@@ -35,10 +35,13 @@ import {
 } from "@/lib/ipc";
 import { formatAge } from "@/lib/freshness";
 import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
+import { priceStatus } from "@/panels/price-status";
 import { useSeries, useSources } from "@/state/use-series";
 import { WorkspaceShell } from "@/workspace/shell";
 
 const COMMODITY_NAMES: Record<string, string> = { ZC: "Corn", ZS: "Soybeans", ZW: "Wheat" };
+/** The only commodity with a demonstration series, so the only one that has prices without a key. */
+const DEMO_COMMODITY = "ZC";
 const RANGES = ["1W", "1M", "ALL"] as const;
 
 function SourceControl({ source }: { source: SourceStatus }) {
@@ -124,9 +127,10 @@ export function MarketOverview({ commodity }: { commodity: string }) {
   const databentoSource = sources.data?.find(
     (source) => source.sourceId === "databento",
   );
-  const isDemo = latest !== undefined && latest.sourceId !== "databento";
-  const ageMs = latest ? now - new Date(latest.fetchedAt).getTime() : 0;
-  const isStale = isDemo || ageMs > 36 * 60 * 60 * 1000;
+  const status = priceStatus({ commodityName, latest, hasKey: !!keyStatus.data, databento: databentoSource, now });
+  const isDemo = status.origin === "demo";
+  // Without a key only the demonstration series can be reloaded; other commodities need a key first.
+  const canRefresh = !!keyStatus.data || commodity === DEMO_COMMODITY;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -200,11 +204,11 @@ export function MarketOverview({ commodity }: { commodity: string }) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={refresh}
+                onClick={canRefresh ? refresh : () => setSourcesOpen(true)}
                 disabled={refreshing}
               >
-                <RiRefreshLine className={refreshing ? "animate-spin" : ""} />
-                {keyStatus.data ? "Refresh prices" : "Reload cached"}
+                {canRefresh && <RiRefreshLine className={refreshing ? "animate-spin" : ""} />}
+                {keyStatus.data ? "Refresh prices" : canRefresh ? "Reload cached" : "Add price key"}
               </Button>
               <Button
                 variant="secondary"
@@ -223,16 +227,10 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                   <div>
                     <div className="chart-instrument">
                       <span className="instrument-symbol">{commodity} · {commodityName.toUpperCase()}</span>
-                      <Badge variant="outline">
-                        {isDemo ? "SIMULATED" : "CBOT"}
-                      </Badge>
+                      <Badge variant="outline">{status.badge}</Badge>
                       <Badge variant="secondary">DAILY</Badge>
                     </div>
-                    <div className="instrument-name">
-                      {isDemo
-                        ? `${commodityName} · synthetic demonstration series`
-                        : `${commodityName} futures · continuous front month`}
-                    </div>
+                    <div className="instrument-name">{status.description}</div>
                   </div>
                   <div className="chart-price">
                     {series.isLoading ? (
@@ -313,11 +311,10 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                 <div className="chart-footer">
                   <span className="freshness">
                     <i
-                      className={`freshness-dot ${isStale ? "stale" : "fresh"}`}
+                      className={`freshness-dot ${status.freshness.status === "ok" ? "fresh" : "stale"}`}
                     />
-                    {latest
-                      ? `${isStale ? "STALE" : "FRESH"}${isDemo ? " DEMO FIXTURE" : ""} · ${latest.sourceId} · ${formatAge(latest.fetchedAt, now)}`
-                      : "Waiting for local observations"}
+                    {status.freshness.label}
+                    {latest ? ` · ${latest.sourceId}` : ""}
                   </span>
                   <span>{allBars.length} observations · cached locally</span>
                 </div>
@@ -330,11 +327,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                   <CardTitle className="side-card-title">
                     Market snapshot
                   </CardTitle>
-                  <div className="side-card-subtitle">
-                    {isDemo
-                      ? "Latest sample close. This is not a market quote."
-                      : "Latest available corn futures daily bar from Databento."}
-                  </div>
+                  <div className="side-card-subtitle">{status.snapshotNote}</div>
                 </CardHeader>
                 <CardContent>
                   <div className="metric-label">Last close</div>
@@ -366,7 +359,11 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                       <div className="source-detail">
                         {isDemo
                           ? "Synthetic sample data"
-                          : "Licensed provider · cached locally"}
+                          : latest
+                            ? "Licensed provider · cached locally"
+                            : keyStatus.data
+                              ? "Key saved · no prices loaded yet"
+                              : "No API key saved"}
                       </div>
                     </div>
                     <Badge variant="outline">{!latest ? "NO DATA" : isDemo ? "DEMO" : "LIVE"}</Badge>
@@ -398,11 +395,13 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                       <div className="source-detail">
                         {isDemo
                           ? "Fixture · no API key required"
-                          : "Databento · daily bars"}
+                          : latest
+                            ? "Databento · daily bars"
+                            : "Databento · nothing loaded"}
                       </div>
                     </div>
                     <Badge variant="outline">
-                      {isDemo ? "LOCAL" : "SYNCED"}
+                      {isDemo ? "LOCAL" : latest ? "SYNCED" : "NOT LOADED"}
                     </Badge>
                   </div>
                 </CardContent>
@@ -416,11 +415,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
         <div className="status-left">
           <span className="status-pill">
             <i className="connection-dot" />
-            {isDemo
-              ? "STALE DEMO DATA"
-              : isStale
-                ? "STALE MARKET DATA"
-                : "MARKET DATA CURRENT"}
+            {status.statusBar}
           </span>
           <span>OFFLINE READY</span>
           <span>OBSERVATIONS {allBars.length.toString().padStart(3, "0")}</span>
