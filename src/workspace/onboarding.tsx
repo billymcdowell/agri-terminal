@@ -23,18 +23,33 @@ export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
 
   const toggle = (symbol: string) => setCommodities((current) => (current.includes(symbol) ? current.filter((item) => item !== symbol) : [...current, symbol]));
 
+  const finish = () => onComplete({ role, commodities, region });
+
   async function start() {
     setBusy(true);
-    const saves: [string, Promise<unknown>][] = [];
-    if (keys.nass.trim()) saves.push(["USDA NASS", saveSecret("usda-nass", keys.nass)]);
-    if (keys.fas.trim()) saves.push(["USDA FAS", saveSecret("usda-fas", keys.fas)]);
-    if (keys.databento.trim()) saves.push(["Databento", saveDatabentoKey(keys.databento)]);
-    const results = await Promise.allSettled(saves.map(([, promise]) => promise));
-    const failed = saves.filter((_, index) => results[index].status === "rejected").map(([name]) => name);
-    // A failed key never blocks the workspace; it can be added again under Data sources.
-    if (failed.length) setNote(`Could not save the key for ${failed.join(", ")}. Add it later under Data sources.`);
+    setNote("");
+    const saves: [keyof typeof keys, string, Promise<unknown>][] = [];
+    if (keys.nass.trim()) saves.push(["nass", "USDA NASS", saveSecret("usda-nass", keys.nass)]);
+    if (keys.fas.trim()) saves.push(["fas", "USDA FAS", saveSecret("usda-fas", keys.fas)]);
+    if (keys.databento.trim()) saves.push(["databento", "Databento", saveDatabentoKey(keys.databento)]);
+    const results = await Promise.allSettled(saves.map(([, , promise]) => promise));
     setBusy(false);
-    onComplete({ role, commodities, region });
+    const failed = saves.flatMap(([, name], index) => {
+      const result = results[index];
+      return result.status === "rejected" ? [`${name} (${String(result.reason)})`] : [];
+    });
+    if (!failed.length) {
+      finish();
+      return;
+    }
+    // Completing closes this dialog, so stay open to say which keys failed. Saved keys are cleared
+    // so Try again only retries the failures; Continue goes on without them.
+    setKeys((current) => {
+      const next = { ...current };
+      saves.forEach(([field], index) => { if (results[index].status === "fulfilled") next[field] = ""; });
+      return next;
+    });
+    setNote(`Could not save the key for ${failed.join(", ")}. Try again, or continue and add it later under Data sources.`);
   }
 
   return (
@@ -78,10 +93,11 @@ export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
             </div>
           ))}
         </details>
-        {note && <p role="status" className="command-error">{note}</p>}
+        {note && <p role="alert" className="command-error">{note}</p>}
         <DialogFooter>
           <Button variant="outline" onClick={onSkip}>Skip for now</Button>
-          <Button onClick={() => void start()} disabled={busy || commodities.length === 0}>{busy ? "Saving…" : "Start"}</Button>
+          {note && <Button variant="secondary" onClick={finish} disabled={busy || commodities.length === 0}>Continue without it</Button>}
+          <Button onClick={() => void start()} disabled={busy || commodities.length === 0}>{busy ? "Saving…" : note ? "Try again" : "Start"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

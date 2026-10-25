@@ -27,7 +27,7 @@ describe("Onboarding", () => {
     expect((screen.getByRole("button", { name: "Start" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("saves entered keys to the keychain and still continues when one fails", async () => {
+  it("saves entered keys and stays open to report a key that failed", async () => {
     ipc.saveSecret.mockResolvedValue(undefined);
     ipc.saveDatabentoKey.mockRejectedValue(new Error("keychain locked"));
     const onComplete = vi.fn();
@@ -35,9 +35,28 @@ describe("Onboarding", () => {
     fireEvent.change(screen.getByLabelText("USDA NASS QuickStats key"), { target: { value: "abc" } });
     fireEvent.change(screen.getByLabelText("Databento key"), { target: { value: "db-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    await waitFor(() => expect(onComplete).toHaveBeenCalled());
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Databento (Error: keychain locked)");
+    expect(alert.textContent).not.toContain("NASS");
     expect(ipc.saveSecret).toHaveBeenCalledWith("usda-nass", "abc");
-    expect(screen.getByRole("status").textContent).toContain("Databento");
+    expect(onComplete).not.toHaveBeenCalled();
+
+    // Trying again retries only the key that failed.
+    ipc.saveDatabentoKey.mockResolvedValue(undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith({ role: "farmer", commodities: ["ZC"], region: "ia" }));
+    expect(ipc.saveSecret).toHaveBeenCalledTimes(1);
+    expect(ipc.saveDatabentoKey).toHaveBeenCalledTimes(2);
+  });
+
+  it("can continue without a key that failed", async () => {
+    ipc.saveDatabentoKey.mockRejectedValue(new Error("keychain locked"));
+    const onComplete = vi.fn();
+    render(<Onboarding open onComplete={onComplete} onSkip={() => undefined} />);
+    fireEvent.change(screen.getByLabelText("Databento key"), { target: { value: "db-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue without it" }));
+    expect(onComplete).toHaveBeenCalledWith({ role: "farmer", commodities: ["ZC"], region: "ia" });
   });
 
   it("offers a way to skip", () => {
