@@ -11,3 +11,5 @@ Fixtures are saved, unmodified provider responses where licensing permits. Keep 
 
 `phase4_*_synthetic.json` files contain invented forecast values for NWS and Open-Meteo parser tests. They are not provider observations or forecasts.
 `phase4_news_synthetic.xml` contains invented RSS headlines used to test commodity filtering and feed parsing.
+
+`massive_contracts_synthetic.json` and `massive_aggs_*_synthetic.json` copy the shape of Massive futures contracts and session-bar responses recorded on 26 October 2026, with invented prices and volumes, because Massive's exchange data may not be redistributed. The last session in each bar file has no `settlement_price`, as a session still in progress does.

@@ -103,14 +103,6 @@ export function listWorkspaces() { return invoke<SavedWorkspace[]>("list_workspa
 export function saveWorkspace(id: string, name: string, json: string) { return invoke<void>("save_workspace", { id, name, json }); }
 export function deleteWorkspace(id: string) { return invoke<void>("delete_workspace", { id }); }
 
-export function saveDatabentoKey(key: string) {
-  return invoke<void>("save_databento_key", { key });
-}
-
-export function getDatabentoKeyStatus() {
-  return invoke<boolean>("get_databento_key_status");
-}
-
 export function subscribeToDataUpdates(
   callback: (seriesIds: string[]) => void,
 ) {

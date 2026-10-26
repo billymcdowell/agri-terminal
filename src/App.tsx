@@ -24,11 +24,9 @@ import { Label } from "@/components/ui/label";
 import { PriceChart, type MoveMarker } from "@/panels/price-chart";
 import {
   explainMoves,
-  getDatabentoKeyStatus,
   getSecretStatus,
   refreshSource,
   saveSecret,
-  saveDatabentoKey,
   setSourceEnabled,
   testConnection,
   type SourceStatus,
@@ -42,6 +40,8 @@ import { WorkspaceShell } from "@/workspace/shell";
 const COMMODITY_NAMES: Record<string, string> = { ZC: "Corn", ZS: "Soybeans", ZW: "Wheat" };
 /** The only commodity with a demonstration series, so the only one that has prices without a key. */
 const DEMO_COMMODITY = "ZC";
+/** The futures price source; its key is stored under this id like the other source keys. */
+const PRICE_SOURCE = "massive";
 const RANGES = ["1W", "1M", "ALL"] as const;
 
 function SourceControl({ source }: { source: SourceStatus }) {
@@ -75,8 +75,8 @@ export function MarketOverview({ commodity }: { commodity: string }) {
   const series = useSeries(seriesId);
   const sources = useSources();
   const keyStatus = useQuery({
-    queryKey: ["databento-key-status"],
-    queryFn: getDatabentoKeyStatus,
+    queryKey: ["secret-status", PRICE_SOURCE],
+    queryFn: () => getSecretStatus(PRICE_SOURCE),
     staleTime: 60_000,
   });
 
@@ -124,10 +124,10 @@ export function MarketOverview({ commodity }: { commodity: string }) {
   const fixtureSource = sources.data?.find(
     (source) => source.sourceId === "fixture-corn",
   );
-  const databentoSource = sources.data?.find(
-    (source) => source.sourceId === "databento",
+  const priceSource = sources.data?.find(
+    (source) => source.sourceId === PRICE_SOURCE,
   );
-  const status = priceStatus({ commodityName, latest, hasKey: !!keyStatus.data, databento: databentoSource, now });
+  const status = priceStatus({ commodityName, latest, hasKey: !!keyStatus.data, priceSource, now });
   const isDemo = status.origin === "demo";
   // Without a key only the demonstration series can be reloaded; other commodities need a key first.
   const canRefresh = !!keyStatus.data || commodity === DEMO_COMMODITY;
@@ -141,7 +141,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
     setRefreshing(true);
     setSourceError("");
     try {
-      await refreshSource(keyStatus.data ? "databento" : "fixture-corn");
+      await refreshSource(keyStatus.data ? PRICE_SOURCE : "fixture-corn");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["series", seriesId] }),
         queryClient.invalidateQueries({ queryKey: ["sources"] }),
@@ -160,10 +160,10 @@ export function MarketOverview({ commodity }: { commodity: string }) {
     setSourceError("");
     setSourceMessage("");
     try {
-      await saveDatabentoKey(apiKey);
+      await saveSecret(PRICE_SOURCE, apiKey);
       setApiKey("");
       await queryClient.invalidateQueries({
-        queryKey: ["databento-key-status"],
+        queryKey: ["secret-status", PRICE_SOURCE],
       });
       setSourceMessage("API key saved in the operating system keychain.");
     } catch (error) {
@@ -303,7 +303,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                       <EmptyDescription>
                         {keyStatus.data
                           ? "Use Refresh prices to load daily bars into local storage."
-                          : "Add a Databento key under Data sources to load daily bars. Only the corn demonstration series works without a key."}
+                          : "Add a Massive key under Data sources to load daily bars. Only the corn demonstration series works without a key."}
                       </EmptyDescription>
                     </EmptyHeader>
                   </Empty>
@@ -354,7 +354,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                       <div className="source-name">
                         {isDemo
                           ? (fixtureSource?.name ?? "Corn price fixture")
-                          : (databentoSource?.name ?? "Databento")}
+                          : (priceSource?.name ?? "Massive")}
                       </div>
                       <div className="source-detail">
                         {isDemo
@@ -396,8 +396,8 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                         {isDemo
                           ? "Fixture · no API key required"
                           : latest
-                            ? "Databento · daily bars"
-                            : "Databento · nothing loaded"}
+                            ? "Massive · daily bars"
+                            : "Massive · nothing loaded"}
                       </div>
                     </div>
                     <Badge variant="outline">
@@ -431,18 +431,18 @@ export function MarketOverview({ commodity }: { commodity: string }) {
           <DialogHeader>
             <DialogTitle>Data sources</DialogTitle>
             <DialogDescription>
-              Futures prices are requested from Databento with your own key. The
+              Futures prices are requested from Massive with your own key. The
               key stays in the operating system keychain.
             </DialogDescription>
           </DialogHeader>
           <div className="source-dialog-section">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="source-name">Databento · GLBX.MDP3</div>
+                <div className="source-name">{priceSource?.name ?? "Massive · CBOT futures"}</div>
                 <div className="source-detail">
                   {keyStatus.data ? "Key saved" : "No key saved"}
-                  {databentoSource?.lastOk
-                    ? ` · Updated ${formatAge(databentoSource.lastOk, now)}`
+                  {priceSource?.lastOk
+                    ? ` · Updated ${formatAge(priceSource.lastOk, now)}`
                     : ""}
                 </div>
               </div>
@@ -450,28 +450,29 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                 {keyStatus.data ? "READY" : "OPTIONAL"}
               </Badge>
             </div>
-            {databentoSource?.error && (
-              <p className="source-dialog-error">{databentoSource.error}</p>
+            {priceSource?.error && (
+              <p className="source-dialog-error">{priceSource.error}</p>
             )}
             <div className="mt-4 grid gap-2">
-              <Label htmlFor="databento-key">API key</Label>
+              <Label htmlFor="massive-key">API key</Label>
               <Input
-                id="databento-key"
+                id="massive-key"
                 type="password"
                 autoComplete="off"
                 value={apiKey}
                 placeholder={
                   keyStatus.data
                     ? "Enter a replacement key"
-                    : "Paste your Databento key"
+                    : "Paste your Massive key"
                 }
                 onChange={(event) => setApiKey(event.currentTarget.value)}
               />
               <p className="source-dialog-note">
                 Refresh requests 30 days of daily bars, and a background update
-                runs every 24 hours after a key is saved. Databento usage
-                charges may apply. Synthetic sample data remains available
-                offline.
+                runs every 24 hours after a key is saved. The free Futures
+                Basic plan is enough; it allows five requests a minute, so a
+                refresh takes about a minute. Synthetic sample data remains
+                available offline.
               </p>
             </div>
             {sourceMessage && (
@@ -482,7 +483,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
             )}
           </div>
           <div className="source-controls-list">
-            {sources.data?.filter((source) => !["databento", "fixture-corn"].includes(source.sourceId)).map((source) => <SourceControl key={source.sourceId} source={source} />)}
+            {sources.data?.filter((source) => ![PRICE_SOURCE, "fixture-corn"].includes(source.sourceId)).map((source) => <SourceControl key={source.sourceId} source={source} />)}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSourcesOpen(false)}>

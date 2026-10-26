@@ -1,0 +1,10 @@
+{
+  "results": [
+    { "ticker": "ZSF7", "window_start": 1792368000000000000, "session_end_date": "2026-10-21", "open": 1007.5, "high": 1017.5, "low": 1002.5, "close": 1012.5, "transactions": 6000, "volume": 60000, "dollar_volume": 60750000, "settlement_price": 1012.75 },
+    { "ticker": "ZSF7", "window_start": 1792454400000000000, "session_end_date": "2026-10-22", "open": 1012.5, "high": 1027.5, "low": 1010.5, "close": 1022.5, "transactions": 6500, "volume": 65000, "dollar_volume": 66462500, "settlement_price": 1023 },
+    { "ticker": "ZSF7", "window_start": 1792540800000000000, "session_end_date": "2026-10-23", "open": 1022.5, "high": 1037.5, "low": 1017.5, "close": 1032.5, "transactions": 8000, "volume": 80000, "dollar_volume": 82600000, "settlement_price": 1032.25 },
+    { "ticker": "ZSF7", "window_start": 1792800000000000000, "session_end_date": "2026-10-26", "open": 1032.5, "high": 1034.5, "low": 1024.5, "close": 1027.5, "transactions": 2000, "volume": 20000, "dollar_volume": 20550000 }
+  ],
+  "status": "OK",
+  "request_id": "synthetic"
+}

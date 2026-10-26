@@ -2,7 +2,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const ipc = vi.hoisted(() => ({ saveSecret: vi.fn(), saveDatabentoKey: vi.fn() }));
+const ipc = vi.hoisted(() => ({ saveSecret: vi.fn() }));
+const massiveKeyFails = () => ipc.saveSecret.mockImplementation((id: string) => (id === "massive" ? Promise.reject(new Error("keychain locked")) : Promise.resolve()));
 vi.mock("@/lib/ipc", () => ipc);
 
 import { Onboarding } from "./onboarding";
@@ -28,32 +29,31 @@ describe("Onboarding", () => {
   });
 
   it("saves entered keys and stays open to report a key that failed", async () => {
-    ipc.saveSecret.mockResolvedValue(undefined);
-    ipc.saveDatabentoKey.mockRejectedValue(new Error("keychain locked"));
+    massiveKeyFails();
     const onComplete = vi.fn();
     render(<Onboarding open onComplete={onComplete} onSkip={() => undefined} />);
     fireEvent.change(screen.getByLabelText("USDA NASS QuickStats key"), { target: { value: "abc" } });
-    fireEvent.change(screen.getByLabelText("Databento key"), { target: { value: "db-1" } });
+    fireEvent.change(screen.getByLabelText("Massive key"), { target: { value: "ms-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("Databento (Error: keychain locked)");
+    expect(alert.textContent).toContain("Massive (Error: keychain locked)");
     expect(alert.textContent).not.toContain("NASS");
     expect(ipc.saveSecret).toHaveBeenCalledWith("usda-nass", "abc");
+    expect(ipc.saveSecret).toHaveBeenCalledWith("massive", "ms-1");
     expect(onComplete).not.toHaveBeenCalled();
 
     // Trying again retries only the key that failed.
-    ipc.saveDatabentoKey.mockResolvedValue(undefined);
+    ipc.saveSecret.mockResolvedValue(undefined);
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(onComplete).toHaveBeenCalledWith({ role: "farmer", commodities: ["ZC"], region: "ia" }));
-    expect(ipc.saveSecret).toHaveBeenCalledTimes(1);
-    expect(ipc.saveDatabentoKey).toHaveBeenCalledTimes(2);
+    expect(ipc.saveSecret.mock.calls.map(([id]) => id)).toEqual(["usda-nass", "massive", "massive"]);
   });
 
   it("can continue without a key that failed", async () => {
-    ipc.saveDatabentoKey.mockRejectedValue(new Error("keychain locked"));
+    massiveKeyFails();
     const onComplete = vi.fn();
     render(<Onboarding open onComplete={onComplete} onSkip={() => undefined} />);
-    fireEvent.change(screen.getByLabelText("Databento key"), { target: { value: "db-1" } });
+    fireEvent.change(screen.getByLabelText("Massive key"), { target: { value: "ms-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     fireEvent.click(await screen.findByRole("button", { name: "Continue without it" }));
     expect(onComplete).toHaveBeenCalledWith({ role: "farmer", commodities: ["ZC"], region: "ia" });

@@ -733,8 +733,11 @@ pub fn mark_source_error(
 }
 
 pub fn register_sources(connection: &Connection) -> Result<(), String> {
+    // Databento was the price source before Massive. Its stored bars stay; its status row goes,
+    // since nothing can refresh it.
+    delete_source(connection, "databento")?;
     for (id, name, cadence) in [
-        ("databento", "Databento · GLBX.MDP3", 86_400),
+        ("massive", "Massive · CBOT futures", 86_400),
         ("fixture-corn", "Corn price fixture", 86_400),
         ("cftc-cot", "CFTC Commitments of Traders", 604_800),
         ("usda-nass", "USDA NASS QuickStats", 604_800),

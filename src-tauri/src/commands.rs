@@ -18,7 +18,6 @@ use crate::{
     },
     core::{DataSource, MetricObservation, Observation, SourceStatus},
     plugins::{self, registry::PluginSummary},
-    sources::databento,
     store,
 };
 
@@ -182,7 +181,7 @@ fn plugin_directory(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn resolve_source(app: &AppHandle, id: &str) -> Result<Box<dyn DataSource>, String> {
     let built_in: Option<Box<dyn DataSource>> = match id {
         "fixture-corn" => Some(Box::new(crate::sources::fixture::CornFixtureSource)),
-        "databento" => Some(Box::new(databento::DatabentoSource)),
+        "massive" => Some(Box::new(crate::sources::massive::MassiveSource)),
         "cftc-cot" => Some(Box::new(crate::sources::fundamentals::CftcSource)),
         "usda-nass" => Some(Box::new(crate::sources::fundamentals::NassSource)),
         "usda-fas" => Some(Box::new(crate::sources::fundamentals::FasSource)),
@@ -205,16 +204,6 @@ pub async fn test_connection(app: AppHandle, source_id: String) -> Result<(), St
         .await
         .map(|_| ())
         .map_err(|error| error.to_string())
-}
-
-#[tauri::command(async)]
-pub fn save_databento_key(key: String) -> Result<(), String> {
-    databento::save_api_key(&key).map_err(|error| error.to_string())
-}
-
-#[tauri::command(async)]
-pub fn get_databento_key_status() -> bool {
-    databento::has_api_key()
 }
 
 #[tauri::command(async)]

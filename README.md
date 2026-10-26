@@ -1,23 +1,25 @@
 # AgriTerminal
 
-AgriTerminal is an offline-first desktop workspace for agricultural commodity markets. The first vertical slice provides a local SQLite price store, a clearly labeled synthetic corn fallback, and an optional Databento daily-bar connector.
+AgriTerminal is an offline-first desktop workspace for agricultural commodity markets. The first vertical slice provides a local SQLite price store, a clearly labeled synthetic corn fallback, and an optional Massive daily-bar connector.
 
 ## Development
 
 Install dependencies with `npm install`, then start the desktop app with `npm run tauri dev`. The frontend uses React, TanStack Query, Lightweight Charts, and the existing shadcn components in `src/components/ui`. The Rust backend owns SQLite data in Tauri's application data directory.
 
-The corn fixture lives in `tests/fixtures/corn_daily.csv`. It is synthetic demonstration data, not a market quote. AgriTerminal keeps it visibly labeled and uses it when no real Databento observations are cached.
+The corn fixture lives in `tests/fixtures/corn_daily.csv`. It is synthetic demonstration data, not a market quote. AgriTerminal keeps it visibly labeled and uses it when no real market observations are cached.
 
 ## Price data
 
-Add a Databento API key from **Data sources**. The key is stored in the operating system keychain and is never written to SQLite or logs. **Load prices** requests 30 days of `GLBX.MDP3` daily OHLCV for the continuous corn symbol; provider usage charges may apply. CME quotes corn in U.S. cents per bushel, so values are normalized to USD per bushel before storage and display. After a key is saved, a background refresh runs every 24 hours. Bars retain their source, release time, fetch time, unit, and revision.
+Futures prices come from [Massive](https://massive.com/pricing?product=futures) (formerly Polygon.io). Add a Massive API key from **Data sources**; the free Futures Basic plan is enough. The key is stored in the operating system keychain, sent only in the `Authorization` header, and never written to SQLite or logs.
+
+Massive has no continuous contract, so **Load prices** requests 30 days of daily session bars for the two nearest corn, soybean and wheat contracts and keeps, for each session, the bar of whichever contract traded more. A session still in progress has no settlement price yet and is skipped until it settles. CBOT quotes grains in U.S. cents per bushel, so values are normalized to USD per bushel before storage and display. The free plan allows five requests a minute and a refresh makes seven, so a refresh waits for the limit to reset and takes about a minute. After a key is saved, a background refresh runs every 24 hours. Bars retain their source, release time, fetch time, unit, and revision. Bars stored by the earlier Databento connector are kept and still shown as market data.
 
 ## Current implementation
 
 Backend (`src-tauri/src`)
 
 - Versioned SQLite schema, as-of series queries, and revisions that never overwrite an observation.
-- One `DataSource` trait with Databento (ZC, ZS, ZW daily bars), CFTC Commitments of Traders, USDA NASS crop condition and progress, USDA FAS balance sheets and export sales, and U.S. Drought Monitor connectors. Weekly reports carry a scheduled `released_at` for backfilled history and the real fetch time for recent rows.
+- One `DataSource` trait with Massive (ZC, ZS, ZW daily front-month bars), CFTC Commitments of Traders, USDA NASS crop condition and progress, USDA FAS balance sheets and export sales, and U.S. Drought Monitor connectors. Weekly reports carry a scheduled `released_at` for backfilled history and the real fetch time for recent rows.
 - A scheduler with per-source cadence, jittered exponential backoff, `Retry-After` handling and catch-up of missed runs at startup.
 - Keychain storage for provider keys, connection tests, and a report calendar seeded from `config/report-calendar.json` (a copy in the app data directory overrides it).
 - A declarative plugin system: TOML manifests run by one permission-enforcing HTTP client, a validating installer, and a Plugins panel that shows permissions before anything runs. The Drought Monitor connector is a bundled manifest (see `docs/plugins.md`).

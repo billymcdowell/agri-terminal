@@ -170,7 +170,7 @@ This section reflects a verification pass against public documentation in Octobe
 
 | Source | What it provides | Why it is useful | Access and limits | Priority |
 |---|---|---|---|---|
-| **Futures prices: Databento** (user-supplied key) | CBOT/CME futures, including daily bars, with 16+ years of history; Rust client available | Price is the market's verdict, and every other source is judged against it | Usage-based billing for historical data; new accounts get free credits that expire after six months; live data requires a paid plan; exchange licensing terms pass through to the user; same-day freshness of daily bars is unconfirmed | 1 |
+| **Futures prices: Massive** (formerly Polygon.io; user-supplied key) | CME, CBOT, NYMEX and COMEX futures, including daily session bars with settlement prices | Price is the market's verdict, and every other source is judged against it | Free Futures Basic plan for individual, non-professional use: 5 requests per minute, 2 years of history, data roughly 8 hours behind; paid plans from $29 a month add history and fresher data; no continuous contracts, so the app builds the front month from contract volume; exchange licensing terms pass through to the user | 1 |
 | **CFTC Commitments of Traders** | Weekly positions of managed money, commercials and swap dealers | Shows crowding and hedger behavior | Open data API at publicreporting.cftc.gov; released Fridays at 3:30 p.m. Eastern; publication was interrupted Oct 1 to Nov 12, 2025 during a funding lapse, so expect occasional gaps | 1 |
 | **USDA NASS QuickStats** | Crop progress, crop condition, production statistics | Early read on yield, weekly during the season | Free API key; 50,000-record cap per query | 1 |
 | **USDA FAS OpenData** | PSD supply and demand balance sheets, weekly export sales, trade data | Stocks-to-use and demand pace | Free API key from the FAS portal; WASDE report formats are unconfirmed | 1 |
@@ -188,9 +188,11 @@ This section reflects a verification pass against public documentation in Octobe
 
 **Dropped:** Stooq. It now requires a key obtained through a CAPTCHA, its free license is non-commercial, and users report that futures data is not downloadable.
 
+**Replaced:** Databento, the first price connector. It offers 16+ years of history, but it bills by usage once its free credits expire. Massive's free plan covers daily grain bars, so users don't need to pay to get real prices.
+
 **Notes**
 
-- No reliable free source of CME futures prices was found. The design uses a user-supplied key with a licensed provider, shows clearly when prices are unavailable, and keeps the price connector swappable.
+- The free Massive plan is licensed for individual use through a key that each user supplies, so the project never redistributes exchange data. The app shows clearly when prices are unavailable and keeps the price connector swappable.
 - News is shown as headlines and links, not republished articles.
 - Several sources need a free key (NASS, FAS, MARS, FRED, Comtrade). The app should work before any are added and guide users through each one.
 
@@ -336,7 +338,7 @@ Build in vertical slices, so every phase ends with something runnable. Sizes are
 | Phase | Goal | Key deliverables | Done when | Size |
 |---|---|---|---|---|
 | 0. Setup | Working dev environment | Rust and Node installed, Tauri app scaffolded, git repo, CI, lint and format | `npm run tauri dev` opens a window and CI builds on all three OSes | S |
-| 1. Vertical slice | Prove the pipeline end to end | `DataSource` trait, one price connector (Databento with a user key, plus a development fallback), local storage, one Tauri command, one chart panel | A corn price chart renders from cached local data | M |
+| 1. Vertical slice | Prove the pipeline end to end | `DataSource` trait, one price connector (Massive with a user key, originally Databento, plus a development fallback), local storage, one Tauri command, one chart panel | A corn price chart renders from cached local data | M |
 | 2. Workspace shell | The terminal feel | Layout engine, panel registry, command bar, link groups, save and load workspaces, dark theme | A user can open, arrange and restore three panels using the command bar | M |
 | 3. Core data | Real fundamentals | Scheduler, freshness tracking, declarative plugin loader, CFTC, NASS, FAS and Drought Monitor connectors, matching panels, guided key setup | COT, crop condition, supply and demand, and drought panels show live data with stale labels | L |
 | 4. Weather, news and basis | Context | NWS and Open-Meteo, weather map, GDELT and RSS news feed, report calendar, USDA AMS cash and basis if coverage is confirmed | Weather and news panels follow the selected commodity | M |
@@ -416,7 +418,6 @@ Add these later, when the phase needs them (long first compile):
 
 ```bash
 cd src-tauri
-cargo add databento          # futures prices (Rust client; confirm the crate name and version)
 cargo add duckdb --features bundled
 cargo add polars --features lazy,csv,parquet
 cargo add wasmtime
@@ -475,8 +476,8 @@ For CI, use a GitHub Actions workflow with Tauri's official `tauri-apps/tauri-ac
 ## 16. Open Questions
 
 - Final product name, branding and open source license.
-- Default futures price provider: is Databento with a user-supplied key acceptable, and should an unofficial fallback ship at all?
-- Same-day freshness and per-user cost of daily futures bars from the chosen provider.
+- Should an unofficial futures price fallback ship at all?
+- Whether the free Massive plan's 2 years of history is enough for seasonal ranges, or users need a one-time backfill from a paid plan.
 - Whether USDA AMS (MARS) exposes enough grain cash and basis data to support a basis panel.
 - WASDE machine-readable formats, and whether PSD and export sales cover the needed fields.
 - How to present guided key setup so that several free keys do not put off new users.
@@ -494,7 +495,7 @@ For CI, use a GitHub Actions workflow with Tauri's official `tauri-apps/tauri-ac
 
 Findings were gathered in October 2026 from public documentation and third-party library documentation. Re-verify before building. Key references:
 
-- Databento pricing and licensing: https://databento.com/pricing
+- Massive futures pricing: https://massive.com/pricing?product=futures, and futures REST docs: https://massive.com/docs/rest/futures/aggregates
 - USDA AMS My Market News and MARS API: https://mymarketnews.ams.usda.gov/mymarketnews-api
 - CFTC Commitments of Traders: https://www.cftc.gov/MarketReports/CommitmentsofTraders/AbouttheCOTReports/index.htm
 - USDA NASS QuickStats API: https://quickstats.nass.usda.gov/api/
@@ -506,4 +507,4 @@ Findings were gathered in October 2026 from public documentation and third-party
 - IMF commodity prices: https://data.imf.org/Datasets/PCPS
 - Tauri v2 setup: https://v2.tauri.app/start/create-project/
 
-Verification status: strongest for CFTC, NASS, FRED and the Open-Meteo terms. Weakest for USDA AMS grain coverage, Databento latency, WASDE formats, and the claim that the Drought Monitor requires no key (taken from third-party documentation). Several claims, such as the Yahoo endpoint failure and the Stooq download limits, come from third-party reports rather than the providers themselves.
+Verification status: strongest for CFTC, NASS, FRED and the Open-Meteo terms. Weakest for USDA AMS grain coverage, the exact delay of Massive's free plan, WASDE formats, and the claim that the Drought Monitor requires no key (taken from third-party documentation). Several claims, such as the Yahoo endpoint failure and the Stooq download limits, come from third-party reports rather than the providers themselves.

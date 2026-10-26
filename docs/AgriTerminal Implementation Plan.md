@@ -28,7 +28,7 @@ This plan explains how to build AgriTerminal, phase by phase, in an order that a
 ```
 src-tauri/src/
   core/        types, errors, units, time helpers
-  sources/     one module per connector (databento, cftc, nass, fas, drought, nws, openmeteo, gdelt, ams, fred)
+  sources/     one module per connector (massive, cftc, nass, fas, drought, nws, openmeteo, gdelt, ams, fred)
   plugins/     declarative loader, manifest types, permissions
   scheduler/   cadence, backoff, freshness
   store/       sqlite access, migrations, queries

@@ -60,8 +60,6 @@ pub fn run() {
             commands::get_series,
             commands::list_sources,
             commands::refresh_source,
-            commands::save_databento_key,
-            commands::get_databento_key_status,
             commands::get_metric_series,
             commands::list_calendar_events,
             commands::get_weather_for_commodity,

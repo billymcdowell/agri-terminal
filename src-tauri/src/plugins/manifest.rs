@@ -6,6 +6,8 @@ use super::template;
 
 /// Ids that belong to built-in sources; no plugin may take them over.
 pub const RESERVED_IDS: &[&str] = &[
+    "massive",
+    // The retired price source. Bars stored under it are still shown as market data.
     "databento",
     "fixture-corn",
     "cftc-cot",

@@ -384,6 +384,6 @@ hour_utc = 20
             secret_account("example-csv", "key"),
             "plugin:example-csv:key"
         );
-        assert_ne!(secret_account("example-csv", "key"), "databento-api-key");
+        assert_ne!(secret_account("example-csv", "key"), "massive");
     }
 }

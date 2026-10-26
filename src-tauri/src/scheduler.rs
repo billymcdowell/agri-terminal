@@ -2,10 +2,7 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use std::time::Duration;
 use tauri::AppHandle;
 
-use crate::{
-    commands,
-    sources::{databento, fundamentals},
-};
+use crate::{commands, sources::fundamentals};
 
 pub fn retry_deadline(
     now: DateTime<Utc>,
@@ -26,8 +23,7 @@ pub fn retry_deadline(
 
 fn source_is_configured(app: &AppHandle, id: &str) -> bool {
     match id {
-        "databento" => databento::has_api_key(),
-        "usda-nass" | "usda-fas" => fundamentals::has_secret(id),
+        "massive" | "usda-nass" | "usda-fas" => fundamentals::has_secret(id),
         "fixture-corn" => false,
         _ => commands::plugin_is_configured(app, id),
     }

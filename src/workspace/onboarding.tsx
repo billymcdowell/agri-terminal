@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { saveDatabentoKey, saveSecret } from "@/lib/ipc";
+import { saveSecret } from "@/lib/ipc";
 import { COMMODITIES, REGIONS } from "@/lib/regions";
 import { TEMPLATES, type Profile, type Role } from "./templates";
 
@@ -17,7 +17,7 @@ export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
   const [role, setRole] = useState<Role>("farmer");
   const [commodities, setCommodities] = useState<string[]>(["ZC"]);
   const [region, setRegion] = useState("ia");
-  const [keys, setKeys] = useState({ nass: "", fas: "", databento: "" });
+  const [keys, setKeys] = useState({ nass: "", fas: "", massive: "" });
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
 
@@ -31,7 +31,7 @@ export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
     const saves: [keyof typeof keys, string, Promise<unknown>][] = [];
     if (keys.nass.trim()) saves.push(["nass", "USDA NASS", saveSecret("usda-nass", keys.nass)]);
     if (keys.fas.trim()) saves.push(["fas", "USDA FAS", saveSecret("usda-fas", keys.fas)]);
-    if (keys.databento.trim()) saves.push(["databento", "Databento", saveDatabentoKey(keys.databento)]);
+    if (keys.massive.trim()) saves.push(["massive", "Massive", saveSecret("massive", keys.massive)]);
     const results = await Promise.allSettled(saves.map(([, , promise]) => promise));
     setBusy(false);
     const failed = saves.flatMap(([, name], index) => {
@@ -86,7 +86,7 @@ export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
         <details className="onboarding-group">
           <summary>Optional: add data keys now</summary>
           <p className="schema-hint">Keys go to your operating system keychain. Without them the app shows free CFTC, drought, weather and news data plus demonstration prices.</p>
-          {([["nass", "USDA NASS QuickStats key"], ["fas", "USDA FAS OpenData key"], ["databento", "Databento key"]] as const).map(([name, label]) => (
+          {([["nass", "USDA NASS QuickStats key"], ["fas", "USDA FAS OpenData key"], ["massive", "Massive key"]] as const).map(([name, label]) => (
             <div key={name} className="schema-field">
               <Label htmlFor={`key-${name}`}>{label}</Label>
               <Input id={`key-${name}`} type="password" autoComplete="off" value={keys[name]} onChange={(event) => setKeys({ ...keys, [name]: event.currentTarget.value })} />

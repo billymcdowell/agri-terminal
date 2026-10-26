@@ -568,7 +568,7 @@ fn normalize_psd_name(name: &str) -> Option<&'static str> {
         None
     }
 }
-fn secret(service: &str) -> Result<String, SourceError> {
+pub(crate) fn secret(service: &str) -> Result<String, SourceError> {
     keyring::Entry::new("com.williammcdowell.agri-terminal", service)
         .map_err(|error| SourceError::Unavailable(error.to_string()))?
         .get_password()
@@ -580,7 +580,7 @@ fn secret(service: &str) -> Result<String, SourceError> {
             }
         })
 }
-fn http_error(response: &reqwest::Response) -> SourceError {
+pub(crate) fn http_error(response: &reqwest::Response) -> SourceError {
     let status = response.status().as_u16();
     let retry_after = response
         .headers()
@@ -609,7 +609,7 @@ fn http_error(response: &reqwest::Response) -> SourceError {
 const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
-fn http_client() -> Result<reqwest::Client, SourceError> {
+pub(crate) fn http_client() -> Result<reqwest::Client, SourceError> {
     reqwest::Client::builder()
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(REQUEST_TIMEOUT)
@@ -618,7 +618,7 @@ fn http_client() -> Result<reqwest::Client, SourceError> {
 }
 
 /// A request that got no HTTP response at all.
-fn request_error(provider: &str, error: reqwest::Error) -> SourceError {
+pub(crate) fn request_error(provider: &str, error: reqwest::Error) -> SourceError {
     let reason = if error.is_timeout() {
         format!("no response within {} seconds", REQUEST_TIMEOUT.as_secs())
     } else if error.is_connect() {
@@ -630,7 +630,7 @@ fn request_error(provider: &str, error: reqwest::Error) -> SourceError {
 }
 
 /// A response body that could not be read or decoded.
-fn parse_error(error: reqwest::Error) -> SourceError {
+pub(crate) fn parse_error(error: reqwest::Error) -> SourceError {
     if error.is_timeout() {
         return SourceError::Transient(format!(
             "response did not finish within {} seconds",

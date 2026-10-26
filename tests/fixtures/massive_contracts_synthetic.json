@@ -1,0 +1,58 @@
+{
+  "results": [
+    {
+      "active": true,
+      "date": "2026-09-28",
+      "days_to_maturity": 107,
+      "first_trade_date": "2025-01-15",
+      "last_trade_date": "2027-01-14",
+      "name": "ZSF7 Future",
+      "product_code": "ZS",
+      "settlement_date": "2027-01-14",
+      "ticker": "ZSF7",
+      "trading_venue": "XCBT",
+      "type": "single"
+    },
+    {
+      "active": true,
+      "date": "2026-09-28",
+      "days_to_maturity": 77,
+      "first_trade_date": "2022-12-15",
+      "last_trade_date": "2026-12-14",
+      "name": "ZCZ6 Future",
+      "product_code": "ZC",
+      "settlement_date": "2026-12-14",
+      "ticker": "ZCZ6",
+      "trading_venue": "XCBT",
+      "type": "single"
+    },
+    {
+      "active": true,
+      "date": "2026-09-28",
+      "days_to_maturity": 165,
+      "first_trade_date": "2025-03-13",
+      "last_trade_date": "2027-03-12",
+      "name": "ZSH7 Future",
+      "product_code": "ZS",
+      "settlement_date": "2027-03-12",
+      "ticker": "ZSH7",
+      "trading_venue": "XCBT",
+      "type": "single"
+    },
+    {
+      "active": true,
+      "date": "2026-09-28",
+      "days_to_maturity": 46,
+      "first_trade_date": "2024-11-14",
+      "last_trade_date": "2026-11-13",
+      "name": "ZSX6 Future",
+      "product_code": "ZS",
+      "settlement_date": "2026-11-13",
+      "ticker": "ZSX6",
+      "trading_venue": "XCBT",
+      "type": "single"
+    }
+  ],
+  "status": "OK",
+  "request_id": "synthetic"
+}

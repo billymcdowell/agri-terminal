@@ -1,0 +1,10 @@
+{
+  "results": [
+    { "ticker": "ZSX6", "window_start": 1792368000000000000, "session_end_date": "2026-10-21", "open": 995, "high": 1005, "low": 990, "close": 1000, "transactions": 9000, "volume": 90000, "dollar_volume": 90000000, "settlement_price": 1000.25 },
+    { "ticker": "ZSX6", "window_start": 1792454400000000000, "session_end_date": "2026-10-22", "open": 1000, "high": 1015, "low": 998, "close": 1010, "transactions": 7000, "volume": 70000, "dollar_volume": 70700000, "settlement_price": 1010.5 },
+    { "ticker": "ZSX6", "window_start": 1792540800000000000, "session_end_date": "2026-10-23", "open": 1010, "high": 1025, "low": 1005, "close": 1020, "transactions": 4000, "volume": 40000, "dollar_volume": 40800000, "settlement_price": 1019.75 },
+    { "ticker": "ZSX6", "window_start": 1792800000000000000, "session_end_date": "2026-10-26", "open": 1020, "high": 1022, "low": 1012, "close": 1015, "transactions": 900, "volume": 9000, "dollar_volume": 9135000 }
+  ],
+  "status": "OK",
+  "request_id": "synthetic"
+}
