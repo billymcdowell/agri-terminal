@@ -131,16 +131,18 @@ impl DataSource for FasSource {
         let key = secret("usda-fas")?;
         let client = http_client()?;
         let mut all = Vec::new();
-        // PSD commodity codes: corn 0440000, soybeans 2222000, wheat 0011000.
-        let current_year = Utc::now().year();
+        // PSD and Export Sales number commodities separately; ESR rejects PSD codes with HTTP 400.
+        // ESR wheat is all classes (107) so it lines up with the PSD wheat balance sheet.
+        let today = Utc::now().date_naive();
+        let current_year = today.year();
         let attribute_names = fetch_psd_attribute_names(&client, &key).await?;
-        for (commodity, code) in [
-            ("CORN", "0440000"),
-            ("SOYBEANS", "2222000"),
-            ("WHEAT", "0011000"),
+        for (commodity, psd_code, esr_code, season_start_month) in [
+            ("CORN", "0440000", 401, 9),
+            ("SOYBEANS", "2222000", 801, 9),
+            ("WHEAT", "0011000", 107, 6),
         ] {
             for year in current_year - 5..=current_year {
-                let url = format!("{FAS_URL}psd/commodity/{code}/country/US/year/{year}");
+                let url = format!("{FAS_URL}psd/commodity/{psd_code}/country/US/year/{year}");
                 let response = client
                     .get(url)
                     .header("X-Api-Key", &key)
@@ -158,8 +160,9 @@ impl DataSource for FasSource {
                     &attribute_names,
                 )?);
             }
+            let market_year = esr_market_year(today, season_start_month);
             let url = format!(
-                "{FAS_URL}esr/exports/commodityCode/{code}/allCountries/marketYear/{current_year}"
+                "{FAS_URL}esr/exports/commodityCode/{esr_code}/allCountries/marketYear/{market_year}"
             );
             let response = client
                 .get(url)
@@ -174,6 +177,16 @@ impl DataSource for FasSource {
             all.extend(parse_fas_esr(&rows, commodity, Utc::now())?);
         }
         Ok(all.into_iter().map(SourceRecord::Metric).collect())
+    }
+}
+
+/// Export Sales names a marketing year by the calendar year it ends in: on 2026-10-25 the corn
+/// season that began 2026-09-01 is market year 2027.
+fn esr_market_year(today: NaiveDate, season_start_month: u32) -> i32 {
+    if today.month() >= season_start_month {
+        today.year() + 1
+    } else {
+        today.year()
     }
 }
 
@@ -818,6 +831,17 @@ mod tests {
         };
         assert_eq!(value("fas.esr.zc.sales"), 150.0);
         assert_eq!(value("fas.esr.zc.outstanding_sales"), 12.0);
+    }
+
+    #[test]
+    fn export_sales_market_year_is_the_year_the_season_ends() {
+        let day = |y, m, d| NaiveDate::from_ymd_opt(y, m, d).unwrap();
+        // Corn and soybeans start September 1, wheat June 1.
+        assert_eq!(esr_market_year(day(2026, 8, 31), 9), 2026);
+        assert_eq!(esr_market_year(day(2026, 9, 1), 9), 2027);
+        assert_eq!(esr_market_year(day(2026, 10, 25), 9), 2027);
+        assert_eq!(esr_market_year(day(2026, 5, 31), 6), 2026);
+        assert_eq!(esr_market_year(day(2026, 6, 1), 6), 2027);
     }
 
     #[test]
