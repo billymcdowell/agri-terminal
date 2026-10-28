@@ -25,7 +25,7 @@ pub struct NassSource;
 pub struct FasSource;
 
 pub fn has_secret(id: &str) -> bool {
-    keyring::Entry::new("com.williammcdowell.agri-terminal", id)
+    keyring::Entry::new("uk.billymcdowell.agri-terminal", id)
         .and_then(|entry| entry.get_password())
         .is_ok()
 }
@@ -582,7 +582,7 @@ fn normalize_psd_name(name: &str) -> Option<&'static str> {
     }
 }
 pub(crate) fn secret(service: &str) -> Result<String, SourceError> {
-    keyring::Entry::new("com.williammcdowell.agri-terminal", service)
+    keyring::Entry::new("uk.billymcdowell.agri-terminal", service)
         .map_err(|error| SourceError::Unavailable(error.to_string()))?
         .get_password()
         .map_err(|error| {

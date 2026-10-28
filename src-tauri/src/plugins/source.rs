@@ -14,7 +14,7 @@ use crate::{
     sources::fundamentals::{metric, parse_value, scheduled_release},
 };
 
-const KEYRING_SERVICE: &str = "com.williammcdowell.agri-terminal";
+const KEYRING_SERVICE: &str = "uk.billymcdowell.agri-terminal";
 
 /// A plugin's secrets live under their own keychain names so they can never collide with, or
 /// read, the app's own keys.

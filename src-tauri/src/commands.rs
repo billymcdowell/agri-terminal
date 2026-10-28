@@ -147,7 +147,7 @@ pub fn save_secret(id: String, value: String) -> Result<(), String> {
     if value.is_empty() {
         return Err("Secret cannot be empty".into());
     }
-    keyring::Entry::new("com.williammcdowell.agri-terminal", &id)
+    keyring::Entry::new("uk.billymcdowell.agri-terminal", &id)
         .map_err(|error| error.to_string())?
         .set_password(value)
         .map_err(|error| error.to_string())
@@ -155,7 +155,7 @@ pub fn save_secret(id: String, value: String) -> Result<(), String> {
 
 #[tauri::command(async)]
 pub fn get_secret_status(id: String) -> bool {
-    keyring::Entry::new("com.williammcdowell.agri-terminal", &id)
+    keyring::Entry::new("uk.billymcdowell.agri-terminal", &id)
         .and_then(|entry| entry.get_password())
         .is_ok()
 }
