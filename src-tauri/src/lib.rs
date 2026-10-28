@@ -87,6 +87,8 @@ pub fn run() {
             commands::save_plugin_secret,
             commands::get_data_directory,
             commands::list_series,
+            commands::list_stored_series,
+            commands::get_stored_rows,
             commands::export_series_csv,
             commands::export_workspace,
             commands::get_setting,

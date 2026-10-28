@@ -98,6 +98,35 @@ pub enum SourceRecord {
     Metric(MetricObservation),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SeriesKind {
+    Price,
+    Metric,
+}
+
+/// A stored series and the source that wrote it, for browsing raw rows.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredSeries {
+    pub series_id: SeriesId,
+    pub source_id: SourceId,
+    pub kind: SeriesKind,
+    /// Every stored revision, not just the newest of each period.
+    pub rows: i64,
+    pub first_period: NaiveDate,
+    pub last_period: NaiveDate,
+    pub last_fetched_at: DateTime<Utc>,
+}
+
+/// Every stored revision of one series, oldest period first.
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind", content = "rows", rename_all = "camelCase")]
+pub enum StoredRows {
+    Price(Vec<Observation>),
+    Metric(Vec<MetricObservation>),
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetricObservation {

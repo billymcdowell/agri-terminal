@@ -16,7 +16,7 @@ use crate::{
         combined::{self, StressPoint},
         moves::{self, PricePoint},
     },
-    core::{DataSource, MetricObservation, Observation, SourceStatus},
+    core::{DataSource, MetricObservation, Observation, SourceStatus, StoredRows, StoredSeries},
     plugins::{self, registry::PluginSummary},
     store,
 };
@@ -522,6 +522,26 @@ pub fn list_series(state: State<'_, DbState>) -> Result<Vec<String>, String> {
         .lock()
         .map_err(|_| "Database lock is unavailable".to_string())?;
     store::list_series_ids(&connection)
+}
+
+/// Every stored series grouped by the source that wrote it, for the raw data panel.
+#[tauri::command(async)]
+pub fn list_stored_series(state: State<'_, DbState>) -> Result<Vec<StoredSeries>, String> {
+    let connection = state
+        .0
+        .lock()
+        .map_err(|_| "Database lock is unavailable".to_string())?;
+    store::list_stored_series(&connection)
+}
+
+/// Every stored revision of a series exactly as saved, with no demo fallback.
+#[tauri::command(async)]
+pub fn get_stored_rows(state: State<'_, DbState>, series_id: String) -> Result<StoredRows, String> {
+    let connection = state
+        .0
+        .lock()
+        .map_err(|_| "Database lock is unavailable".to_string())?;
+    store::query_stored_rows(&connection, &series_id)
 }
 
 /// Writes every stored revision of a series to `exports/<series>.csv` and returns the path.

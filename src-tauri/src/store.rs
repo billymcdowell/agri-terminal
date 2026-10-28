@@ -6,8 +6,9 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::{
     alerts::{AlertRecord, PriceAlert},
     core::{
-        CalendarEvent, MetricObservation, NewsItem, Observation, SeriesId, SourceId, SourceRecord,
-        SourceStatus, Unit, WeatherForecast, WeatherSnapshot,
+        CalendarEvent, MetricObservation, NewsItem, Observation, SeriesId, SeriesKind, SourceId,
+        SourceRecord, SourceStatus, StoredRows, StoredSeries, Unit, WeatherForecast,
+        WeatherSnapshot,
     },
     sources::fixture::corn_daily_fixture,
 };
@@ -542,63 +543,113 @@ pub fn query_series(
                 end.map(|date| date.to_string()),
                 as_of.map(|time| time.to_rfc3339()),
             ],
-            |row| {
-                let period: String = row.get(1)?;
-                let released_at: String = row.get(2)?;
-                let fetched_at: String = row.get(9)?;
-                Ok(Observation {
-                    series_id: SeriesId::from(row.get::<_, String>(0)?),
-                    period: NaiveDate::parse_from_str(&period, "%Y-%m-%d").map_err(|error| {
-                        rusqlite::Error::FromSqlConversionFailure(
-                            1,
-                            rusqlite::types::Type::Text,
-                            Box::new(error),
-                        )
-                    })?,
-                    released_at: DateTime::parse_from_rfc3339(&released_at)
-                        .map_err(|error| {
-                            rusqlite::Error::FromSqlConversionFailure(
-                                2,
-                                rusqlite::types::Type::Text,
-                                Box::new(error),
-                            )
-                        })?
-                        .with_timezone(&Utc),
-                    open: row.get(3)?,
-                    high: row.get(4)?,
-                    low: row.get(5)?,
-                    close: row.get(6)?,
-                    unit: {
-                        let stored_unit: String = row.get(7)?;
-                        Unit::from_storage(&stored_unit).map_err(|error| {
-                            rusqlite::Error::FromSqlConversionFailure(
-                                7,
-                                rusqlite::types::Type::Text,
-                                Box::new(std::io::Error::new(
-                                    std::io::ErrorKind::InvalidData,
-                                    error,
-                                )),
-                            )
-                        })?
-                    },
-                    source_id: SourceId::from(row.get::<_, String>(8)?),
-                    fetched_at: DateTime::parse_from_rfc3339(&fetched_at)
-                        .map_err(|error| {
-                            rusqlite::Error::FromSqlConversionFailure(
-                                9,
-                                rusqlite::types::Type::Text,
-                                Box::new(error),
-                            )
-                        })?
-                        .with_timezone(&Utc),
-                    revision: row.get(10)?,
-                })
-            },
+            read_observation,
         )
         .map_err(|error| format!("Query series: {error}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| format!("Read series row: {error}"))?;
     Ok(rows)
+}
+
+fn conversion_error(
+    index: usize,
+    error: impl std::error::Error + Send + Sync + 'static,
+) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(index, rusqlite::types::Type::Text, Box::new(error))
+}
+
+fn parse_period(index: usize, value: &str) -> rusqlite::Result<NaiveDate> {
+    NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|error| conversion_error(index, error))
+}
+
+fn parse_time(index: usize, value: &str) -> rusqlite::Result<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .map(|time| time.with_timezone(&Utc))
+        .map_err(|error| conversion_error(index, error))
+}
+
+/// Reads `series_id, period, released_at, open, high, low, close, unit, source_id, fetched_at,
+/// revision` in that order.
+fn read_observation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Observation> {
+    Ok(Observation {
+        series_id: SeriesId::from(row.get::<_, String>(0)?),
+        period: parse_period(1, &row.get::<_, String>(1)?)?,
+        released_at: parse_time(2, &row.get::<_, String>(2)?)?,
+        open: row.get(3)?,
+        high: row.get(4)?,
+        low: row.get(5)?,
+        close: row.get(6)?,
+        unit: Unit::from_storage(&row.get::<_, String>(7)?).map_err(|error| {
+            conversion_error(
+                7,
+                std::io::Error::new(std::io::ErrorKind::InvalidData, error),
+            )
+        })?,
+        source_id: SourceId::from(row.get::<_, String>(8)?),
+        fetched_at: parse_time(9, &row.get::<_, String>(9)?)?,
+        revision: row.get(10)?,
+    })
+}
+
+/// Every stored revision of a price series, including ones a newer revision has replaced.
+pub fn query_price_revisions(
+    connection: &Connection,
+    series_id: &str,
+) -> Result<Vec<Observation>, String> {
+    connection
+        .prepare(
+            "SELECT series_id, period, released_at, open, high, low, close, unit, source_id, fetched_at, revision
+             FROM observations WHERE series_id = ?1 ORDER BY period, revision",
+        )
+        .map_err(|error| format!("Prepare price revision query: {error}"))?
+        .query_map([series_id], read_observation)
+        .map_err(|error| format!("Query price revisions: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Read price revision: {error}"))
+}
+
+/// Every stored revision of a series, from whichever table holds it.
+pub fn query_stored_rows(connection: &Connection, series_id: &str) -> Result<StoredRows, String> {
+    let prices = query_price_revisions(connection, series_id)?;
+    if !prices.is_empty() {
+        return Ok(StoredRows::Price(prices));
+    }
+    Ok(StoredRows::Metric(query_metric_revisions(
+        connection, series_id,
+    )?))
+}
+
+/// Every stored series with the source that wrote it, its row count and the periods it covers.
+pub fn list_stored_series(connection: &Connection) -> Result<Vec<StoredSeries>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT series_id, source_id, 'price', COUNT(*), MIN(period), MAX(period), MAX(fetched_at)
+             FROM observations GROUP BY series_id, source_id
+             UNION ALL
+             SELECT series_id, source_id, 'metric', COUNT(*), MIN(period), MAX(period), MAX(fetched_at)
+             FROM metric_observations GROUP BY series_id, source_id
+             ORDER BY 2, 1",
+        )
+        .map_err(|error| format!("Prepare stored series list: {error}"))?;
+    statement
+        .query_map([], |row| {
+            Ok(StoredSeries {
+                series_id: SeriesId(row.get(0)?),
+                source_id: SourceId(row.get(1)?),
+                kind: if row.get::<_, String>(2)? == "price" {
+                    SeriesKind::Price
+                } else {
+                    SeriesKind::Metric
+                },
+                rows: row.get(3)?,
+                first_period: parse_period(4, &row.get::<_, String>(4)?)?,
+                last_period: parse_period(5, &row.get::<_, String>(5)?)?,
+                last_fetched_at: parse_time(6, &row.get::<_, String>(6)?)?,
+            })
+        })
+        .map_err(|error| format!("Query stored series: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Read stored series: {error}"))
 }
 
 pub fn append_observations_as_revisions(
@@ -1234,6 +1285,72 @@ mod tests {
         assert_eq!(before_revision[0].revision, 0);
         assert_eq!(after_revision[0].close, 4.61);
         assert_eq!(after_revision[0].revision, 1);
+    }
+
+    #[test]
+    fn stored_series_are_listed_by_source_with_every_revision() {
+        let connection = test_db();
+        let first = DateTime::parse_from_rfc3339("2026-10-20T20:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let revised = DateTime::parse_from_rfc3339("2026-10-21T20:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        upsert_observations(&connection, &[sample(first, 4.52)]).unwrap();
+        append_observations_as_revisions(&connection, &[sample(revised, 4.61)]).unwrap();
+        append_metric_revisions(
+            &connection,
+            &[MetricObservation {
+                series_id: SeriesId::from("cot.ZC.managed_money_net"),
+                period: NaiveDate::from_ymd_opt(2026, 10, 13).unwrap(),
+                released_at: first,
+                value: 1.0,
+                unit: "contracts".into(),
+                source_id: SourceId::from("cftc-cot"),
+                fetched_at: first,
+                revision: 0,
+            }],
+        )
+        .unwrap();
+
+        let listed = list_stored_series(&connection).unwrap();
+        assert_eq!(
+            listed
+                .iter()
+                .map(|series| (
+                    series.source_id.0.as_str(),
+                    series.series_id.0.as_str(),
+                    series.kind,
+                    series.rows
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    "cftc-cot",
+                    "cot.ZC.managed_money_net",
+                    SeriesKind::Metric,
+                    1
+                ),
+                ("synthetic", "price.ZC.close", SeriesKind::Price, 2),
+            ]
+        );
+        assert_eq!(listed[1].last_fetched_at, revised);
+
+        let StoredRows::Price(prices) = query_stored_rows(&connection, "price.ZC.close").unwrap()
+        else {
+            panic!("a price series reads from the observations table");
+        };
+        assert_eq!(
+            prices
+                .iter()
+                .map(|bar| (bar.revision, bar.close))
+                .collect::<Vec<_>>(),
+            vec![(0, 4.52), (1, 4.61)]
+        );
+        assert!(matches!(
+            query_stored_rows(&connection, "cot.ZC.managed_money_net").unwrap(),
+            StoredRows::Metric(rows) if rows.len() == 1
+        ));
     }
 
     #[test]
