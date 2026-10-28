@@ -2,6 +2,25 @@
 
 AgriTerminal is an offline-first desktop workspace for agricultural commodity markets. The first vertical slice provides a local SQLite price store, a clearly labeled synthetic corn fallback, and an optional Massive daily-bar connector.
 
+## See it working
+
+[![AgriTerminal explainer video: a flagged corn move, its possible drivers, linked panels, role layouts, units and theme](docs/media/agriterminal-explainer.jpg)](docs/media/agriterminal-explainer.mp4)
+
+A 23-second walkthrough of the real interface ([watch the video](docs/media/agriterminal-explainer.mp4)). For a longer, feature-by-feature tour with screenshots and notes on how each part works, open [`demo/explainer/index.html`](demo/explainer/index.html).
+
+Every screenshot and frame is the unmodified React app running in a browser against a mocked Tauri bridge, so all prices, headlines and plugins in them are fictional demonstration data, not market quotes.
+
+### Run the demo
+
+```bash
+npm install
+npm run dev
+```
+
+Then open <http://localhost:1420/demo.html> (add `?onboarding=1` to see first-run setup). `demo/mock.ts` answers every `invoke` command from the fixtures in `demo/fixtures.ts` and emits the `data-updated` and `source-status` events on timers; `demo/entry.ts` installs the mock and then boots the normal `src/main.tsx`. Nothing under `src/` is changed for the demo. The weather map stays blank in the demo because it needs map tiles from the network.
+
+Music in the video: "Happy Beats / Business Moves" (Vol. 1) by Sascha Ende, [ende.app](https://ende.app/en) (CC BY 4.0). Its sound effects are from [Kenney](https://kenney.nl/) (CC0).
+
 ## Development
 
 Install dependencies with `npm install`, then start the desktop app with `npm run tauri dev`. The frontend uses React, TanStack Query, Lightweight Charts, and the existing shadcn components in `src/components/ui`. The Rust backend owns SQLite data in Tauri's application data directory.
