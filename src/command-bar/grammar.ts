@@ -12,6 +12,8 @@ export type Command =
   | { kind: "alerts" }
   | { kind: "settings" }
   | { kind: "plugins" }
+  | { kind: "raw" }
+  | { kind: "help" }
   | { kind: "template"; id: string }
   | { kind: "workspace"; name: string };
 
@@ -20,6 +22,8 @@ export function parseCommand(input: string): Command | null {
   const parts = input.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return null;
   const head = parts[0].toUpperCase();
+  // Anything after HELP is ignored, so "help cot" still reaches the guide.
+  if (head === "HELP" || (head === "?" && parts.length === 1)) return { kind: "help" };
   if (head === "WS" && parts.length > 1) return { kind: "workspace", name: parts.slice(1).join(" ") };
   if (head === "WASDE" && parts.length === 1) return { kind: "wasde" };
   if (head === "CALENDAR" && parts.length === 1) return { kind: "calendar" };
@@ -27,6 +31,7 @@ export function parseCommand(input: string): Command | null {
   if (head === "STRESS" && parts.length === 1) return { kind: "stress" };
   if (head === "TEMPLATE" && parts.length === 2) return { kind: "template", id: parts[1].toLowerCase() };
   if (head === "PLUGINS" && parts.length === 1) return { kind: "plugins" };
+  if (head === "RAW" && (parts.length === 1 || (parts.length === 2 && parts[1].toUpperCase() === "DATA"))) return { kind: "raw" };
   if (head === "SETTINGS" && parts.length === 1) return { kind: "settings" };
   if (head === "ALERTS" && parts.length === 1) return { kind: "alerts" };
   if (head === "MOVES" && parts.length === 1) return { kind: "moves" };

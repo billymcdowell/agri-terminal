@@ -6,6 +6,9 @@ export type PanelParams = {
   workspaceName?: string;
   /** Move explainer sensitivity in standard deviations. */
   threshold?: number;
+  /** Raw data panel selection: a source, and one of its series or a commodity for weather and news. */
+  sourceId?: string;
+  dataset?: string;
 };
 
 export type PanelApiLike = {

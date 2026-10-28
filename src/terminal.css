@@ -353,6 +353,8 @@ button {
   --dv-paneview-active-outline-color: var(--tone-88ac75);
   --dv-tabs-container-scrollbar-color: var(--tone-677268);
 }
+/* Dockview clips its content area, so panels taller than their group scroll here. */
+.workspace-panel-container { height: 100%; overflow: auto; }
 .workspace-panel { height: 100%; padding: 18px; color: var(--tone-dce4d7); background: var(--tone-0c100d); }
 .workspace-panel-heading { display:flex; align-items:center; justify-content:space-between; padding-bottom:14px; border-bottom:1px solid rgba(var(--line-rgb),.12); }
 .workspace-panel-heading h2 { margin:5px 0 0; font:600 18px "Instrument Sans Variable",sans-serif; }
@@ -421,3 +423,46 @@ button {
 .plugin-permissions { margin: 8px 0; padding-left: 16px; font-size: 12px; color: var(--tone-c8d0c5); }
 .plugin-errors { margin: 8px 0; padding-left: 16px; font-size: 12px; color: var(--tone-d77b68); }
 .plugin-review { margin-top: 10px; padding: 10px; border: 1px solid var(--tone-343a34); border-radius: 8px; }
+
+.raw-sources td, .raw-sources th { font-size: 12px; }
+.raw-sources td:first-child button { margin-left: -8px; font-weight: 500; }
+.raw-sources tr[data-selected="true"] { background: rgba(var(--line-rgb), .07); }
+.raw-controls { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.raw-rows { max-height: 480px; overflow: auto; border: 1px solid var(--tone-343a34); border-radius: 6px; }
+/* The table's own wrapper scrolls sideways, which would stop the header sticking; let .raw-rows scroll both ways instead. */
+.raw-rows [data-slot="table-container"] { overflow: visible; }
+.raw-table { font: 11px "Geist Mono Variable", monospace; }
+.raw-table th { position: sticky; top: 0; z-index: 1; background: var(--tone-101411); font-size: 10px; letter-spacing: .04em; }
+.raw-table td, .raw-table th { height: auto; padding: 5px 10px; white-space: nowrap; }
+.raw-table td[data-null] { color: var(--tone-879187); }
+.raw-table td[data-long] { min-width: 36ch; white-space: normal; }
+.raw-json { max-height: 480px; overflow: auto; margin: 0; padding: 10px; font: 11px/1.5 "Geist Mono Variable", monospace; color: var(--tone-dce4d7); background: var(--tone-0c100d); border: 1px solid var(--tone-343a34); border-radius: 6px; }
+.raw-more { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--tone-879187); font-size: 10px; }
+
+/* Help: the guide panel, and the About box under any panel's header. Tailwind's reset removes list bullets, so lists restore them. */
+.help-panel { height: auto; min-height: 100%; display: grid; gap: 12px; align-content: start; }
+/* Long explanations read better in the sans face than in the terminal's monospace. */
+.help-list, .help-table td, .help-details summary, .help-terms, .panel-guide { font-family: "Instrument Sans Variable", sans-serif; }
+.help-list { margin: 0; padding-left: 16px; list-style: disc; display: grid; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--tone-c8d0c5); }
+.help-table td, .help-table th { font-size: 12px; line-height: 1.45; white-space: normal; vertical-align: top; }
+.help-panels { margin: 0; padding: 0; list-style: none; display: grid; font-family: "Instrument Sans Variable", sans-serif; }
+.help-panels li { display: grid; gap: 3px; padding: 9px 0; border-bottom: 1px solid var(--tone-303630); font-size: 12px; line-height: 1.45; color: var(--tone-9ba69a); }
+.help-panels li:last-child { border-bottom: 0; }
+.help-panels p { margin: 0; }
+.help-panels-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--tone-e4e7df); }
+.help-panels strong { font-weight: 600; }
+.help-panels code, .help-table code { font: 11px "Geist Mono Variable", monospace; color: var(--tone-a8c393); }
+.help-table kbd { padding: 1px 6px; border: 1px solid var(--tone-343a34); border-radius: 4px; font: 11px "Geist Mono Variable", monospace; color: var(--tone-dce4d7); white-space: nowrap; }
+.help-details { padding: 9px 0; border-bottom: 1px solid var(--tone-303630); }
+.help-details summary { cursor: pointer; font-size: 12px; color: var(--tone-9ba69a); }
+.help-details summary strong { color: var(--tone-e4e7df); font-weight: 600; }
+.help-details .panel-guide { padding: 10px 0 4px 14px; }
+.help-terms, .panel-guide dl { margin: 0; display: grid; gap: 9px; }
+.help-terms dt, .panel-guide dt { font-size: 12px; font-weight: 600; color: var(--tone-e4e7df); }
+.help-terms dd, .panel-guide dd { margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--tone-9ba69a); }
+.panel-about { padding: 12px 0; border-bottom: 1px solid rgba(var(--line-rgb),.12); }
+.workspace > .panel-about { margin-bottom: 14px; padding-top: 0; }
+.panel-guide { max-width: 76ch; font-size: 12px; line-height: 1.55; color: var(--tone-c8d0c5); }
+.panel-guide > p { margin: 0; }
+.panel-guide h3 { margin: 12px 0 6px; color: var(--tone-9ba69a); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.panel-guide ul { margin: 0; padding-left: 16px; list-style: disc; display: grid; gap: 4px; }

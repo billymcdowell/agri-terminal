@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createDockview, type DockviewApi, type IContentRenderer } from "dockview";
 import { useQueryClient } from "@tanstack/react-query";
 import "dockview/dist/styles/dockview.css";
-import { RiAddLine, RiCheckLine, RiExternalLinkLine, RiSaveLine } from "@remixicon/react";
+import { RiAddLine, RiCheckLine, RiExternalLinkLine, RiQuestionLine, RiSaveLine } from "@remixicon/react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { registerBuiltInPanels, type MarketComponent } from "@/panels/register";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { planCommand, type CommandPlan } from "@/workspace/commands";
+import { onCommandRequest } from "@/workspace/command-events";
 import { usePalette } from "@/lib/theme";
 import { Onboarding } from "@/workspace/onboarding";
 import { panelTitle } from "@/workspace/panel-title";
@@ -333,11 +334,15 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     setCommand(""); setCommandError(""); setPaletteOpen(false);
   }, [addPanel, applyTemplate, profile, switchWorkspace]);
 
+  // Panels such as Help open other panels through the same path as the command bar.
+  useEffect(() => onCommandRequest((text) => void execute(planCommand(text))), [execute]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const typing = !!target && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable);
       if (event.key === "/" && !typing) { event.preventDefault(); setPaletteOpen(true); }
+      else if (event.key === "?" && !typing) { event.preventDefault(); void execute(planCommand("HELP")); }
       else if (event.altKey && event.code === "ArrowRight") { event.preventDefault(); cyclePanel(1); }
       else if (event.altKey && event.code === "ArrowLeft") { event.preventDefault(); cyclePanel(-1); }
       else if (event.altKey && event.code === "KeyP") { event.preventDefault(); void popOutActive(); }
@@ -345,7 +350,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cyclePanel, popOutActive]);
+  }, [cyclePanel, execute, popOutActive]);
 
   return (
     <div className="workspace-shell">
@@ -373,6 +378,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
           ))}
           <Button size="sm" variant="outline" onClick={() => void popOutActive()}><RiExternalLinkLine /> Pop out <kbd>⌥P</kbd></Button>
           <Button size="sm" variant="outline" onClick={() => setPaletteOpen(true)}><RiAddLine /> Add panel <kbd>/</kbd></Button>
+          <Button size="sm" variant="outline" onClick={() => void execute(planCommand("HELP"))}><RiQuestionLine /> Help <kbd>?</kbd></Button>
           {saveStatus.kind === "error" && <span role="alert" className="workspace-save-error" title={saveStatus.message}>{saveStatus.message}</span>}
           <Button size="sm" variant="secondary" onClick={() => void saveNow()}>
             {saveStatus.kind === "saved" ? <><RiCheckLine /> Saved</> : <><RiSaveLine /> Save</>}
@@ -391,7 +397,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
             aria-label="Command"
             value={command}
             onValueChange={(value) => { setCommand(value); setCommandError(""); }}
-            placeholder="ZC · ZC COT · WASDE · CROP CONDITION · DROUGHT IOWA · WX IOWA · NEWS · CALENDAR · WS name"
+            placeholder="Type a command such as ZC, ZC COT or DROUGHT IOWA · HELP lists them all"
             onKeyDown={(event) => {
               if (event.key !== "Enter" || !command.trim()) return;
               const plan = planCommand(command);
@@ -405,7 +411,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
           />
           {commandError && <p role="alert" className="command-error">{commandError}</p>}
           <CommandList>
-            <CommandEmpty>No matching command.</CommandEmpty>
+            <CommandEmpty>No matching command. Type HELP to see every command.</CommandEmpty>
             <CommandGroup heading="Panels">
               {listPanels().map((panel) => (
                 <CommandItem key={panel.type} value={`${panel.title} ${panel.command}`} onSelect={() => void execute(planCommand(panel.command))}>

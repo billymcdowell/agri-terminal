@@ -14,7 +14,7 @@ const DEFAULT_GROUP = "A";
 
 export function planCommand(input: string): CommandPlan {
   const command = parseCommand(input);
-  if (!command) return { type: "error", message: `Unrecognized command: ${input.trim() || "(empty)"}` };
+  if (!command) return { type: "error", message: `Unrecognized command: ${input.trim() || "(empty)"}. Type HELP to see every command.` };
   const symbolCheck = (symbol: string) => (COMMODITIES.includes(symbol) ? undefined : `Unknown commodity ${symbol}. Try ${COMMODITIES.join(", ")}.`);
   switch (command.kind) {
     case "workspace":
@@ -39,6 +39,10 @@ export function planCommand(input: string): CommandPlan {
       return { type: "open", params: { kind: "crop-stress", linkGroup: DEFAULT_GROUP } };
     case "plugins":
       return { type: "open", params: { kind: "plugins" } };
+    case "help":
+      return { type: "open", params: { kind: "help" } };
+    case "raw":
+      return { type: "open", params: { kind: "raw-data" } };
     case "settings":
       return { type: "open", params: { kind: "settings" } };
     case "alerts":

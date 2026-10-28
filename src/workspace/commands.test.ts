@@ -19,6 +19,13 @@ describe("planCommand", () => {
     expect(planCommand("stress")).toEqual({ type: "open", params: { kind: "crop-stress", linkGroup: "A" } });
     expect(planCommand("moves")).toEqual({ type: "open", params: { kind: "moves", linkGroup: "A" } });
   });
+  it("opens the raw data panel", () => {
+    expect(planCommand("raw data")).toEqual({ type: "open", params: { kind: "raw-data" } });
+  });
+  it("opens the guide, and points to it from unrecognized commands", () => {
+    expect(planCommand("help")).toEqual({ type: "open", params: { kind: "help" } });
+    expect(planCommand("nonsense")).toMatchObject({ type: "error", message: expect.stringContaining("Type HELP") });
+  });
   it("loads known templates and rejects unknown ones", () => {
     expect(planCommand("TEMPLATE trader")).toEqual({ type: "template", id: "trader" });
     expect(planCommand("TEMPLATE pirate")).toMatchObject({ type: "error" });

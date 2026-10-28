@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AboutButton, PanelAbout } from "@/panels/panel-guide";
 import { PriceChart, type MoveMarker } from "@/panels/price-chart";
 import {
   explainMoves,
@@ -67,6 +68,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [sourceMessage, setSourceMessage] = useState("");
   const [sourceError, setSourceError] = useState("");
@@ -201,6 +203,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
               <h1 className="page-title">Market overview</h1>
             </div>
             <div className="workspace-actions">
+              <AboutButton size="sm" open={aboutOpen} onToggle={() => setAboutOpen((open) => !open)} />
               <Button
                 variant="outline"
                 size="sm"
@@ -219,6 +222,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
               </Button>
             </div>
           </div>
+          {aboutOpen && <PanelAbout kind="market" />}
 
           <div className="content-grid">
             <Card className="terminal-card chart-card">
