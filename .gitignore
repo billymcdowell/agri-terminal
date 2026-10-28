@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets and local data
+.env
+.env.*
+*.db
+*.sqlite
+exports/
+brag-output/

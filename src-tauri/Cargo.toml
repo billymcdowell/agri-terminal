@@ -1,8 +1,9 @@
 [package]
 name = "agri-terminal"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Desktop market terminal for grain and oilseed futures"
+authors = ["William McDowell"]
+license = "MIT"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

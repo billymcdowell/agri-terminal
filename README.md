@@ -64,3 +64,7 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml -- --ignored   # live provider contracts
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
