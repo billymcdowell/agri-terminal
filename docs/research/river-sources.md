@@ -7,7 +7,7 @@ Checked 31 October 2026, without keys, against the live provider APIs. These not
 | Data | Status | Source to use | Cadence and release | History |
 | --- | --- | --- | --- | --- |
 | St. Louis stage | Confirmed | USGS Water Data OGC API v1, site `07010000` | Daily 08:00 reading, posted about an hour later | Daily from 1982-10-01 |
-| Memphis stage | **Not available from USGS** | NWPS observed (live) plus IEM HML archive (history), or a substitute USGS gauge | Hourly | IEM back to at least 2015 |
+| Memphis stage | **Not available from USGS** | NWPS observed (live) plus IEM HML archive (history) | Hourly | IEM back to at least 2015 |
 | River forecast | Confirmed, latest issue only | NWPS `/gauges/{lid}/stageflow` | Once a day, about 15:00–16:00 UTC | None from NWS; IEM archive from 2012 |
 | Grain barge rates | Confirmed | AgTransport `deqi-uken` | Weekly, week ending Tuesday, published Thursday | From 2004-01-07 |
 | Lock movements | Confirmed | AgTransport `n4pw-9ygw` | Weekly, week ending Saturday, published the next Thursday | From 2003 (three locks), 2013 (seven) |
@@ -29,7 +29,9 @@ Checked 31 October 2026, without keys, against the live provider APIs. These not
 
 ### Memphis has no USGS stage
 
-USGS site `07032000` (Mississippi River at Memphis) publishes discharge (`00060`: daily mean since 1933, instantaneous since 2014) and turbidity, but **no daily or instantaneous gage height**, only annual peak stages. The plan's Memphis assumption fails. Options, in order of preference:
+USGS site `07032000` (Mississippi River at Memphis) publishes discharge (`00060`: daily mean since 1933, instantaneous since 2014) and turbidity, but **no daily or instantaneous gage height**, only annual peak stages. The plan's Memphis assumption fails.
+
+**Decision (31 October 2026): option 1.** Memphis stage comes from NWPS observed readings plus the IEM archive, through a Rust source. The plan's Phase 1 has been updated to match. The options considered, in order of preference:
 
 1. **NWPS observed plus IEM history.** NWPS `MEMT1` returns about 30 days of hourly observed stage (`pedts: HGIRG`, sourced from the Corps). The Iowa Environmental Mesonet archive returns the same NWS hydrometeorological (HML) observations for past years (hourly; all of 2022 and samples from 2015 and 2019 came back, with a 2022 minimum of −10.97 ft at 20:00 UTC on 21 October). This needs a Rust source that picks one reading a day (the 08:00 Central reading, to match the USGS statistic at St. Louis). It is live and long, but stitched from two services.
 2. **Substitute a USGS gauge between St. Louis and Cairo.** Cape Girardeau (`07020850`, NWS `CPGM7`, daily 08:00 stage from 1984) and Chester (`07020500`, NWS `CHSI2`, from 1982) both have USGS daily stage and an NWS forecast, so they work with the same manifest as St. Louis. Thebes (`07022000`, `THBI2`, from 1982) is a known low-water choke point but had no NWS forecast on 31 October 2026. None of them sits in the Cairo–Memphis barge rate reach.

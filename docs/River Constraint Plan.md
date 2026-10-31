@@ -41,7 +41,7 @@ All the main plan's guiding rules apply (vertical slices, common data model, lin
 | Data | Provider | What to confirm | Shape |
 |---|---|---|---|
 | River stage, St. Louis | USGS Water Services | Site `07010000`, gage height parameter `00065`; daily values vs instantaneous values endpoint; JSON format; history depth for 5-year bands | Daily, ft |
-| River stage, Memphis | USGS Water Services | Site id (believed `07032000`); same checks | Daily, ft |
+| River stage, Memphis | NWS NWPS observed (`MEMT1`, live, about 30 days) plus the Iowa Environmental Mesonet HML archive (history) | Phase 0 found that USGS `07032000` publishes flow but no stage; see `docs/research/river-sources.md` | Hourly, reduced to one reading a day, ft |
 | River forecast | NWS / National Water Prediction Service | Gauge ids (St. Louis believed `EADM7`); machine-readable forecast endpoint; issue time field; horizon | Forecast series by issue time |
 | Grain barge rates | USDA AMS (Grain Transportation Report; AgTransport open data, also listed on data.gov) | Dataset id and API (Socrata or file); locations (St. Louis, Cairo–Memphis, etc.); units (% of 1976 tariff and/or $/ton); weekly release day and time | Weekly |
 | Grain barge lock movements | USDA AMS AgTransport (from USACE lock data) | Dataset id, locks covered, units (tons), release timing | Weekly |
@@ -80,9 +80,10 @@ If a component is missing (forecast unavailable, lock data not yet released), re
 ### Phase 1: Gauge data and configuration (S)
 
 - Add `config/waterways.json`: rivers, gauges (USGS site, NWS id, unit), provisional thresholds, weights. Load it the way `report-calendar.json` and `crop-regions.json` are loaded (bundled copy, app-data override).
-- Add a bundled manifest `plugins/builtin/usgs-river-stage.toml` for daily stage at St. Louis and Memphis, following `us-drought-monitor.toml`. Series ids such as `river.stlouis.stage` (match how the built-in drought manifest names its series).
-- Backfill at least six years of history so 5-year bands work (check the USGS daily values endpoint and `max_bytes`; split requests if needed).
-- Tests: manifest validates; parser against the saved fixture.
+- Add a bundled manifest `plugins/builtin/usgs-river-stage.toml` for daily stage at St. Louis (USGS OGC API v1, statistic `30800`, the 08:00 reading), following `us-drought-monitor.toml`. Series ids such as `river.stlouis.stage` (match how the built-in drought manifest names its series). About 2,200 days fit in one request under the default `max_bytes`.
+- Add a Rust `DataSource` for Memphis stage (`river.memphis.stage`): live readings from NWPS `/gauges/MEMT1/stageflow/observed`, and history from the IEM HML archive (`kind=obs`, one request per UTC year, about 30 seconds each). Keep the reading nearest 14:00 UTC each day (08:00 CST, the time the Corps' daily Memphis series uses). Backfill six years once, then use IEM again only to fill gaps older than NWPS's 30 days. Credit NWS, USACE and the Iowa Environmental Mesonet.
+- Backfill at least six years of history at both gauges so 5-year bands work.
+- Tests: manifest validates; parsers against the saved USGS, NWPS and IEM fixtures; daily reduction picks the right reading.
 
 **Done:** stage history and daily updates appear in `RAW`.
 
