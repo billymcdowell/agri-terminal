@@ -361,6 +361,37 @@ pub fn append_source_records(
     append_metric_revisions(connection, &metrics)
 }
 
+/// Sources date backfilled rows to their scheduled release, but a changed value seen later was not
+/// public at that time: the app learned it when it fetched it. Dating a revision to the original
+/// release would let an as-of join use a correction before anyone could have known it.
+fn revision_release(
+    replaces_earlier: bool,
+    released_at: DateTime<Utc>,
+    fetched_at: DateTime<Utc>,
+) -> DateTime<Utc> {
+    if replaces_earlier {
+        released_at.max(fetched_at)
+    } else {
+        released_at
+    }
+}
+
+/// The periods stored for a metric series, in order.
+pub fn metric_periods(connection: &Connection, series_id: &str) -> Result<Vec<NaiveDate>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT DISTINCT period FROM metric_observations WHERE series_id = ?1 ORDER BY period",
+        )
+        .map_err(|error| format!("Prepare stored period query: {error}"))?;
+    statement
+        .query_map([series_id], |row| {
+            parse_period(0, &row.get::<_, String>(0)?)
+        })
+        .map_err(|error| format!("Query stored periods: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Read stored period: {error}"))
+}
+
 fn append_metric_revisions(
     connection: &Connection,
     observations: &[MetricObservation],
@@ -384,12 +415,17 @@ fn append_metric_revisions(
                 continue;
             }
             let revision = previous.map_or(0, |(revision, _)| revision + 1);
+            let released_at = revision_release(
+                previous.is_some(),
+                observation.released_at,
+                observation.fetched_at,
+            );
             insert
                 .execute(params![
                     observation.series_id.0,
                     observation.period.to_string(),
                     revision,
-                    observation.released_at.to_rfc3339(),
+                    released_at.to_rfc3339(),
                     observation.value,
                     observation.unit,
                     observation.source_id.0,
@@ -700,12 +736,17 @@ pub fn append_observations_as_revisions(
                 continue;
             }
             let revision = latest.map_or(0, |(revision, ..)| revision + 1);
+            let released_at = revision_release(
+                latest.is_some(),
+                observation.released_at,
+                observation.fetched_at,
+            );
             insert
                 .execute(params![
                     &observation.series_id.0,
                     observation.period.to_string(),
                     revision,
-                    observation.released_at.to_rfc3339(),
+                    released_at.to_rfc3339(),
                     observation.open,
                     observation.high,
                     observation.low,
@@ -794,6 +835,8 @@ pub fn register_sources(connection: &Connection) -> Result<(), String> {
         ("usda-nass", "USDA NASS QuickStats", 604_800),
         ("usda-fas", "USDA FAS OpenData", 604_800),
         ("us-drought-monitor", "U.S. Drought Monitor", 604_800),
+        ("usgs-river-stage", "USGS river stage", 86_400),
+        ("nwps-river-stage", "NWS river stage", 86_400),
     ] {
         register_source(connection, id, name, cadence, true)?;
     }
@@ -1528,6 +1571,79 @@ mod tests {
                 .unwrap()
                 .len(),
             1
+        );
+    }
+
+    #[test]
+    fn a_revision_seen_later_is_released_when_it_was_fetched_not_at_the_old_schedule() {
+        let connection = test_db();
+        let at = |value: &str| {
+            DateTime::parse_from_rfc3339(value)
+                .unwrap()
+                .with_timezone(&Utc)
+        };
+        let scheduled = at("2026-06-01T16:00:00Z");
+        let row = |value: f64, fetched: &str| MetricObservation {
+            series_id: SeriesId::from("river.stlouis.stage"),
+            period: NaiveDate::from_ymd_opt(2026, 6, 1).unwrap(),
+            // Backfill always dates the row to its scheduled release.
+            released_at: scheduled,
+            value,
+            unit: "ft".into(),
+            source_id: SourceId::from("usgs-river-stage"),
+            fetched_at: at(fetched),
+            revision: 0,
+        };
+        append_metric_revisions(&connection, &[row(4.10, "2026-06-20T12:00:00Z")]).unwrap();
+        // Months later the provisional value is approved with a correction.
+        append_metric_revisions(&connection, &[row(4.25, "2026-10-01T12:00:00Z")]).unwrap();
+        let revisions = query_metric_revisions(&connection, "river.stlouis.stage").unwrap();
+        assert_eq!(revisions[0].released_at, scheduled);
+        assert_eq!(revisions[1].released_at, at("2026-10-01T12:00:00Z"));
+        let visible =
+            crate::analytics::alignment::visible_as_of(&revisions, at("2026-07-01T00:00:00Z"))
+                .unwrap();
+        assert_eq!(visible.value, 4.10);
+
+        // Prices follow the same rule.
+        let first = at("2026-10-20T20:00:00Z");
+        upsert_observations(&connection, &[sample(first, 4.52)]).unwrap();
+        let mut corrected = sample(first, 4.61);
+        corrected.fetched_at = at("2026-10-28T09:00:00Z");
+        append_observations_as_revisions(&connection, &[corrected]).unwrap();
+        let prices = query_price_revisions(&connection, "price.ZC.close").unwrap();
+        assert_eq!(prices[1].released_at, at("2026-10-28T09:00:00Z"));
+    }
+
+    #[test]
+    fn stored_metric_periods_are_listed_once_in_order() {
+        let connection = test_db();
+        let at = DateTime::parse_from_rfc3339("2026-10-20T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let row = |day: u32, value: f64| MetricObservation {
+            series_id: SeriesId::from("river.memphis.stage"),
+            period: NaiveDate::from_ymd_opt(2026, 10, day).unwrap(),
+            released_at: at,
+            value,
+            unit: "ft".into(),
+            source_id: SourceId::from("nwps-river-stage"),
+            fetched_at: at,
+            revision: 0,
+        };
+        append_metric_revisions(&connection, &[row(12, 1.0), row(3, 2.0)]).unwrap();
+        append_metric_revisions(&connection, &[row(12, 1.5)]).unwrap();
+        assert_eq!(
+            metric_periods(&connection, "river.memphis.stage").unwrap(),
+            vec![
+                NaiveDate::from_ymd_opt(2026, 10, 3).unwrap(),
+                NaiveDate::from_ymd_opt(2026, 10, 12).unwrap()
+            ]
+        );
+        assert!(
+            metric_periods(&connection, "river.none")
+                .unwrap()
+                .is_empty()
         );
     }
 

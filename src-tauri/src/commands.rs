@@ -190,8 +190,32 @@ fn resolve_source(app: &AppHandle, id: &str) -> Result<Box<dyn DataSource>, Stri
     if let Some(source) = built_in {
         return Ok(source);
     }
+    if id == crate::sources::river::NWPS_STAGE_SOURCE {
+        let config = waterways_config(app)?;
+        return with_connection(app, |connection| {
+            let mut stored = std::collections::BTreeMap::new();
+            for (_, gauge) in config.gauges() {
+                let series = gauge.stage_series();
+                let periods = store::metric_periods(connection, &series)?;
+                stored.insert(series, periods.into_iter().collect());
+            }
+            Ok(
+                Box::new(crate::sources::river::NwpsStageSource::from_config(
+                    &config,
+                    |series| stored.get(series).cloned().unwrap_or_default(),
+                )) as Box<dyn DataSource>,
+            )
+        });
+    }
     crate::plugins::registry::find_source(&plugin_directory(app)?, id)
         .ok_or_else(|| format!("Unknown source: {id}"))
+}
+
+/// The waterways file from the app data directory, or the bundled copy.
+pub(crate) fn waterways_config(
+    app: &AppHandle,
+) -> Result<crate::sources::river::WaterwaysConfig, String> {
+    crate::sources::river::load_waterways(&data_directory(app)?)
 }
 
 #[tauri::command]

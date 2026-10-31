@@ -7,9 +7,10 @@ use super::source::{PluginSource, has_secret};
 use crate::core::DataSource;
 
 /// Manifests that ship with the app. They run through the same loader as installed plugins.
-const BUILTIN: &[&str] = &[include_str!(
-    "../../../plugins/builtin/us-drought-monitor.toml"
-)];
+const BUILTIN: &[&str] = &[
+    include_str!("../../../plugins/builtin/us-drought-monitor.toml"),
+    include_str!("../../../plugins/builtin/usgs-river-stage.toml"),
+];
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -305,6 +306,84 @@ mod tests {
             headers,
             vec![("Accept".to_string(), "application/json".to_string())]
         );
+    }
+
+    fn usgs_stage_manifest() -> Manifest {
+        load_all(&temp_dir("usgs"))
+            .into_iter()
+            .find(|item| item.summary.id == "usgs-river-stage")
+            .expect("bundled manifest")
+            .manifest
+            .expect("valid manifest")
+    }
+
+    #[test]
+    fn the_usgs_stage_manifest_reads_the_recorded_response() {
+        let manifest = usgs_stage_manifest();
+        let fixture =
+            include_str!("../../../tests/fixtures/river/usgs_daily_stage_stlouis_recorded.json");
+        let fetched = chrono::DateTime::parse_from_rfc3339("2026-10-31T21:30:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let rows = crate::plugins::source::extract(&manifest, fixture.as_bytes(), fetched).unwrap();
+        assert_eq!(rows.len(), 7);
+        assert!(
+            rows.iter()
+                .all(|row| row.series_id.0 == "river.stlouis.stage"
+                    && row.unit == "ft"
+                    && row.source_id.0 == "usgs-river-stage")
+        );
+        let first = rows
+            .iter()
+            .find(|row| row.period.to_string() == "2026-10-24")
+            .unwrap();
+        assert_eq!(first.value, 8.11);
+        assert_eq!(first.released_at.to_rfc3339(), "2026-10-24T16:00:00+00:00");
+        let last = rows
+            .iter()
+            .find(|row| row.period.to_string() == "2026-10-30")
+            .unwrap();
+        assert_eq!(last.value, 4.72);
+        assert_eq!(last.released_at, fetched);
+    }
+
+    #[test]
+    fn the_usgs_stage_manifest_asks_for_six_years_at_the_configured_site() {
+        let manifest = usgs_stage_manifest();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-10-31T12:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let (url, _) = crate::plugins::source::build_request(&manifest, now, None).unwrap();
+        let query: std::collections::HashMap<_, _> = url
+            .query_pairs()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        assert_eq!(url.host_str(), Some("api.waterdata.usgs.gov"));
+        assert_eq!(query["datetime"], "2020-10-22/2026-10-31");
+        assert_eq!(query["statistic_id"], "30800");
+        let config =
+            crate::sources::river::parse_waterways(crate::sources::river::BUNDLED_WATERWAYS)
+                .unwrap();
+        let usgs_gauges: Vec<_> = config
+            .gauges()
+            .filter(|(_, gauge)| gauge.stage_source == "usgs-river-stage")
+            .map(|(_, gauge)| gauge)
+            .collect();
+        assert_eq!(usgs_gauges.len(), 1, "one manifest covers one gauge");
+        assert_eq!(
+            query["monitoring_location_id"],
+            format!("USGS-{}", usgs_gauges[0].usgs_site.as_deref().unwrap())
+        );
+        assert_eq!(manifest.series[0].id, usgs_gauges[0].stage_series());
+    }
+
+    #[test]
+    #[ignore = "live USGS contract check for the river stage manifest; run in nightly CI"]
+    fn live_usgs_stage_manifest_contract() {
+        let source = find_source(&temp_dir("live-usgs"), "usgs-river-stage").unwrap();
+        let records = tauri::async_runtime::block_on(source.fetch()).unwrap();
+        // Six years of daily readings, allowing for a few missing days.
+        assert!(records.len() > 2000, "only {} rows", records.len());
     }
 
     #[test]
