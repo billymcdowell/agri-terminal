@@ -15,6 +15,7 @@ use crate::{
         backtest::{self, BacktestReport, LabelFile},
         combined::{self, StressPoint},
         moves::{self, PricePoint},
+        river,
     },
     core::{DataSource, MetricObservation, Observation, SourceStatus, StoredRows, StoredSeries},
     plugins::{self, registry::PluginSummary},
@@ -469,6 +470,129 @@ pub fn crop_stress_timeline(
         .collect::<Result<Vec<_>, _>>()?;
     Ok(combined::crop_stress_timeline(
         &prices, &condition, &drought,
+    ))
+}
+
+/// Every stored revision a gauge's constraint score needs.
+struct StoredGaugeSeries {
+    stage: Vec<MetricObservation>,
+    forecast: Vec<MetricObservation>,
+    barge_rate: Vec<MetricObservation>,
+    locks: Vec<Vec<MetricObservation>>,
+}
+
+impl StoredGaugeSeries {
+    fn load(
+        connection: &Connection,
+        river: &crate::sources::river::River,
+        gauge: &crate::sources::river::Gauge,
+    ) -> Result<Self, String> {
+        let barge_series = gauge.barge_location.as_ref().and_then(|id| {
+            river
+                .barge_locations
+                .iter()
+                .find(|location| &location.id == id)
+                .map(|location| location.series())
+        });
+        Ok(Self {
+            stage: store::query_metric_revisions(connection, &gauge.stage_series())?,
+            forecast: store::query_metric_revisions(connection, &gauge.forecast_series())?,
+            barge_rate: match barge_series {
+                Some(series) => store::query_metric_revisions(connection, &series)?,
+                None => Vec::new(),
+            },
+            locks: river
+                .locks
+                .iter()
+                .filter(|lock| gauge.locks.contains(&lock.id))
+                .map(|lock| store::query_metric_revisions(connection, &lock.series()))
+                .collect::<Result<_, _>>()?,
+        })
+    }
+
+    fn view(&self) -> river::GaugeSeries<'_> {
+        river::GaugeSeries {
+            stage: &self.stage,
+            forecast: &self.forecast,
+            barge_rate: &self.barge_rate,
+            locks: self.locks.iter().map(Vec::as_slice).collect(),
+        }
+    }
+}
+
+/// The configured gauge, or the first one when none is named.
+fn find_gauge<'a>(
+    config: &'a crate::sources::river::WaterwaysConfig,
+    gauge: Option<&str>,
+) -> Result<
+    (
+        &'a crate::sources::river::River,
+        &'a crate::sources::river::Gauge,
+    ),
+    String,
+> {
+    match gauge {
+        Some(id) => config
+            .gauge(&id.to_ascii_lowercase())
+            .ok_or_else(|| format!("Unknown river gauge {id}")),
+        None => config
+            .gauges()
+            .next()
+            .ok_or_else(|| "No river gauges are configured".to_string()),
+    }
+}
+
+/// Score, stage, forecast, barge rate and lock traffic for a gauge, as known now.
+#[tauri::command(async)]
+pub fn get_river_status(
+    app: AppHandle,
+    gauge: Option<String>,
+) -> Result<river::RiverStatus, String> {
+    let config = waterways_config(&app)?;
+    let (river_config, gauge_config) = find_gauge(&config, gauge.as_deref())?;
+    let stored = with_connection(&app, |connection| {
+        StoredGaugeSeries::load(connection, river_config, gauge_config)
+    })?;
+    Ok(river::river_status(
+        river_config,
+        gauge_config,
+        &config.bands,
+        &stored.view(),
+        Utc::now(),
+    ))
+}
+
+/// The gauge's stage, forecast, barge rate and score day by day, with the commodity's close.
+#[tauri::command(async)]
+pub fn get_river_timeline(
+    app: AppHandle,
+    gauge: Option<String>,
+    commodity: String,
+) -> Result<Vec<river::RiverPoint>, String> {
+    let config = waterways_config(&app)?;
+    let (river_config, gauge_config) = find_gauge(&config, gauge.as_deref())?;
+    let symbol = commodity.to_ascii_uppercase();
+    let (stored, prices) = with_connection(&app, |connection| {
+        let stored = StoredGaugeSeries::load(connection, river_config, gauge_config)?;
+        let mut prices = store::query_series(
+            connection,
+            &format!("price.{symbol}.close"),
+            None,
+            None,
+            None,
+        )?;
+        if prices.is_empty() && symbol == "ZC" {
+            prices = store::query_series(connection, "demo.price.ZC.close", None, None, None)?;
+        }
+        Ok((stored, prices))
+    })?;
+    Ok(river::river_timeline(
+        river_config,
+        gauge_config,
+        &config.bands,
+        &stored.view(),
+        &prices,
+        Utc::now().date_naive(),
     ))
 }
 

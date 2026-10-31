@@ -75,6 +75,8 @@ pub fn run() {
             commands::delete_workspace,
             commands::explain_moves,
             commands::crop_stress_timeline,
+            commands::get_river_status,
+            commands::get_river_timeline,
             commands::run_backtest,
             commands::list_alerts,
             commands::save_alert,

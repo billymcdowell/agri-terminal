@@ -114,6 +114,10 @@ impl BargeLocation {
     pub fn series(&self) -> String {
         format!("river.barge_rate.{}", self.id)
     }
+
+    pub fn dollars_per_ton(&self, percent_of_tariff: f64) -> f64 {
+        percent_of_tariff * self.benchmark_cents_per_ton / 10_000.0
+    }
 }
 
 impl Lock {
@@ -151,7 +155,7 @@ pub struct Gauge {
 }
 
 /// Stage levels on the gauge's own datum: deficit is 0 at `normal` and 1 at `critical`.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Thresholds {
     pub normal: f64,
@@ -175,6 +179,10 @@ impl WaterwaysConfig {
         self.rivers
             .iter()
             .flat_map(|river| river.gauges.iter().map(move |gauge| (river, gauge)))
+    }
+
+    pub fn gauge(&self, id: &str) -> Option<(&River, &Gauge)> {
+        self.gauges().find(|(_, gauge)| gauge.id == id)
     }
 
     /// The day GTR data for a week become public: the Thursday after the week ends, or the next
@@ -939,6 +947,9 @@ mod tests {
             "river.barge_rate.stlouis"
         );
         assert_eq!(river.locks[1].series(), "river.locks.olmsted.grain_tons");
+        // 564.0625 percent of the $3.99 St. Louis benchmark.
+        assert!((river.barge_locations[0].dollars_per_ton(564.0625) - 22.506).abs() < 0.001);
+        assert_eq!(config.gauge("memphis").unwrap().1.nws_id, "MEMT1");
     }
 
     #[test]

@@ -37,6 +37,33 @@ pub fn seasonal_band(
             values.push(*value);
         }
     }
+    band_of(&values)
+}
+
+/// `seasonal_band` for a series sorted by date, finding each year's window by binary search, so a
+/// daily timeline over many years stays fast.
+pub fn seasonal_band_sorted(
+    series: &[(NaiveDate, f64)],
+    on: NaiveDate,
+    years: i32,
+    window_days: i64,
+) -> Option<SeasonalBand> {
+    let mut values = Vec::new();
+    for back in 1..=years {
+        let center = shift_years(on, back);
+        let from = series.partition_point(|(date, _)| (center - *date).num_days() > window_days);
+        let to = series.partition_point(|(date, _)| (*date - center).num_days() <= window_days);
+        let closest = series[from..to.max(from)]
+            .iter()
+            .min_by_key(|(date, _)| (*date - center).num_days().abs());
+        if let Some((_, value)) = closest {
+            values.push(*value);
+        }
+    }
+    band_of(&values)
+}
+
+fn band_of(values: &[f64]) -> Option<SeasonalBand> {
     if values.len() < 2 {
         return None;
     }
@@ -69,6 +96,25 @@ mod tests {
         assert_eq!(band.years, 3);
         assert_eq!((band.low, band.high), (60.0, 80.0));
         assert_eq!(band.mean, 70.0);
+    }
+
+    #[test]
+    fn the_sorted_band_matches_the_general_one() {
+        let series: Vec<(NaiveDate, f64)> = (0..3000)
+            .filter(|offset| offset % 7 != 3)
+            .map(|offset| {
+                let date = day(2018, 1, 1) + chrono::Duration::days(offset);
+                (date, (offset % 97) as f64)
+            })
+            .collect();
+        for offset in (1500..3000).step_by(13) {
+            let on = day(2018, 1, 1) + chrono::Duration::days(offset);
+            assert_eq!(
+                seasonal_band_sorted(&series, on, 5, 4),
+                seasonal_band(&series, on, 5, 4),
+                "{on}"
+            );
+        }
     }
 
     #[test]

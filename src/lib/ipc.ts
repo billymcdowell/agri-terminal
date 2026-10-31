@@ -66,6 +66,29 @@ export type MoveExplanation = { move: PriceMove; label: string; drivers: Driver[
 export type StressPoint = { date: string; close: number; condition: number | null; conditionLow: number | null; conditionHigh: number | null; drought: number | null };
 export type BacktestReport = { total: number; detected: number; topMatch: number; missedDates: string[]; topMatchRate: number | null };
 
+export type RiverThresholds = { normal: number; restriction: number; critical: number };
+/** The latest value of one river input and when it was published and fetched. */
+export type RiverInput = { period: string; value: number; releasedAt: string; fetchedAt: string; sourceId: string };
+export type SeasonalBand = { low: number; mean: number; high: number; years: number };
+export type ScoreComponent = { value: number; weight: number; points: number };
+export type RiverBand = "NORMAL" | "ELEVATED" | "HIGH";
+export type ConstraintScore = { total: number; band: RiverBand; depth: ScoreComponent | null; forecast: ScoreComponent | null; traffic: ScoreComponent | null; partial: boolean };
+export type BargeRateStatus = { latest: RiverInput; dollarsPerTon: number | null; previous: RiverInput | null; changePercent: number | null; location: string };
+export type TrafficStatus = { week: string; tons: number; averageTons: number; changePercent: number; locks: string[]; releasedAt: string };
+export type RiverStatus = {
+  gaugeId: string; gaugeName: string; riverName: string; unit: string; thresholds: RiverThresholds; provisional: boolean; asOf: string;
+  stage: RiverInput | null; stageBand: SeasonalBand | null;
+  forecastIssuedAt: string | null; forecastFetchedAt: string | null; forecast: { date: string; low: number }[]; forecastMin: number | null; restrictionForecastOn: string | null;
+  bargeRate: BargeRateStatus | null; traffic: TrafficStatus | null; score: ConstraintScore | null;
+};
+/** One day of the river timeline, as known at that day's close. `bargeRate` is percent of the 1976 tariff. */
+export type RiverPoint = {
+  date: string; close: number | null; stage: number | null; stageLow: number | null; stageMean: number | null; stageHigh: number | null;
+  forecastMin: number | null; bargeRate: number | null; score: number | null; band: RiverBand | null; partial: boolean; basisSpread: number | null;
+};
+export function getRiverStatus(gauge?: string) { return invoke<RiverStatus>("get_river_status", { gauge }); }
+export function getRiverTimeline(gauge: string | undefined, commodity: string) { return invoke<RiverPoint[]>("get_river_timeline", { gauge, commodity }); }
+
 export function explainMoves(commodity: string, thresholdSd?: number) { return invoke<MoveExplanation[]>("explain_moves", { commodity, thresholdSd }); }
 export function cropStressTimeline(commodity: string) { return invoke<StressPoint[]>("crop_stress_timeline", { commodity }); }
 export function runBacktest() { return invoke<BacktestReport>("run_backtest"); }
