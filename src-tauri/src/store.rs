@@ -363,16 +363,16 @@ pub fn append_source_records(
 
 /// Sources date backfilled rows to their scheduled release, but a changed value seen later was not
 /// public at that time: the app learned it when it fetched it. Dating a revision to the original
-/// release would let an as-of join use a correction before anyone could have known it.
+/// release would let an as-of join use a correction before anyone could have known it. A revision
+/// the source dates after the one it replaces, such as a new forecast issue, keeps that date.
 fn revision_release(
-    replaces_earlier: bool,
+    previous_release: Option<DateTime<Utc>>,
     released_at: DateTime<Utc>,
     fetched_at: DateTime<Utc>,
 ) -> DateTime<Utc> {
-    if replaces_earlier {
-        released_at.max(fetched_at)
-    } else {
-        released_at
+    match previous_release {
+        Some(previous) if released_at <= previous => released_at.max(fetched_at),
+        _ => released_at,
     }
 }
 
@@ -401,22 +401,28 @@ fn append_metric_revisions(
         .map_err(|error| format!("Start metric transaction: {error}"))?;
     let mut inserted = 0;
     {
-        let mut latest = transaction.prepare("SELECT revision, value FROM metric_observations WHERE series_id = ?1 AND period = ?2 ORDER BY revision DESC LIMIT 1").map_err(|error| format!("Prepare metric revision lookup: {error}"))?;
+        let mut latest = transaction.prepare("SELECT revision, value, released_at FROM metric_observations WHERE series_id = ?1 AND period = ?2 ORDER BY revision DESC LIMIT 1").map_err(|error| format!("Prepare metric revision lookup: {error}"))?;
         let mut insert = transaction.prepare("INSERT INTO metric_observations (series_id, period, revision, released_at, value, unit, source_id, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)").map_err(|error| format!("Prepare metric insert: {error}"))?;
         for observation in observations {
-            let previous: Option<(i64, f64)> = latest
+            let previous: Option<(i64, f64, String)> = latest
                 .query_row(
                     params![observation.series_id.0, observation.period.to_string()],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                 )
                 .optional()
                 .map_err(|error| format!("Read metric revision: {error}"))?;
-            if previous.is_some_and(|(_, value)| value == observation.value) {
+            if previous
+                .as_ref()
+                .is_some_and(|(_, value, _)| *value == observation.value)
+            {
                 continue;
             }
-            let revision = previous.map_or(0, |(revision, _)| revision + 1);
+            let revision = previous.as_ref().map_or(0, |(revision, ..)| revision + 1);
             let released_at = revision_release(
-                previous.is_some(),
+                previous
+                    .as_ref()
+                    .and_then(|(_, _, released)| DateTime::parse_from_rfc3339(released).ok())
+                    .map(|time| time.with_timezone(&Utc)),
                 observation.released_at,
                 observation.fetched_at,
             );
@@ -699,7 +705,7 @@ pub fn append_observations_as_revisions(
     {
         let mut latest_query = transaction
             .prepare(
-                "SELECT revision, open, high, low, close FROM observations
+                "SELECT revision, open, high, low, close, released_at FROM observations
                  WHERE series_id = ?1 AND period = ?2
                  ORDER BY revision DESC LIMIT 1",
             )
@@ -712,7 +718,7 @@ pub fn append_observations_as_revisions(
             )
             .map_err(|error| format!("Prepare revision insert: {error}"))?;
         for observation in observations {
-            let latest: Option<(i64, f64, f64, f64, f64)> = latest_query
+            let latest: Option<(i64, f64, f64, f64, f64, String)> = latest_query
                 .query_row(
                     params![&observation.series_id.0, observation.period.to_string()],
                     |row| {
@@ -722,22 +728,29 @@ pub fn append_observations_as_revisions(
                             row.get(2)?,
                             row.get(3)?,
                             row.get(4)?,
+                            row.get(5)?,
                         ))
                     },
                 )
                 .optional()
                 .map_err(|error| format!("Read latest observation: {error}"))?;
-            if latest.is_some_and(|(_, open, high, low, close)| {
-                open == observation.open
-                    && high == observation.high
-                    && low == observation.low
-                    && close == observation.close
-            }) {
+            if latest
+                .as_ref()
+                .is_some_and(|(_, open, high, low, close, _)| {
+                    *open == observation.open
+                        && *high == observation.high
+                        && *low == observation.low
+                        && *close == observation.close
+                })
+            {
                 continue;
             }
-            let revision = latest.map_or(0, |(revision, ..)| revision + 1);
+            let revision = latest.as_ref().map_or(0, |(revision, ..)| revision + 1);
             let released_at = revision_release(
-                latest.is_some(),
+                latest
+                    .as_ref()
+                    .and_then(|(.., released)| DateTime::parse_from_rfc3339(released).ok())
+                    .map(|time| time.with_timezone(&Utc)),
                 observation.released_at,
                 observation.fetched_at,
             );
@@ -837,6 +850,12 @@ pub fn register_sources(connection: &Connection) -> Result<(), String> {
         ("us-drought-monitor", "U.S. Drought Monitor", 604_800),
         ("usgs-river-stage", "USGS river stage", 86_400),
         ("nwps-river-stage", "NWS river stage", 86_400),
+        ("nwps-river-forecast", "NWS river forecasts", 86_400),
+        (
+            "usda-agtransport",
+            "USDA AgTransport barge rates and locks",
+            86_400,
+        ),
     ] {
         register_source(connection, id, name, cadence, true)?;
     }
@@ -1258,6 +1277,14 @@ fn seed_fixture_if_empty(connection: &Connection) -> Result<(), String> {
     Ok(())
 }
 
+/// An empty in-memory database with the current schema, for tests in other modules.
+#[cfg(test)]
+pub(crate) fn test_connection() -> Connection {
+    let connection = Connection::open_in_memory().unwrap();
+    migrate(&connection).unwrap();
+    connection
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1460,6 +1487,8 @@ mod tests {
             && event.scheduled_at.date_naive().to_string() == "2026-10-26"));
         assert!(events.iter().any(|event| event.kind == "WASDE"
             && event.scheduled_at.date_naive().to_string() == "2026-11-10"));
+        assert!(events.iter().any(|event| event.kind == "GTR"
+            && event.scheduled_at.to_rfc3339() == "2026-10-29T16:00:00+00:00"));
         assert!(
             events.iter().any(|event| event.kind == "COT"
                 && event.scheduled_at.date_naive().to_string() == "2026-10-23"),

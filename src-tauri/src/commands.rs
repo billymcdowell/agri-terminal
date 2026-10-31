@@ -190,21 +190,30 @@ fn resolve_source(app: &AppHandle, id: &str) -> Result<Box<dyn DataSource>, Stri
     if let Some(source) = built_in {
         return Ok(source);
     }
-    if id == crate::sources::river::NWPS_STAGE_SOURCE {
+    use crate::sources::{agtransport, river};
+    if id == agtransport::AGTRANSPORT_SOURCE {
+        return Ok(Box::new(agtransport::AgTransportSource {
+            config: waterways_config(app)?,
+        }));
+    }
+    if id == river::NWPS_STAGE_SOURCE || id == river::NWPS_FORECAST_SOURCE {
         let config = waterways_config(app)?;
         return with_connection(app, |connection| {
+            // The archive is only asked for days the store does not have yet.
             let mut stored = std::collections::BTreeMap::new();
             for (_, gauge) in config.gauges() {
-                let series = gauge.stage_series();
-                let periods = store::metric_periods(connection, &series)?;
-                stored.insert(series, periods.into_iter().collect());
+                for series in [gauge.stage_series(), gauge.forecast_series()] {
+                    let periods = store::metric_periods(connection, &series)?;
+                    stored.insert(series, periods.into_iter().collect());
+                }
             }
-            Ok(
-                Box::new(crate::sources::river::NwpsStageSource::from_config(
-                    &config,
-                    |series| stored.get(series).cloned().unwrap_or_default(),
-                )) as Box<dyn DataSource>,
-            )
+            let stored = |series: &str| stored.get(series).cloned().unwrap_or_default();
+            Ok(if id == river::NWPS_STAGE_SOURCE {
+                Box::new(river::NwpsStageSource::from_config(&config, stored))
+                    as Box<dyn DataSource>
+            } else {
+                Box::new(river::NwpsForecastSource::from_config(&config, stored))
+            })
         });
     }
     crate::plugins::registry::find_source(&plugin_directory(app)?, id)

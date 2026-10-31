@@ -16,6 +16,8 @@ pub const RESERVED_IDS: &[&str] = &[
     "us-drought-monitor",
     "usgs-river-stage",
     "nwps-river-stage",
+    "nwps-river-forecast",
+    "usda-agtransport",
     // Lineage of river stage history backfilled from the Iowa Environmental Mesonet archive.
     "iem-hml",
 ];

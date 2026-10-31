@@ -8,7 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -47,7 +47,28 @@ pub struct WaterwaysConfig {
     #[serde(default)]
     pub notes: String,
     pub bands: Bands,
+    pub gtr_release: GtrRelease,
     pub rivers: Vec<River>,
+}
+
+/// When the weekly Grain Transportation Report data become public: the Thursday after the week
+/// they describe, unless that week's issue was missed (federal funding lapses), in which case the
+/// data came out with the next issue.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GtrRelease {
+    pub hour_utc: u32,
+    pub missed_issues: Vec<MissedIssues>,
+}
+
+/// Scheduled issue dates from `from` to `to` that were not published; their data came out on
+/// `next_issue`.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MissedIssues {
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+    pub next_issue: NaiveDate,
 }
 
 /// Score cut-offs: below `elevated` is NORMAL, below `high` is ELEVATED, the rest HIGH.
@@ -66,7 +87,39 @@ pub struct River {
     pub weights: Weights,
     /// How many days of forecast the FCST component looks at.
     pub forecast_days: i64,
+    /// AgTransport barge rate locations, named as in the dataset.
+    pub barge_locations: Vec<BargeLocation>,
+    /// AgTransport locks, named as in the dataset.
+    pub locks: Vec<Lock>,
     pub gauges: Vec<Gauge>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BargeLocation {
+    pub id: String,
+    pub name: String,
+    /// The 1976 tariff benchmark: a quote of 100 percent is this many cents per short ton.
+    pub benchmark_cents_per_ton: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Lock {
+    pub id: String,
+    pub name: String,
+}
+
+impl BargeLocation {
+    pub fn series(&self) -> String {
+        format!("river.barge_rate.{}", self.id)
+    }
+}
+
+impl Lock {
+    pub fn series(&self) -> String {
+        format!("river.locks.{}.grain_tons", self.id)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -90,6 +143,11 @@ pub struct Gauge {
     pub thresholds: Thresholds,
     /// True until Phase 7 calibration replaces the starting values.
     pub provisional: bool,
+    /// The barge rate location whose freight reacts to this gauge.
+    pub barge_location: Option<String>,
+    /// Locks whose combined grain tonnage passes this gauge, for the traffic component.
+    #[serde(default)]
+    pub locks: Vec<String>,
 }
 
 /// Stage levels on the gauge's own datum: deficit is 0 at `normal` and 1 at `critical`.
@@ -105,6 +163,11 @@ impl Gauge {
     pub fn stage_series(&self) -> String {
         format!("river.{}.stage", self.id)
     }
+
+    /// The lowest forecast stage for each target day, one revision per forecast issue.
+    pub fn forecast_series(&self) -> String {
+        format!("river.{}.forecast_min", self.id)
+    }
 }
 
 impl WaterwaysConfig {
@@ -112,6 +175,18 @@ impl WaterwaysConfig {
         self.rivers
             .iter()
             .flat_map(|river| river.gauges.iter().map(move |gauge| (river, gauge)))
+    }
+
+    /// The day GTR data for a week become public: the Thursday after the week ends, or the next
+    /// published issue when that Thursday's issue was missed.
+    pub fn gtr_issue_date(&self, week_ending: NaiveDate) -> NaiveDate {
+        let days = (3 - i64::from(week_ending.weekday().num_days_from_monday())).rem_euclid(7);
+        let scheduled = week_ending + Duration::days(if days == 0 { 7 } else { days });
+        self.gtr_release
+            .missed_issues
+            .iter()
+            .find(|missed| (missed.from..=missed.to).contains(&scheduled))
+            .map_or(scheduled, |missed| missed.next_issue)
     }
 }
 
@@ -135,6 +210,17 @@ pub fn parse_waterways(text: &str) -> Result<WaterwaysConfig, String> {
         && config.bands.high <= 100.0)
     {
         problems.push("bands: need 0 < elevated < high <= 100".into());
+    }
+    if config.gtr_release.hour_utc > 23 {
+        problems.push("gtr_release.hour_utc: must be 0 to 23".into());
+    }
+    for missed in &config.gtr_release.missed_issues {
+        if !(missed.from <= missed.to && missed.to < missed.next_issue) {
+            problems.push(format!(
+                "gtr_release.missed_issues: need from <= to < next_issue (from {})",
+                missed.from
+            ));
+        }
     }
     let mut gauge_ids = BTreeSet::new();
     for river in &config.rivers {
@@ -162,8 +248,46 @@ pub fn parse_waterways(text: &str) -> Result<WaterwaysConfig, String> {
                 river.id
             ));
         }
+        let mut location_ids = BTreeSet::new();
+        for location in &river.barge_locations {
+            if !valid_id(&location.id) || !location_ids.insert(location.id.as_str()) {
+                problems.push(format!(
+                    "rivers.{}.barge_locations.{}: id must be unique lowercase letters, digits or '_'",
+                    river.id, location.id
+                ));
+            }
+            if location.benchmark_cents_per_ton <= 0.0 {
+                problems.push(format!(
+                    "rivers.{}.barge_locations.{}.benchmark_cents_per_ton: must be above 0",
+                    river.id, location.id
+                ));
+            }
+        }
+        let mut lock_ids = BTreeSet::new();
+        for lock in &river.locks {
+            if !valid_id(&lock.id) || !lock_ids.insert(lock.id.as_str()) {
+                problems.push(format!(
+                    "rivers.{}.locks.{}: id must be unique lowercase letters, digits or '_'",
+                    river.id, lock.id
+                ));
+            }
+        }
         for gauge in &river.gauges {
             let field = format!("rivers.{}.gauges.{}", river.id, gauge.id);
+            if let Some(location) = &gauge.barge_location
+                && !location_ids.contains(location.as_str())
+            {
+                problems.push(format!(
+                    "{field}.barge_location: \"{location}\" is not one of this river's barge_locations"
+                ));
+            }
+            for lock in &gauge.locks {
+                if !lock_ids.contains(lock.as_str()) {
+                    problems.push(format!(
+                        "{field}.locks: \"{lock}\" is not one of this river's locks"
+                    ));
+                }
+            }
             if !valid_id(&gauge.id) || !gauge_ids.insert(gauge.id.clone()) {
                 problems.push(format!(
                     "{field}.id: must be unique lowercase letters, digits or '_'"
@@ -368,11 +492,11 @@ pub(crate) fn client() -> Result<reqwest::Client, SourceError> {
         .map_err(|error| SourceError::Unavailable(error.to_string()))
 }
 
-pub(crate) async fn fetch_nwps_product(
+async fn fetch_nwps_json(
     client: &reqwest::Client,
     nws_id: &str,
     product: &str,
-) -> Result<Vec<Reading>, SourceError> {
+) -> Result<Value, SourceError> {
     let response = client
         .get(format!("{NWPS_BASE}/gauges/{nws_id}/stageflow/{product}"))
         .send()
@@ -381,23 +505,23 @@ pub(crate) async fn fetch_nwps_product(
     if !response.status().is_success() {
         return Err(http_error(&response));
     }
-    let value: Value = response.json().await.map_err(parse_error)?;
-    parse_nwps_product(&value)
+    response.json().await.map_err(parse_error)
 }
 
-async fn fetch_iem_observations(
+async fn fetch_iem_csv(
     client: &reqwest::Client,
     nws_id: &str,
+    kind: &str,
     first: NaiveDate,
     last: NaiveDate,
-) -> Result<Vec<Reading>, SourceError> {
+) -> Result<Vec<u8>, SourceError> {
     let response = client
         .get(IEM_HML_URL)
         .query(&[
             ("station", nws_id.to_string()),
             ("sts", format!("{first}T00:00Z")),
             ("ets", format!("{}T00:00Z", last + Duration::days(1))),
-            ("kind", "obs".to_string()),
+            ("kind", kind.to_string()),
             ("fmt", "csv".to_string()),
             ("tz", "UTC".to_string()),
         ])
@@ -407,8 +531,35 @@ async fn fetch_iem_observations(
     if !response.status().is_success() {
         return Err(http_error(&response));
     }
-    let body = response.bytes().await.map_err(parse_error)?;
-    parse_iem_observations(&body)
+    Ok(response.bytes().await.map_err(parse_error)?.to_vec())
+}
+
+async fn fetch_iem_observations(
+    client: &reqwest::Client,
+    nws_id: &str,
+    first: NaiveDate,
+    last: NaiveDate,
+) -> Result<Vec<Reading>, SourceError> {
+    parse_iem_observations(&fetch_iem_csv(client, nws_id, "obs", first, last).await?)
+}
+
+/// Forecast issues from `first` to `last`. The archive answers forecasts one UTC year at a time.
+async fn fetch_iem_forecasts(
+    client: &reqwest::Client,
+    nws_id: &str,
+    first: NaiveDate,
+    last: NaiveDate,
+) -> Result<Vec<ForecastIssue>, SourceError> {
+    let mut issues = Vec::new();
+    let mut start = first;
+    while start <= last {
+        let year_end = NaiveDate::from_ymd_opt(start.year(), 12, 31).expect("31 December exists");
+        let end = year_end.min(last);
+        let body = fetch_iem_csv(client, nws_id, "forecasts", start, end).await?;
+        issues.extend(parse_iem_forecasts(&body)?);
+        start = end + Duration::days(1);
+    }
+    Ok(issues)
 }
 
 pub struct NwpsGauge {
@@ -488,7 +639,8 @@ impl DataSource for NwpsStageSource {
         let client = client()?;
         let mut records = Vec::new();
         for gauge in &self.gauges {
-            let live = fetch_nwps_product(&client, &gauge.nws_id, "observed").await?;
+            let live =
+                parse_nwps_product(&fetch_nwps_json(&client, &gauge.nws_id, "observed").await?)?;
             let live_start = live
                 .iter()
                 .map(|reading| reading.at.date_naive())
@@ -511,6 +663,206 @@ impl DataSource for NwpsStageSource {
                 }
             }
             records.extend(stage_records(&gauge.series_id, &live, &archive, fetched));
+        }
+        Ok(records.into_iter().map(SourceRecord::Metric).collect())
+    }
+}
+
+pub const NWPS_FORECAST_SOURCE: &str = "nwps-river-forecast";
+/// Forecasts reach about 14 days ahead, so a target day's history needs the issues from the 15
+/// days before it.
+const FORECAST_LEAD_DAYS: i64 = 15;
+
+/// One forecast issue: when NWS published it and the stage it expected.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForecastIssue {
+    pub issued: DateTime<Utc>,
+    pub readings: Vec<Reading>,
+}
+
+pub(crate) fn parse_nwps_forecast(product: &Value) -> Result<ForecastIssue, SourceError> {
+    let time = product
+        .get("issuedTime")
+        .and_then(Value::as_str)
+        .ok_or_else(|| SourceError::Parse("NWPS forecast has no issuedTime".into()))?;
+    let issued = DateTime::parse_from_rfc3339(time)
+        .map_err(|error| SourceError::Parse(format!("NWPS issuedTime \"{time}\": {error}")))?
+        .with_timezone(&Utc);
+    Ok(ForecastIssue {
+        issued,
+        readings: parse_nwps_product(product)?,
+    })
+}
+
+/// An IEM HML forecast CSV: one row per issue and forecast time.
+pub(crate) fn parse_iem_forecasts(body: &[u8]) -> Result<Vec<ForecastIssue>, SourceError> {
+    let mut reader = csv::Reader::from_reader(body);
+    let headers = reader
+        .headers()
+        .map_err(|error| SourceError::Parse(format!("IEM header: {error}")))?
+        .clone();
+    let column = |name: &str| headers.iter().position(|header| header == name);
+    let columns = (
+        column("issued[UTC]"),
+        column("forecast_valid[UTC]"),
+        column("primary_value"),
+        column("primaryunits"),
+    );
+    let mut issues: BTreeMap<DateTime<Utc>, Vec<Reading>> = BTreeMap::new();
+    for record in reader.records() {
+        let record = record.map_err(|error| SourceError::Parse(format!("IEM row: {error}")))?;
+        let (Some(issued), Some(valid), Some(value), Some(units)) = columns else {
+            return Err(SourceError::Parse(format!(
+                "IEM forecast rows are missing expected columns (found {})",
+                headers.iter().collect::<Vec<_>>().join(", ")
+            )));
+        };
+        if record.get(units) != Some("ft") {
+            return Err(SourceError::Parse(format!(
+                "IEM forecast is in \"{}\", expected ft",
+                record.get(units).unwrap_or_default()
+            )));
+        }
+        let time = |index: usize| {
+            let text = record.get(index).unwrap_or_default();
+            NaiveDateTime::parse_from_str(text, "%Y-%m-%d %H:%M")
+                .map(|time| time.and_utc())
+                .map_err(|error| SourceError::Parse(format!("IEM time \"{text}\": {error}")))
+        };
+        let issued_at = time(issued)?;
+        let entry = issues.entry(issued_at).or_default();
+        if let Some(stage) = record
+            .get(value)
+            .and_then(|text| text.trim().parse::<f64>().ok())
+            .filter(|stage| *stage > MISSING_VALUE_BELOW)
+        {
+            entry.push(Reading {
+                at: time(valid)?,
+                value: stage,
+            });
+        }
+    }
+    Ok(issues
+        .into_iter()
+        .map(|(issued, readings)| ForecastIssue { issued, readings })
+        .collect())
+}
+
+/// Each issue's lowest expected stage for every target day from the issue's own day on, released
+/// when the issue was published. Issues are taken oldest first, so a target day's revisions are
+/// stored in the order NWS published them.
+pub fn forecast_records(
+    series_id: &str,
+    issues: &[ForecastIssue],
+    keep: impl Fn(NaiveDate) -> bool,
+    source: &str,
+    fetched: DateTime<Utc>,
+) -> Vec<MetricObservation> {
+    let mut ordered: Vec<&ForecastIssue> = issues.iter().collect();
+    ordered.sort_by_key(|issue| issue.issued);
+    let mut records = Vec::new();
+    for issue in ordered {
+        let mut lows: BTreeMap<NaiveDate, f64> = BTreeMap::new();
+        for reading in &issue.readings {
+            let target = reading.at.date_naive();
+            if target < issue.issued.date_naive() || !keep(target) {
+                continue;
+            }
+            let low = lows.entry(target).or_insert(reading.value);
+            *low = low.min(reading.value);
+        }
+        records.extend(lows.into_iter().map(|(target, low)| {
+            metric(series_id, target, issue.issued, fetched, low, "ft", source)
+        }));
+    }
+    records
+}
+
+pub struct ForecastGauge {
+    pub series_id: String,
+    pub nws_id: String,
+    /// Target days already stored, so the archive is only asked for what is missing.
+    pub stored: BTreeSet<NaiveDate>,
+}
+
+/// The latest NWS forecast for every configured gauge, with forecast history from the IEM
+/// archive for target days before the first live issue.
+pub struct NwpsForecastSource {
+    pub gauges: Vec<ForecastGauge>,
+}
+
+impl NwpsForecastSource {
+    pub fn from_config(
+        config: &WaterwaysConfig,
+        stored: impl Fn(&str) -> BTreeSet<NaiveDate>,
+    ) -> Self {
+        Self {
+            gauges: config
+                .gauges()
+                .map(|(_, gauge)| ForecastGauge {
+                    series_id: gauge.forecast_series(),
+                    nws_id: gauge.nws_id.clone(),
+                    stored: stored(&gauge.forecast_series()),
+                })
+                .collect(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl DataSource for NwpsForecastSource {
+    fn id(&self) -> &str {
+        NWPS_FORECAST_SOURCE
+    }
+    fn name(&self) -> &str {
+        "NWS river forecasts"
+    }
+    fn cadence(&self) -> Cadence {
+        Cadence::Daily
+    }
+    async fn fetch(&self) -> Result<Vec<SourceRecord>, SourceError> {
+        let fetched = Utc::now();
+        let today = fetched.date_naive();
+        let client = client()?;
+        let mut records = Vec::new();
+        for gauge in &self.gauges {
+            let live =
+                parse_nwps_forecast(&fetch_nwps_json(&client, &gauge.nws_id, "forecast").await?)?;
+            let first_live_target = live.issued.date_naive();
+            let windows = missing_windows(
+                &gauge.stored,
+                today - Duration::days(HISTORY_DAYS),
+                first_live_target - Duration::days(1),
+            );
+            for (first, last) in windows.into_iter().take(MAX_ARCHIVE_REQUESTS) {
+                match fetch_iem_forecasts(
+                    &client,
+                    &gauge.nws_id,
+                    first - Duration::days(FORECAST_LEAD_DAYS),
+                    last,
+                )
+                .await
+                {
+                    Ok(issues) => records.extend(forecast_records(
+                        &gauge.series_id,
+                        &issues,
+                        |target| (first..=last).contains(&target),
+                        IEM_ARCHIVE_SOURCE,
+                        fetched,
+                    )),
+                    Err(error) => {
+                        tracing::warn!(gauge = %gauge.nws_id, %first, %last, %error, "River forecast archive request failed");
+                        break;
+                    }
+                }
+            }
+            records.extend(forecast_records(
+                &gauge.series_id,
+                &[live],
+                |_| true,
+                NWPS_FORECAST_SOURCE,
+                fetched,
+            ));
         }
         Ok(records.into_iter().map(SourceRecord::Metric).collect())
     }
@@ -559,6 +911,70 @@ mod tests {
         assert!(error.contains("gauges.stlouis.thresholds"), "{error}");
         assert!(error.contains("gauges.memphis.nws_id"), "{error}");
         assert!(parse_waterways("{\"version\": 1}").is_err());
+    }
+
+    #[test]
+    fn gauges_link_to_barge_locations_and_locks_that_exist() {
+        let broken = BUNDLED_WATERWAYS
+            .replace(
+                "\"barge_location\": \"stlouis\"",
+                "\"barge_location\": \"chicago\"",
+            )
+            .replace("\"locks\": [\"ms27\"]", "\"locks\": [\"ms99\"]")
+            .replace(
+                "\"benchmark_cents_per_ton\": 314",
+                "\"benchmark_cents_per_ton\": 0",
+            );
+        let error = parse_waterways(&broken).unwrap_err();
+        assert!(error.contains("gauges.stlouis.barge_location"), "{error}");
+        assert!(error.contains("gauges.stlouis.locks"), "{error}");
+        assert!(
+            error.contains("cairo_memphis.benchmark_cents_per_ton"),
+            "{error}"
+        );
+        let config = parse_waterways(BUNDLED_WATERWAYS).unwrap();
+        let river = &config.rivers[0];
+        assert_eq!(
+            river.barge_locations[0].series(),
+            "river.barge_rate.stlouis"
+        );
+        assert_eq!(river.locks[1].series(), "river.locks.olmsted.grain_tons");
+    }
+
+    #[test]
+    fn gtr_data_are_public_the_thursday_after_their_week_or_with_the_next_issue() {
+        let config = parse_waterways(BUNDLED_WATERWAYS).unwrap();
+        // Barge rates: week ending Tuesday. Locks: week ending Saturday. Basis: week ending Friday.
+        assert_eq!(
+            config.gtr_issue_date(date("2026-10-27")),
+            date("2026-10-29")
+        );
+        assert_eq!(
+            config.gtr_issue_date(date("2026-10-24")),
+            date("2026-10-29")
+        );
+        assert_eq!(
+            config.gtr_issue_date(date("2026-10-23")),
+            date("2026-10-29")
+        );
+        // A week ending on Thursday is published the next Thursday.
+        assert_eq!(
+            config.gtr_issue_date(date("2026-10-29")),
+            date("2026-11-05")
+        );
+        // No issues from 2 October to 13 November 2025: the data came out on 20 November.
+        assert_eq!(
+            config.gtr_issue_date(date("2025-10-07")),
+            date("2025-11-20")
+        );
+        assert_eq!(
+            config.gtr_issue_date(date("2025-11-08")),
+            date("2025-11-20")
+        );
+        assert_eq!(
+            config.gtr_issue_date(date("2025-11-15")),
+            date("2025-11-20")
+        );
     }
 
     #[test]
@@ -728,9 +1144,111 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "live six-year backfill of both gauges into a database; takes several minutes"]
-    fn live_backfill_fills_both_gauges_for_the_raw_panel() {
-        let path = std::env::temp_dir().join(format!("agri-river-{}.sqlite3", std::process::id()));
+    fn nwps_recorded_forecast_becomes_daily_lows_released_at_the_issue_time() {
+        let recorded: Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/river/nwps_stageflow_eadm7_recorded.json"
+        ))
+        .unwrap();
+        let issue = parse_nwps_forecast(&recorded["forecast"]).unwrap();
+        assert_eq!(issue.issued, at("2026-10-31T16:03:00Z"));
+        let fetched = at("2026-10-31T21:00:00Z");
+        let rows = forecast_records(
+            "river.stlouis.forecast_min",
+            std::slice::from_ref(&issue),
+            |_| true,
+            NWPS_FORECAST_SOURCE,
+            fetched,
+        );
+        assert_eq!(rows.first().unwrap().period, date("2026-10-31"));
+        assert_eq!(rows.last().unwrap().period, date("2026-11-14"));
+        assert!(rows.iter().all(|row| row.released_at == issue.issued
+            && row.fetched_at == fetched
+            && row.unit == "ft"));
+        // The 14 November value is the lowest six-hourly point forecast for that day.
+        let low = issue
+            .readings
+            .iter()
+            .filter(|reading| reading.at.date_naive() == date("2026-11-14"))
+            .map(|reading| reading.value)
+            .fold(f64::INFINITY, f64::min);
+        assert_eq!(rows.last().unwrap().value, low);
+    }
+
+    #[test]
+    fn iem_recorded_forecast_parses_as_one_issue() {
+        let issues = parse_iem_forecasts(include_bytes!(
+            "../../../tests/fixtures/river/iem_hml_forecasts_eadm7_2022_recorded.csv"
+        ))
+        .unwrap();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].issued, at("2022-10-01T15:53:00Z"));
+        assert_eq!(issues[0].readings.len(), 56);
+        assert!(
+            parse_iem_forecasts(b"station,valid,label,value\n")
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            parse_iem_forecasts(
+                b"station,issued[UTC],primaryname,primaryunits,secondaryname,secondaryunits,forecast_valid[UTC],primary_value,secondary_value\nEADM7,2022-10-01 15:53,Stage,m,Flow,kcfs,2022-10-01 18:00,-0.3,\n"
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn successive_forecast_issues_are_stored_in_order_and_seen_only_once_issued() {
+        let issue = |issued: &str, value: f64| ForecastIssue {
+            issued: at(issued),
+            readings: vec![Reading {
+                at: at("2022-10-10T12:00:00Z"),
+                value,
+            }],
+        };
+        let fetched = at("2026-10-31T21:00:00Z");
+        // Archive issues arrive newest first; they are stored oldest first.
+        let rows = forecast_records(
+            "river.stlouis.forecast_min",
+            &[
+                issue("2022-10-02T15:00:00Z", -2.0),
+                issue("2022-10-01T15:00:00Z", -1.0),
+            ],
+            |_| true,
+            IEM_ARCHIVE_SOURCE,
+            fetched,
+        );
+        let connection = crate::store::test_connection();
+        crate::store::append_source_records(
+            &connection,
+            &rows
+                .into_iter()
+                .map(SourceRecord::Metric)
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        let revisions =
+            crate::store::query_metric_revisions(&connection, "river.stlouis.forecast_min")
+                .unwrap();
+        assert_eq!(revisions.len(), 2);
+        // Each issue keeps its own publication time, although both were fetched today.
+        assert_eq!(revisions[1].released_at, at("2022-10-02T15:00:00Z"));
+        let visible = |when: &str| {
+            crate::analytics::alignment::visible_as_of(&revisions, at(when)).map(|row| row.value)
+        };
+        assert_eq!(visible("2022-09-30T00:00:00Z"), None);
+        assert_eq!(visible("2022-10-01T20:00:00Z"), Some(-1.0));
+        assert_eq!(visible("2022-10-03T00:00:00Z"), Some(-2.0));
+    }
+
+    /// Fills a database with every river series, as a first launch would. Set `AGRI_RIVER_DB` to
+    /// keep the database for analysis; otherwise it is written to the temp directory and removed.
+    #[test]
+    #[ignore = "live six-year backfill of every river source into a database; takes several minutes"]
+    fn live_backfill_fills_every_river_series_for_the_raw_panel() {
+        let keep = std::env::var_os("AGRI_RIVER_DB").map(std::path::PathBuf::from);
+        let path = keep.clone().unwrap_or_else(|| {
+            std::env::temp_dir().join(format!("agri-river-{}.sqlite3", std::process::id()))
+        });
         let _ = std::fs::remove_file(&path);
         let connection = crate::store::open(&path).unwrap();
         let config = parse_waterways(BUNDLED_WATERWAYS).unwrap();
@@ -739,39 +1257,116 @@ mod tests {
             USGS_STAGE_SOURCE,
         )
         .unwrap();
-        let nwps = NwpsStageSource::from_config(&config, |_| BTreeSet::new());
-        for source in [usgs.as_ref(), &nwps as &dyn DataSource] {
+        let stage = NwpsStageSource::from_config(&config, |_| BTreeSet::new());
+        let forecasts = NwpsForecastSource::from_config(&config, |_| BTreeSet::new());
+        let barges = crate::sources::agtransport::AgTransportSource {
+            config: config.clone(),
+        };
+        for source in [
+            usgs.as_ref(),
+            &stage as &dyn DataSource,
+            &forecasts,
+            &barges,
+        ] {
             let records = tauri::async_runtime::block_on(source.fetch()).unwrap();
             crate::store::append_source_records(&connection, &records).unwrap();
         }
         // A second refresh finds nothing missing and asks the archive for nothing.
-        let periods: BTreeSet<NaiveDate> =
-            crate::store::metric_periods(&connection, "river.memphis.stage")
+        let today = Utc::now().date_naive();
+        for (series, end) in [
+            ("river.memphis.stage", today - Duration::days(28)),
+            ("river.stlouis.forecast_min", today - Duration::days(1)),
+        ] {
+            let periods: BTreeSet<NaiveDate> = crate::store::metric_periods(&connection, series)
                 .unwrap()
                 .into_iter()
                 .collect();
-        let today = Utc::now().date_naive();
-        let remaining = missing_windows(
-            &periods,
-            today - Duration::days(HISTORY_DAYS),
-            today - Duration::days(28),
-        );
-        assert!(
-            remaining
-                .iter()
-                .all(|(first, last)| (*last - *first).num_days() < 7),
-            "{remaining:?}"
-        );
+            let remaining = missing_windows(&periods, today - Duration::days(HISTORY_DAYS), end);
+            assert!(
+                remaining
+                    .iter()
+                    .all(|(first, last)| (*last - *first).num_days() < 7),
+                "{series}: {remaining:?}"
+            );
+        }
         let listed = crate::store::list_stored_series(&connection).unwrap();
-        for series in ["river.stlouis.stage", "river.memphis.stage"] {
-            let rows: i64 = listed
+        let rows = |series: &str| -> i64 {
+            listed
                 .iter()
                 .filter(|item| item.series_id.0 == series)
                 .map(|item| item.rows)
-                .sum();
-            assert!(rows > 2000, "{series} has {rows} rows");
+                .sum()
+        };
+        for series in [
+            "river.stlouis.stage",
+            "river.memphis.stage",
+            "river.stlouis.forecast_min",
+            "river.memphis.forecast_min",
+        ] {
+            assert!(rows(series) > 2000, "{series} has {} rows", rows(series));
         }
-        let _ = std::fs::remove_file(&path);
+        for series in [
+            "river.barge_rate.stlouis",
+            "river.barge_rate.cairo_memphis",
+            "river.locks.ms27.grain_tons",
+            "river.locks.olmsted.grain_tons",
+        ] {
+            assert!(rows(series) > 250, "{series} has {} rows", rows(series));
+        }
+        // Every stored river row was public no later than the app saw it.
+        for item in listed
+            .iter()
+            .filter(|item| item.series_id.0.starts_with("river."))
+        {
+            let crate::core::StoredRows::Metric(stored) =
+                crate::store::query_stored_rows(&connection, &item.series_id.0).unwrap()
+            else {
+                panic!("{} is not a metric", item.series_id.0);
+            };
+            assert!(stored.iter().all(|row| row.released_at <= row.fetched_at));
+        }
+        if keep.is_none() {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    #[test]
+    #[ignore = "live NWPS and IEM forecast contract check; run in nightly CI"]
+    fn live_forecast_contract() {
+        let today = Utc::now().date_naive();
+        let source = NwpsForecastSource {
+            gauges: vec![ForecastGauge {
+                series_id: "river.stlouis.forecast_min".into(),
+                nws_id: "EADM7".into(),
+                // Only the five target days before today are missing from the archive.
+                stored: (today - Duration::days(HISTORY_DAYS))
+                    .iter_days()
+                    .take((HISTORY_DAYS - 5) as usize)
+                    .collect(),
+            }],
+        };
+        let records = tauri::async_runtime::block_on(source.fetch()).unwrap();
+        let rows: Vec<_> = records
+            .iter()
+            .filter_map(|record| match record {
+                SourceRecord::Metric(row) => Some(row),
+                SourceRecord::Price(_) => None,
+            })
+            .collect();
+        assert!(
+            rows.iter()
+                .any(|row| row.source_id.0 == NWPS_FORECAST_SOURCE && row.period > today)
+        );
+        let archive: Vec<_> = rows
+            .iter()
+            .filter(|row| row.source_id.0 == IEM_ARCHIVE_SOURCE)
+            .collect();
+        assert!(!archive.is_empty());
+        assert!(
+            archive
+                .iter()
+                .all(|row| row.period < today && row.released_at < row.fetched_at)
+        );
     }
 
     #[test]
