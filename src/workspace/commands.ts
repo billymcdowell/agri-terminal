@@ -1,5 +1,6 @@
 import { parseCommand } from "@/command-bar/grammar";
 import { COMMODITIES, findRegion } from "@/lib/regions";
+import { findGauge, GAUGES } from "@/lib/waterways";
 import { getTemplate } from "./templates";
 import type { PanelParams } from "./types";
 
@@ -37,6 +38,14 @@ export function planCommand(input: string): CommandPlan {
       return getTemplate(command.id) ? { type: "template", id: command.id } : { type: "error", message: `Unknown template ${command.id}. Try farmer, trader, analyst or student.` };
     case "stress":
       return { type: "open", params: { kind: "crop-stress", linkGroup: DEFAULT_GROUP } };
+    case "river":
+    case "riverTimeline": {
+      const gauge = command.gauge ? findGauge(command.gauge) : GAUGES[0];
+      if (!gauge) return { type: "error", message: `Unknown river or gauge ${command.gauge}. Try ${GAUGES.map((item) => `RIVER ${item.id.toUpperCase()}`).join(", ")} or RIVER MISS.` };
+      return command.kind === "river"
+        ? { type: "open", params: { kind: "river", gauge: gauge.id } }
+        : { type: "open", params: { kind: "river-timeline", gauge: gauge.id, linkGroup: DEFAULT_GROUP } };
+    }
     case "plugins":
       return { type: "open", params: { kind: "plugins" } };
     case "help":

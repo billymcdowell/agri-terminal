@@ -1,6 +1,6 @@
 // Fictional data for the demo. Prices are a seeded random walk; nothing here is a market quote.
 import type {
-  AlertRecord, CalendarEvent, MetricPoint, NewsItem, PluginSummary, PriceBar, SourceStatus, StoredSeries, WeatherForecast,
+  AlertRecord, CalendarEvent, MetricPoint, NewsItem, PluginSummary, PriceBar, RiverPoint, RiverStatus, SourceStatus, StoredSeries, WeatherForecast,
 } from "../src/lib/ipc";
 
 const DAY = 86_400_000;
@@ -118,6 +118,8 @@ export const SOURCES: SourceStatus[] = [
   ["massive", "Massive futures", 86400], ["cftc-cot", "CFTC Commitments of Traders", 604800], ["usda-nass", "USDA NASS crop condition", 604800],
   ["usda-fas", "USDA FAS balance sheets", 2592000], ["drought-monitor", "U.S. Drought Monitor", 604800], ["nws", "NWS forecasts", 21600],
   ["open-meteo", "Open-Meteo forecasts", 21600], ["gdelt", "GDELT headlines", 3600], ["usda-rss", "USDA RSS news", 3600],
+  ["usgs-river-stage", "USGS river stage", 86400], ["nwps-river-stage", "NWS river stage", 86400], ["nwps-river-forecast", "NWS river forecasts", 86400],
+  ["usda-agtransport", "USDA AgTransport barge rates and locks", 86400],
 ].map(([sourceId, name, cadenceSeconds]) => ({
   sourceId: sourceId as string, name: name as string, state: "ok", lastOk: iso(NOW - 2 * 3600_000), error: null, isDemo: false,
   lastAttempt: iso(NOW - 2 * 3600_000), nextExpected: iso(NOW + (cadenceSeconds as number) * 1000 - 2 * 3600_000), enabled: true, cadenceSeconds: cadenceSeconds as number,
@@ -138,6 +140,7 @@ export function buildCalendar(): CalendarEvent[] {
     ["WASDE", "USDA WASDE · expected window", 9.5, "ZC, ZS, ZW"],
     ["COT", "CFTC Commitments of Traders · expected", 8.2, "ZC, ZS, ZW"],
     ["Export Sales", "USDA Export Sales · expected", 7.4, "ZC, ZS, ZW"],
+    ["GTR", "USDA Grain Transportation Report · expected", 4.6, "ZC, ZS, ZW"],
   ];
   return titles.map(([kind, title, d, commodity], i) => ({ id: `cal-${i}`, kind, title, commodity, scheduledAt: iso(NOW + d * DAY) })).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
 }
@@ -210,3 +213,105 @@ export const PLUGINS: PluginSummary[] = [
   { id: "drought-monitor", name: "U.S. Drought Monitor", version: "1.0.0", description: "Weekly drought area by severity for each growing state.", licenseNote: "Public domain, U.S. government data", builtin: true, hosts: ["usdmdataservices.unl.edu"], secrets: [], series: ["drought.<state>.D0 … D4"], cadence: "weekly", errors: [] },
   { id: "example-elevator-basis", name: "Example elevator basis", version: "0.2.1", description: "Cash basis posted by a fictional co-op elevator.", licenseNote: "Example data, not for trading", builtin: false, hosts: ["basis.example.invalid"], secrets: [{ name: "api_key", configured: true }], series: ["basis.example.ZC"], cadence: "daily", errors: [] },
 ];
+
+// River panels. Stage follows a seasonal curve with its low in late autumn plus a random walk; freight
+// and lock tonnage respond to how far the river is below normal. All of it is invented for the demo.
+const DEMO_RIVER_SOURCE = "fictional demo data";
+type DemoGauge = { normal: number; restriction: number; critical: number; mean: number; amp: number; seed: number; location: string; benchmark: number };
+const DEMO_GAUGES: Record<string, DemoGauge> = {
+  stlouis: { normal: 5, restriction: 1, critical: -3.5, mean: 9.5, amp: 8.5, seed: 71, location: "St. Louis", benchmark: 399 },
+  memphis: { normal: 3, restriction: -5, critical: -10, mean: 7.5, amp: 12, seed: 83, location: "Cairo-Memphis", benchmark: 314 },
+};
+const RIVER_DAYS = 3 * 365;
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+type DemoRiver = {
+  days: number[]; stage: number[]; forecastMin: number[]; barge: (number | null)[]; tons: (number | null)[]; score: number[];
+  gauge: DemoGauge; components: { depth: number; forecast: number; traffic: number }[];
+};
+
+function buildRiver(id: string): DemoRiver {
+  const gauge = DEMO_GAUGES[id] ?? DEMO_GAUGES.stlouis;
+  const rand = rng(gauge.seed);
+  const days = Array.from({ length: RIVER_DAYS }, (_, i) => today - (RIVER_DAYS - 1 - i) * DAY);
+  let walk = 0;
+  const stage = days.map((t) => {
+    const doy = (t - Date.UTC(new Date(t).getUTCFullYear(), 0, 1)) / DAY;
+    walk = walk * 0.97 + (rand() - 0.5) * 1.2;
+    return Math.round((gauge.mean - gauge.amp * Math.cos((2 * Math.PI * (doy - 300)) / 365) + walk) * 100) / 100;
+  });
+  const deficit = (level: number) => clamp01((gauge.normal - level) / (gauge.normal - gauge.critical));
+  const forecastMin = stage.map((_, i) => Math.round((Math.min(...stage.slice(i + 1, i + 8).concat(stage[i])) - rand() * 0.4) * 100) / 100);
+  const barge = days.map((t, i) => (new Date(t).getUTCDay() === 2 ? Math.round(300 + 520 * deficit(stage[i]) + rand() * 40) : null));
+  const tons = days.map((t, i) => (new Date(t).getUTCDay() === 6 ? Math.round((520_000 * (1 - 0.45 * deficit(stage[i])) + rand() * 60_000) / 100) * 100 : null));
+  const weekly = tons.map((v, i) => (v === null ? null : { i, v })).filter((x): x is { i: number; v: number } => x !== null);
+  const components = days.map((_, i) => {
+    const past = weekly.filter((w) => w.i <= i);
+    const latest = past[past.length - 1];
+    const before = past.slice(-5, -1);
+    const average = before.length === 4 ? before.reduce((a, w) => a + w.v, 0) / 4 : 0;
+    return { depth: deficit(stage[i]), forecast: deficit(forecastMin[i]), traffic: latest && average ? clamp01((average - latest.v) / average / 0.5) : 0 };
+  });
+  const score = components.map((c) => Math.round((50 * c.depth + 30 * c.forecast + 20 * c.traffic) * 10) / 10);
+  return { days, stage, forecastMin, barge, tons, score, gauge, components };
+}
+
+const lastOf = <T,>(values: (T | null)[]) => { for (let i = values.length - 1; i >= 0; i--) if (values[i] !== null) return { i, v: values[i] as T }; return null; };
+
+export function buildRiverStatus(id: string): RiverStatus {
+  const r = buildRiver(id);
+  const n = r.days.length - 1;
+  const g = r.gauge;
+  const input = (i: number, value: number, releaseHours: number) => ({ period: day(r.days[i]), value, releasedAt: iso(r.days[i] + releaseHours * 3600_000), fetchedAt: iso(NOW - 2 * 3600_000), sourceId: DEMO_RIVER_SOURCE });
+  const sameDay = [1, 2].map((y) => r.stage[n - y * 365]).filter((v) => v !== undefined);
+  const forecast = Array.from({ length: 7 }, (_, k) => ({ date: day(r.days[n] + (k + 1) * DAY), low: Math.round((r.stage[n] - 0.25 * (k + 1)) * 100) / 100 }));
+  const barge = lastOf(r.barge)!;
+  const previous = lastOf(r.barge.slice(0, barge.i))!;
+  const tons = lastOf(r.tons)!;
+  const before = r.tons.slice(0, tons.i).filter((v): v is number => v !== null).slice(-4);
+  const average = before.reduce((a, v) => a + v, 0) / before.length;
+  const c = r.components[n];
+  const weight = (value: number, w: number) => ({ value, weight: w, points: value * w * 100 });
+  const total = r.score[n];
+  return {
+    gaugeId: id, gaugeName: id === "memphis" ? "Memphis, TN" : "St. Louis, MO", riverName: "Mississippi River", unit: "ft",
+    thresholds: { normal: g.normal, restriction: g.restriction, critical: g.critical }, provisional: true, asOf: iso(NOW),
+    stage: input(n, r.stage[n], 16), stageBand: { low: Math.min(...sameDay), mean: sameDay.reduce((a, v) => a + v, 0) / sameDay.length, high: Math.max(...sameDay), years: sameDay.length },
+    forecastIssuedAt: iso(today + 16 * 3600_000 - DAY), forecastFetchedAt: iso(NOW - 2 * 3600_000), forecast, forecastMin: Math.min(...forecast.map((f) => f.low)),
+    restrictionForecastOn: r.stage[n] > g.restriction ? forecast.find((f) => f.low <= g.restriction)?.date ?? null : null,
+    bargeRate: { latest: input(barge.i, barge.v, 66), previous: input(previous.i, previous.v, 66), changePercent: (barge.v / previous.v - 1) * 100, dollarsPerTon: (barge.v * g.benchmark) / 10_000, location: g.location },
+    traffic: { week: day(r.days[tons.i]), tons: tons.v, averageTons: average, changePercent: (tons.v / average - 1) * 100, locks: id === "memphis" ? ["MS Locks 27", "OH Olmsted"] : ["MS Locks 27"], releasedAt: iso(r.days[tons.i] + 5 * DAY + 18 * 3600_000) },
+    score: { total, band: total >= 70 ? "HIGH" : total >= 40 ? "ELEVATED" : "NORMAL", partial: false, depth: weight(c.depth, 0.5), forecast: weight(c.forecast, 0.3), traffic: weight(c.traffic, 0.2) },
+  };
+}
+
+export function buildRiverTimeline(id: string, closes: PriceBar[]): RiverPoint[] {
+  const r = buildRiver(id);
+  const close = new Map(closes.map((bar) => [bar.period, bar.close]));
+  let barge: number | null = null;
+  return r.days.map((t, i) => {
+    if (r.barge[i] !== null) barge = r.barge[i];
+    const prior = [1, 2].map((y) => r.stage[i - y * 365]).filter((v) => v !== undefined);
+    const s = r.score[i];
+    return {
+      date: day(t), close: close.get(day(t)) ?? null, stage: r.stage[i],
+      stageLow: prior.length === 2 ? Math.min(...prior) : null, stageMean: prior.length === 2 ? (prior[0] + prior[1]) / 2 : null, stageHigh: prior.length === 2 ? Math.max(...prior) : null,
+      forecastMin: r.forecastMin[i], bargeRate: barge, score: s, band: s >= 70 ? "HIGH" : s >= 40 ? "ELEVATED" : "NORMAL", partial: false, basisSpread: null,
+    };
+  });
+}
+
+/** River series for the raw data panel. */
+export function buildRiverMetrics(): Record<string, MetricPoint[]> {
+  const out: Record<string, MetricPoint[]> = {};
+  for (const id of Object.keys(DEMO_GAUGES)) {
+    const r = buildRiver(id);
+    const recent = r.days.map((t, i) => ({ t, i })).slice(-120);
+    out[`river.${id}.stage`] = metric(`river.${id}.stage`, recent.map((x) => x.t), recent.map((x) => r.stage[x.i]), "ft", DEMO_RIVER_SOURCE, 16);
+    const weeks = (values: (number | null)[]) => recent.filter((x) => values[x.i] !== null);
+    const location = id === "memphis" ? "cairo_memphis" : "stlouis";
+    out[`river.barge_rate.${location}`] = metric(`river.barge_rate.${location}`, weeks(r.barge).map((x) => x.t), weeks(r.barge).map((x) => r.barge[x.i] as number), "percent_of_tariff", DEMO_RIVER_SOURCE, 66);
+    if (id === "stlouis") out["river.locks.ms27.grain_tons"] = metric("river.locks.ms27.grain_tons", weeks(r.tons).map((x) => x.t), weeks(r.tons).map((x) => r.tons[x.i] as number), "short_tons", DEMO_RIVER_SOURCE, 138);
+  }
+  return out;
+}

@@ -391,6 +391,17 @@ button {
 .command-error { margin: 0; padding: 8px 14px; color: var(--tone-d77b68); font-size: 12px; border-bottom: 1px solid rgba(var(--line-rgb),.14); }
 .command-hint { margin-left: auto; color: var(--tone-899388); font: 10px "Geist Mono Variable", monospace; }
 .stress-chart { height: 320px; }
+.river-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+.river-score { display: flex; align-items: baseline; gap: 10px; }
+.river-band, .river-partial { font-size: 10px; letter-spacing: .08em; padding: 2px 6px; border-radius: 4px; border: 1px solid currentColor; }
+.river-band[data-band="NORMAL"] { color: var(--tone-88ac75); }
+.river-band[data-band="ELEVATED"] { color: var(--tone-c49458); }
+.river-band[data-band="HIGH"] { color: var(--tone-d77b68); }
+.river-partial { color: var(--tone-879187); }
+.river-warning { color: var(--tone-c49458); }
+.river-range { display: flex; gap: 4px; margin-top: 8px; }
+.river-chart { height: 260px; }
+.river-chart-lower { height: 200px; margin-top: 12px; }
 .explainer-controls { display: flex; align-items: center; gap: 10px; margin: 12px 0; font-size: 11px; color: var(--tone-9ba69a); }
 .driver-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
 .driver-row { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--tone-303630); font-size: 13px; }

@@ -4,7 +4,7 @@ import type { PanelParams } from "./types";
 export type Role = "farmer" | "trader" | "analyst" | "student";
 export type Profile = { role: Role; commodities: string[]; region: string };
 export type Direction = "left" | "right" | "above" | "below" | "within";
-export type TemplatePanel = { kind: string; region?: string; ref?: number; direction?: Direction };
+export type TemplatePanel = { kind: string; region?: string; audience?: string; ref?: number; direction?: Direction };
 export type WorkspaceTemplate = { id: Role; name: string; description: string; panels: TemplatePanel[] };
 
 export const TEMPLATES = templateConfig.templates as WorkspaceTemplate[];
@@ -16,8 +16,10 @@ export type PlannedPanel = { params: PanelParams; position?: { index: number; di
 /** Turns a template and the user's profile into concrete panels. `index` points at an earlier planned panel. */
 export function planTemplate(template: WorkspaceTemplate, profile: Pick<Profile, "region">): PlannedPanel[] {
   return template.panels.map((panel, position) => {
-    const params: PanelParams = { kind: panel.kind, linkGroup: panel.kind === "calendar" || panel.kind === "drought" ? undefined : "A" };
+    const unlinked = ["calendar", "drought", "river"].includes(panel.kind);
+    const params: PanelParams = { kind: panel.kind, linkGroup: unlinked ? undefined : "A" };
     if (panel.kind === "drought") params.region = panel.region === "home" ? profile.region : panel.region;
+    if (panel.audience) params.audience = panel.audience;
     if (panel.ref === undefined || panel.ref >= position) return { params };
     return { params, position: { index: panel.ref, direction: panel.direction ?? "right" } };
   });
