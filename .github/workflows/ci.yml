@@ -1,16 +1,13 @@
 name: CI
 
+# Pull requests run these checks, and pushes to master run them through the
+# Release workflow. Pushing to a pull request cancels its run still in progress.
 on:
-  push:
-    # Pushes to master run these checks through the Release workflow instead.
-    branches-ignore: [master]
   pull_request:
   workflow_call:
 
-# A branch with an open pull request gets both a push and a pull_request run.
-# Both share this group, so only the newest run for a branch keeps going.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ci-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
