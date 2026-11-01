@@ -45,7 +45,7 @@ export function CropStressPanel({ api, params }: PanelComponentProps) {
             </ResponsiveContainer>
           </div>
           <p className="panel-freshness">
-            {timeline.isError ? String(timeline.error) : rows.length === 0 ? "No cached prices for this commodity yet." : !hasCondition ? "No crop condition is cached for this period; add a NASS key under Data sources, or the crop is out of season." : "Each weekly value appears only after its release, and gaps mean no current report. The band is the same week over the previous five years."}
+            {timeline.isError ? String(timeline.error) : rows.length === 0 ? "No cached prices for this commodity yet." : !hasCondition ? "No crop condition is cached for this period; add a NASS key in Settings › Data sources, or the crop is out of season." : "Each weekly value appears only after its release, and gaps mean no current report. The band is the same week over the previous five years."}
           </p>
         </CardContent>
       </Card>

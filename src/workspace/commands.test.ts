@@ -27,8 +27,10 @@ describe("planCommand", () => {
     expect(planCommand("RIVER TIMELINE Memphis")).toMatchObject({ params: { kind: "river-timeline", gauge: "memphis" } });
     expect(planCommand("RIVER Rhine")).toMatchObject({ type: "error", message: expect.stringContaining("RIVER MEMPHIS") });
   });
-  it("opens the raw data panel", () => {
-    expect(planCommand("raw data")).toEqual({ type: "open", params: { kind: "raw-data" } });
+  it("opens Settings, which replaced the settings, plugins and raw data panels", () => {
+    expect(planCommand("settings")).toEqual({ type: "settings" });
+    expect(planCommand("plugins")).toMatchObject({ type: "error" });
+    expect(planCommand("raw data")).toMatchObject({ type: "error" });
   });
   it("opens the guide, and points to it from unrecognized commands", () => {
     expect(planCommand("help")).toEqual({ type: "open", params: { kind: "help" } });

@@ -9,8 +9,31 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { deleteAlert, listAlerts, listRiverAlerts, saveAlert, setAlertEnabled, setRiverAlertEnabled, type AlertFired, type PriceAlert, type RiverAlertRecord } from "@/lib/ipc";
 import { COMMODITIES } from "@/lib/regions";
 import { fromDisplayPrice, toDisplayPrice, UNIT_LABELS, useUnits, type UnitSystem } from "@/lib/units";
+import { usePersistedValue } from "@/state/use-persisted-list";
+import { DEFAULT_LEAD_HOURS, LEAD_HOUR_OPTIONS } from "@/workspace/release-alerts";
 import type { PanelComponentProps } from "@/workspace/types";
 import { PanelHeader } from "./panel-header";
+
+const leadLabel = (hours: number) => (hours === 0 ? "Off" : `${hours} hour${hours === 1 ? "" : "s"} before`);
+
+/** How early to be reminded before a scheduled report, or not at all. */
+export function ReportReminders() {
+  const [leadHours, setLeadHours] = usePersistedValue<number>("release-alert-lead-hours", DEFAULT_LEAD_HOURS);
+  return (
+    <Card className="terminal-card">
+      <CardHeader><CardTitle className="side-card-title">Report reminders</CardTitle></CardHeader>
+      <CardContent>
+        <div className="schema-field">
+          <Label htmlFor="alert-lead">Remind me</Label>
+          <NativeSelect size="sm" id="alert-lead" value={String(leadHours)} onChange={(event) => setLeadHours(Number(event.currentTarget.value))}>
+            {LEAD_HOUR_OPTIONS.map((hours) => <NativeSelectOption key={hours} value={String(hours)}>{leadLabel(hours)}</NativeSelectOption>)}
+          </NativeSelect>
+        </div>
+        <p className="panel-freshness">A notification before each scheduled report in the report calendar. Prices often move sharply when reports come out.</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 /** Alerts are stored in USD per bushel and shown in the user's chosen unit. */
 export function describeAlert(alert: Pick<PriceAlert, "symbol" | "direction" | "threshold">, units: UnitSystem = "bushel") {
@@ -101,6 +124,7 @@ export function AlertsPanel({ api, params }: PanelComponentProps) {
           <p className="panel-freshness">Notifications use your system settings. Alerts use daily closes, so they cannot fire between data updates.</p>
         </CardContent>
       </Card>
+      <ReportReminders />
       <Card className="terminal-card">
         <CardHeader><CardTitle className="side-card-title">River alerts</CardTitle></CardHeader>
         <CardContent>

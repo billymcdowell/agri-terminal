@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { registerBuiltInPanels, type MarketComponent } from "@/panels/register";
+import { SettingsDialog } from "@/settings/settings-dialog";
 import { queryClient } from "@/state/query-client";
 import { startLinkGroupSync } from "./link-sync";
 import { getPanel } from "./registry";
@@ -24,6 +25,7 @@ export function PopoutApp({ initial, Market }: { initial: PanelParams; Market: M
   return (
     <div className="workspace-shell" style={{ display: "block" }}>
       <Component api={api} params={params} />
+      <SettingsDialog />
     </div>
   );
 }

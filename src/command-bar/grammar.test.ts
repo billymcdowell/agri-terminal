@@ -17,9 +17,6 @@ describe("command grammar", () => {
     ["MOVES", { kind: "moves" }],
     ["alerts", { kind: "alerts" }],
     ["settings", { kind: "settings" }],
-    ["plugins", { kind: "plugins" }],
-    ["RAW", { kind: "raw" }],
-    ["raw data", { kind: "raw" }],
     ["HELP", { kind: "help" }],
     ["help cot", { kind: "help" }],
     ["?", { kind: "help" }],
@@ -29,5 +26,5 @@ describe("command grammar", () => {
     ["DROUGHT Iowa", { kind: "drought", region: "IOWA" }],
     ["WS morning desk", { kind: "workspace", name: "morning desk" }],
   ])("parses %s", (input, expected) => expect(parseCommand(input)).toEqual(expected));
-  it.each(["", "ZC COT extra", "WASDE CORN", "WX", "RAW PRICES"]) ("rejects %s", (input) => expect(parseCommand(input)).toBeNull());
+  it.each(["", "ZC COT extra", "WASDE CORN", "WX", "PLUGINS", "RAW DATA"]) ("rejects %s", (input) => expect(parseCommand(input)).toBeNull());
 });

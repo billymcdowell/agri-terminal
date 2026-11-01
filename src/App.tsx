@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RiRefreshLine } from "@remixicon/react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -10,30 +9,12 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { AboutButton, PanelAbout } from "@/panels/panel-guide";
 import { PriceChart, type MoveMarker } from "@/panels/price-chart";
-import {
-  explainMoves,
-  getSecretStatus,
-  refreshSource,
-  saveSecret,
-  setSourceEnabled,
-  testConnection,
-  type SourceStatus,
-} from "@/lib/ipc";
-import { formatAge } from "@/lib/freshness";
+import { explainMoves, getSecretStatus, refreshSource } from "@/lib/ipc";
 import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
 import { priceStatus } from "@/panels/price-status";
+import { useSettingsScreen } from "@/settings/use-settings-screen";
 import { useSeries, useSources } from "@/state/use-series";
 import { WorkspaceShell } from "@/workspace/shell";
 
@@ -44,34 +25,15 @@ const DEMO_COMMODITY = "ZC";
 const PRICE_SOURCE = "massive";
 const RANGES = ["1W", "1M", "ALL"] as const;
 
-function SourceControl({ source }: { source: SourceStatus }) {
-  const queryClient = useQueryClient();
-  const [key, setKey] = useState("");
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-  const needsKey = ["usda-nass", "usda-fas"].includes(source.sourceId);
-  const keyStatus = useQuery({ queryKey: ["secret-status", source.sourceId], queryFn: () => getSecretStatus(source.sourceId), enabled: needsKey });
-  async function perform(action: () => Promise<unknown>, success: string) {
-    setBusy(true); setMessage("");
-    try { await action(); setMessage(success); await queryClient.invalidateQueries({ queryKey: ["sources"] }); await queryClient.invalidateQueries({ queryKey: ["secret-status", source.sourceId] }); }
-    catch (error) { setMessage(String(error)); }
-    finally { setBusy(false); }
-  }
-  return <div className="source-control"><div className="source-control-heading"><div><div className="source-name">{source.name}</div><div className="source-detail">{source.state.toUpperCase()} · {source.lastOk ? `Updated ${new Date(source.lastOk).toLocaleString()}` : "Never refreshed"}{source.nextExpected ? ` · Next ${new Date(source.nextExpected).toLocaleString()}` : ""}</div></div><Badge variant={source.enabled ? "secondary" : "outline"}>{source.enabled ? "ENABLED" : "PAUSED"}</Badge></div>{needsKey && <div className="source-control-key"><Input aria-label={`${source.name} API key`} type="password" autoComplete="off" value={key} onChange={(event) => setKey(event.currentTarget.value)} placeholder={keyStatus.data ? "Saved in OS keychain · replace key" : "API key · stored in OS keychain"} /><Button size="sm" variant="outline" disabled={!key.trim() || busy} onClick={() => void perform(async () => { await saveSecret(source.sourceId, key); setKey(""); }, "Key saved in OS keychain.")}>Save key</Button></div>}<div className="source-control-actions"><Button size="xs" variant="ghost" disabled={busy || !source.enabled} onClick={() => void perform(() => testConnection(source.sourceId), "Connection successful.")}>Test connection</Button><Button size="xs" variant="ghost" disabled={busy || !source.enabled} onClick={() => void perform(() => refreshSource(source.sourceId), "Source refreshed.")}>Refresh now</Button><Button size="xs" variant="ghost" onClick={() => void perform(() => setSourceEnabled(source.sourceId, !source.enabled), source.enabled ? "Source paused." : "Source enabled.")}>{source.enabled ? "Pause" : "Enable"}</Button></div>{(source.error || message) && <p className="source-dialog-error">{message || source.error}</p>}</div>;
-}
-
 export function MarketOverview({ commodity }: { commodity: string }) {
   const commodityName = COMMODITY_NAMES[commodity] ?? commodity;
   const seriesId = `price.${commodity}.close`;
   const [range, setRange] = useState<(typeof RANGES)[number]>("ALL");
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [sourcesOpen, setSourcesOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [sourceMessage, setSourceMessage] = useState("");
-  const [sourceError, setSourceError] = useState("");
-  const [savingKey, setSavingKey] = useState(false);
+  const [refreshError, setRefreshError] = useState("");
+  const showSources = () => useSettingsScreen.getState().show("sources");
   const queryClient = useQueryClient();
   const series = useSeries(seriesId);
   const sources = useSources();
@@ -136,7 +98,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
 
   async function refresh() {
     setRefreshing(true);
-    setSourceError("");
+    setRefreshError("");
     try {
       await refreshSource(keyStatus.data ? PRICE_SOURCE : "fixture-corn");
       await Promise.all([
@@ -144,29 +106,10 @@ export function MarketOverview({ commodity }: { commodity: string }) {
         queryClient.invalidateQueries({ queryKey: ["sources"] }),
       ]);
     } catch (error) {
-      setSourceError(String(error));
-      setSourcesOpen(true);
+      setRefreshError(String(error));
       void queryClient.invalidateQueries({ queryKey: ["sources"] });
     } finally {
       setRefreshing(false);
-    }
-  }
-
-  async function storeApiKey() {
-    setSavingKey(true);
-    setSourceError("");
-    setSourceMessage("");
-    try {
-      await saveSecret(PRICE_SOURCE, apiKey);
-      setApiKey("");
-      await queryClient.invalidateQueries({
-        queryKey: ["secret-status", PRICE_SOURCE],
-      });
-      setSourceMessage("API key saved in the operating system keychain.");
-    } catch (error) {
-      setSourceError(String(error));
-    } finally {
-      setSavingKey(false);
     }
   }
 
@@ -196,10 +139,11 @@ export function MarketOverview({ commodity }: { commodity: string }) {
                 : "Add a free Massive key to load daily bars. Only corn has sample prices without a key."}
           </EmptyDescription>
         </EmptyHeader>
-        <Button variant="outline" size="sm" disabled={refreshing} onClick={canRefresh ? () => void refresh() : () => setSourcesOpen(true)}>
+        <Button variant="outline" size="sm" disabled={refreshing} onClick={canRefresh ? () => void refresh() : showSources}>
           {canRefresh && <RiRefreshLine className={refreshing ? "animate-spin" : ""} />}
           {keyStatus.data ? "Load prices" : canRefresh ? "Load sample prices" : "Add a Massive key"}
         </Button>
+        {refreshError && <p role="alert" className="source-error">{refreshError}</p>}
       </Empty>
     );
   }
@@ -245,7 +189,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
       {status.origin === "demo" && (
         <div className="market-banner" role="status">
           <span>Showing sample corn prices, not market quotes. Add a free Massive key to see real prices.</span>
-          <Button size="xs" variant="outline" onClick={() => setSourcesOpen(true)}>Add key</Button>
+          <Button size="xs" variant="outline" onClick={showSources}>Add key</Button>
         </div>
       )}
       <div className="market-chart">{chart}</div>
@@ -255,89 +199,9 @@ export function MarketOverview({ commodity }: { commodity: string }) {
             <i className="freshness-dot" aria-hidden="true" />
             {status.freshness.label} · {status.provider}
           </span>
-          <Button size="xs" variant="ghost" onClick={() => setSourcesOpen(true)}>Data sources</Button>
+          <Button size="xs" variant="ghost" onClick={showSources}>Data sources</Button>
         </div>
       )}
-
-      <Dialog open={sourcesOpen} onOpenChange={setSourcesOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Data sources</DialogTitle>
-            <DialogDescription>
-              Futures prices are requested from Massive with your own key. The
-              key stays in the operating system keychain.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="source-dialog-section">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="source-name">{priceSource?.name ?? "Massive · CBOT futures"}</div>
-                <div className="source-detail">
-                  {keyStatus.data ? "Key saved" : "No key saved"}
-                  {priceSource?.lastOk
-                    ? ` · Updated ${formatAge(priceSource.lastOk, now)}`
-                    : ""}
-                </div>
-              </div>
-              <Badge variant={keyStatus.data ? "secondary" : "outline"}>
-                {keyStatus.data ? "READY" : "OPTIONAL"}
-              </Badge>
-            </div>
-            {priceSource?.error && (
-              <p className="source-dialog-error">{priceSource.error}</p>
-            )}
-            <div className="mt-4 grid gap-2">
-              <Label htmlFor="massive-key">API key</Label>
-              <Input
-                id="massive-key"
-                type="password"
-                autoComplete="off"
-                value={apiKey}
-                placeholder={
-                  keyStatus.data
-                    ? "Enter a replacement key"
-                    : "Paste your Massive key"
-                }
-                onChange={(event) => setApiKey(event.currentTarget.value)}
-              />
-              <p className="source-dialog-note">
-                Refresh requests 30 days of daily bars, and a background update
-                runs every 24 hours after a key is saved. The free Futures
-                Basic plan is enough; it allows five requests a minute, so a
-                refresh takes about a minute. Synthetic sample data remains
-                available offline.
-              </p>
-            </div>
-            {sourceMessage && (
-              <p className="source-dialog-success">{sourceMessage}</p>
-            )}
-            {sourceError && (
-              <p className="source-dialog-error">{sourceError}</p>
-            )}
-          </div>
-          <div className="source-controls-list">
-            {sources.data?.filter((source) => ![PRICE_SOURCE, "fixture-corn"].includes(source.sourceId)).map((source) => <SourceControl key={source.sourceId} source={source} />)}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSourcesOpen(false)}>
-              Close
-            </Button>
-            <Button
-              onClick={storeApiKey}
-              disabled={!apiKey.trim() || savingKey}
-            >
-              {savingKey ? "Saving…" : "Save key"}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => void refresh()}
-              disabled={!keyStatus.data || refreshing}
-            >
-              {refreshing ? "Loading…" : "Load prices"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

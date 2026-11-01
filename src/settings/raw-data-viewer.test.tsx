@@ -2,7 +2,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PanelParams } from "@/workspace/types";
 
 const ipc = vi.hoisted(() => ({
   listSources: vi.fn(), listStoredSeries: vi.fn(), getStoredRows: vi.fn(), getWeatherForCommodity: vi.fn(), getNewsForCommodity: vi.fn(),
@@ -13,21 +12,19 @@ vi.mock("@/lib/ipc", () => ({
   subscribeToDataUpdates: () => Promise.resolve(() => undefined),
 }));
 
-import { RawDataPanel } from "./raw-data-panel";
+import { RawDataViewer } from "./raw-data-viewer";
 
 const bar = (period: string, revision: number, close: number) => ({
   seriesId: "price.ZC.close", period, releasedAt: `${period}T20:00:00+00:00`, open: close - 0.05, high: close + 0.1, low: close - 0.1, close,
   unit: "USD/bushel", sourceId: "databento", fetchedAt: `${period}T21:00:00+00:00`, revision,
 });
 
-function renderPanel(params: Partial<PanelParams> = {}) {
+function renderViewer() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const api = { setTitle: vi.fn(), updateParameters: vi.fn() };
-  render(<QueryClientProvider client={client}><RawDataPanel api={api} params={{ kind: "raw-data", ...params }} /></QueryClientProvider>);
-  return api;
+  render(<QueryClientProvider client={client}><RawDataViewer /></QueryClientProvider>);
 }
 
-describe("RawDataPanel", () => {
+describe("RawDataViewer", () => {
   beforeEach(() => {
     ipc.listSources.mockResolvedValue([
       { sourceId: "databento", name: "Databento · GLBX.MDP3", state: "ok", lastOk: null, error: null, enabled: true },
@@ -43,7 +40,7 @@ describe("RawDataPanel", () => {
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
   it("opens on the first source with rows and shows every revision, newest period first", async () => {
-    renderPanel();
+    renderViewer();
     expect(await screen.findByText("4.61")).toBeTruthy();
     expect(ipc.getStoredRows).toHaveBeenCalledWith("price.ZC.close");
     const rows = screen.getAllByRole("row").filter((row) => within(row).queryByText("USD/bushel"));
@@ -53,17 +50,19 @@ describe("RawDataPanel", () => {
   });
 
   it("shows the stored rows as JSON", async () => {
-    renderPanel();
+    renderViewer();
     await screen.findByText("4.61");
     fireEvent.click(screen.getByRole("button", { name: "JSON" }));
     expect(screen.getByText(/"close": 4.7/)).toBeTruthy();
   });
 
-  it("selects a source through the panel parameters and explains an empty or failing one", async () => {
-    const api = renderPanel({ sourceId: "usda-nass" });
+  it("switches source and explains an empty or failing one", async () => {
+    renderViewer();
+    await screen.findByText("4.61");
+    fireEvent.click(screen.getByRole("button", { name: "USDA NASS QuickStats" }));
     expect(await screen.findByText(/LAST REFRESH FAILED · Authentication/)).toBeTruthy();
     expect(screen.getByText(/Nothing stored from this source yet/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Databento · GLBX.MDP3" }));
-    expect(api.updateParameters).toHaveBeenCalledWith({ sourceId: "databento", dataset: null });
+    expect(await screen.findByText("4.61")).toBeTruthy();
   });
 });

@@ -2,7 +2,7 @@
 
 A plugin is a single `plugin.toml`. It describes one HTTP request and how to turn the response into observations. It cannot run code, read files or contact any host it did not declare, so installing one is a matter of reading its permissions.
 
-Start from [`plugins/template/plugin.toml`](../plugins/template/plugin.toml) (a test keeps it valid), paste your manifest into **Plugins** (`PLUGINS` in the command bar), and choose **Review permissions**. Every problem is listed with the field to change. **Install** saves the plugin switched off; turn it on after you have read what it can do.
+Start from [`plugins/template/plugin.toml`](../plugins/template/plugin.toml) (a test keeps it valid), open **Settings › Data sources**, paste your manifest under **Add a source from a plugin file**, and choose **Review permissions**. Every problem is listed with the field to change. **Install** saves the plugin switched off; turn it on after you have read what it can do.
 
 ## What the manifest controls
 
@@ -38,4 +38,4 @@ The `plugins` tests include a malicious-plugin set covering each of these.
 - Data source plugins only. Panel plugins (sandboxed iframes) and analysis plugins (expressions, then WebAssembly with fuel limits) are not built.
 - Install is by pasting a manifest. There is no registry or checksum verification yet.
 - A host name that resolves to a private address is not detected, because only the name is checked.
-- Plugin data appears in CSV export (`SETTINGS`) but has no panel of its own yet.
+- Plugin data appears in CSV export and the stored data viewer (**Settings › Data and export**) but has no panel of its own yet.

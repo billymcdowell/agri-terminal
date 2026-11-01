@@ -7,6 +7,7 @@ import type { PanelParams } from "./types";
 export type CommandPlan =
   | { type: "workspace"; name: string }
   | { type: "template"; id: string }
+  | { type: "settings" }
   /** Open the panel, or bring forward an existing one of the same kind, and retarget the link group. */
   | { type: "open"; params: PanelParams; retarget?: { group: string; commodity: string } }
   | { type: "error"; message: string };
@@ -46,14 +47,10 @@ export function planCommand(input: string): CommandPlan {
         ? { type: "open", params: { kind: "river", gauge: gauge.id } }
         : { type: "open", params: { kind: "river-timeline", gauge: gauge.id, linkGroup: DEFAULT_GROUP } };
     }
-    case "plugins":
-      return { type: "open", params: { kind: "plugins" } };
     case "help":
       return { type: "open", params: { kind: "help" } };
-    case "raw":
-      return { type: "open", params: { kind: "raw-data" } };
     case "settings":
-      return { type: "open", params: { kind: "settings" } };
+      return { type: "settings" };
     case "alerts":
       return { type: "open", params: { kind: "alerts" } };
     case "moves":

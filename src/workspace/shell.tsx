@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createDockview, type DockviewApi, type IContentRenderer } from "dockview";
 import { useQueryClient } from "@tanstack/react-query";
 import "dockview/dist/styles/dockview.css";
-import { RiAddLine, RiCheckLine, RiExternalLinkLine, RiQuestionLine, RiSaveLine } from "@remixicon/react";
+import { RiAddLine, RiCheckLine, RiExternalLinkLine, RiQuestionLine, RiSaveLine, RiSettings3Line } from "@remixicon/react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { registerBuiltInPanels, type MarketComponent } from "@/panels/register";
+import { SettingsDialog } from "@/settings/settings-dialog";
+import { useSettingsScreen } from "@/settings/use-settings-screen";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { planCommand, type CommandPlan } from "@/workspace/commands";
 import { onCommandRequest } from "@/workspace/command-events";
@@ -154,6 +156,11 @@ export function WorkspaceShell({ MarketOverview }: Props) {
       try {
         api.fromJSON(restoreWorkspace(json).layout as DockLayout);
         applied = true;
+        // Panel types that were retired, such as the old Settings, Plugins and Raw data panels, are dropped.
+        for (const panel of [...api.panels]) {
+          const kind = (panel.params as Partial<PanelParams> | undefined)?.kind ?? panel.api.component;
+          if (!getPanel(kind)) panel.api.close();
+        }
       } catch (error) {
         // Autosave would write the default layout below over this id, so keep the unreadable one under another.
         const backupId = `${id}-unreadable-${Date.now()}`;
@@ -327,6 +334,8 @@ export function WorkspaceShell({ MarketOverview }: Props) {
       const match = saved.find(([, name]) => name.toLowerCase() === plan.name.toLowerCase()) ?? saved.find(([id]) => id === slugify(plan.name));
       const problem = await switchWorkspace(match?.[0] ?? slugify(plan.name), match?.[1] ?? plan.name);
       if (problem) { setCommand(""); setCommandError(problem); return; }
+    } else if (plan.type === "settings") {
+      useSettingsScreen.getState().show();
     } else if (plan.type === "template") {
       applyTemplate(plan.id, profile ?? { commodities: ["ZC"], region: "ia" });
     } else {
@@ -380,6 +389,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
           ))}
           <Button size="sm" variant="outline" onClick={() => void popOutActive()}><RiExternalLinkLine /> Pop out <kbd>⌥P</kbd></Button>
           <Button size="sm" variant="outline" onClick={() => setPaletteOpen(true)}><RiAddLine /> Add panel <kbd>/</kbd></Button>
+          <Button size="sm" variant="outline" onClick={() => useSettingsScreen.getState().show()}><RiSettings3Line /> Settings</Button>
           <Button size="sm" variant="outline" onClick={() => void execute(planCommand("HELP"))}><RiQuestionLine /> Help <kbd>?</kbd></Button>
           {saveStatus.kind === "error" && <span role="alert" className="workspace-save-error" title={saveStatus.message}>{saveStatus.message}</span>}
           <Button size="sm" variant="secondary" onClick={() => void saveNow()}>
@@ -388,6 +398,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
         </div>
       </div>
       <div className="dockview-host" ref={hostRef} />
+      <SettingsDialog />
       <Onboarding
         open={profileReady && profile === null}
         onComplete={completeOnboarding}
@@ -421,6 +432,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
                 </CommandItem>
               ))}
               <CommandItem value="WS switch workspace" onSelect={() => setCommand("WS ")}>Switch workspace<span className="command-hint">WS name</span></CommandItem>
+              <CommandItem value="settings preferences theme units data sources keys plugins export stored raw data" onSelect={() => void execute({ type: "settings" })}>Settings<span className="command-hint">SETTINGS</span></CommandItem>
             </CommandGroup>
             <CommandGroup heading="Templates">
               {TEMPLATES.map((template) => (

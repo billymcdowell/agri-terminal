@@ -25,11 +25,11 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     howToRead: [
       "Each candle is one trading day. The thick body runs from the opening price to the closing price, and the thin lines reach the day's high and low. Green candles closed higher than they opened; red ones closed lower.",
       "The large number is the latest closing price. The change beside it is against the previous day's close.",
-      "Prices are U.S. dollars per bushel. Switch to dollars per metric tonne under SETTINGS.",
+      "Prices are U.S. dollars per bushel. Switch to dollars per metric tonne in Settings.",
       "Arrows labelled with a number such as 2.4 SD mark unusually large one-day moves. Open MOVES to see what might have caused them.",
       "1W, 1M and ALL change how much history the chart shows.",
       "The line under the chart says how current the prices are and which provider they come from. The price follows the contract nearest to expiry, so there can be a small jump when it rolls to the next one.",
-      "A banner above the chart means you are looking at made-up sample prices for corn, bundled so you can try the app. Add key opens Data sources, where a free Massive key loads real ones.",
+      "A banner above the chart means you are looking at made-up sample prices for corn, bundled so you can try the app. Add key opens Settings › Data sources, where a free Massive key loads real ones.",
     ],
   },
   cot: {
@@ -51,7 +51,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
   "crop-condition": {
     usage: "CROP CONDITION",
     oneLine: "How healthy this year's U.S. crop looks, and how far planting and harvest have got.",
-    summary: "The weekly national Crop Progress report from the USDA National Agricultural Statistics Service (NASS), published Mondays at 4 p.m. Eastern from spring to late autumn. Local observers rate the crop in every state, and the ratings are combined into national shares. It needs a free NASS key under Data sources.",
+    summary: "The weekly national Crop Progress report from the USDA National Agricultural Statistics Service (NASS), published Mondays at 4 p.m. Eastern from spring to late autumn. Local observers rate the crop in every state, and the ratings are combined into national shares. It needs a free NASS key in Settings › Data sources.",
     howToRead: [
       "The three condition rows add up to about 100% of the crop.",
       "A falling good / excellent share usually points to a smaller harvest, which tends to push prices up. A rising share tends to do the opposite.",
@@ -69,7 +69,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
   wasde: {
     usage: "WASDE",
     oneLine: "How much grain the U.S. has, how much it uses, and what is left over.",
-    summary: "The U.S. supply and demand balance sheet for the crop, from the USDA Foreign Agricultural Service (FAS) Production, Supply and Distribution database. It carries the official estimates USDA publishes each month in the WASDE report. It needs a free FAS key under Data sources.",
+    summary: "The U.S. supply and demand balance sheet for the crop, from the USDA Foreign Agricultural Service (FAS) Production, Supply and Distribution database. It carries the official estimates USDA publishes each month in the WASDE report. It needs a free FAS key in Settings › Data sources.",
     howToRead: [
       "Read it top to bottom: beginning stocks plus production plus imports is the total supply; domestic consumption plus exports is the total use; what remains is ending stocks.",
       "Ending stocks are the headline. Smaller stocks mean a tighter market and usually higher prices; larger stocks usually mean lower prices.",
@@ -175,6 +175,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     howToRead: [
       "Alerts are checked after each price update against the daily close, so they cannot fire during the trading day.",
       "An alert fires once per crossing, then re-arms after the price moves back across the level.",
+      "Report reminders, at the bottom, notify you before each scheduled report in the report calendar. Choose how early, or turn them off.",
       "River alerts fire when a gauge falls to its restriction or critical level, when the forecast reaches the restriction level within the forecast window, and each time the river constraint score moves up a band. Pause any you do not want.",
       "So a river hovering at a level does not notify again and again, a level alert re-arms only once the river is a foot back above it, and the score must pass a band's cut-off by 5 points to count as moving up. In 2020 to 2026 that meant about 18 alerts a year at St. Louis and 11 at Memphis, mostly in the low-water autumns.",
     ],
@@ -184,39 +185,10 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       ["PAUSED", "Switched off until you resume it."],
     ],
   },
-  "raw-data": {
-    usage: "RAW",
-    oneLine: "Every number the app has downloaded, exactly as stored.",
-    summary: "Every row AgriTerminal has stored from each source, as a table or JSON. Use it to check exactly what was downloaded, when it was published and fetched, and whether a figure was later revised.",
-    howToRead: [
-      "Pick a source and one of its series; the newest period is listed first.",
-      "period is the date the figure describes, releasedAt is when the agency published it, and fetchedAt is when AgriTerminal downloaded it.",
-      "revision counts up when an agency changes a number it already published. The earlier value is kept, never overwritten.",
-      "Prices are stored in U.S. dollars per bushel and times are in UTC.",
-    ],
-  },
-  plugins: {
-    usage: "PLUGINS",
-    oneLine: "Add more data sources from plugin files.",
-    summary: "Install and manage extra data sources described by plugin files. Each plugin lists the websites it will contact and the keys it uses before anything runs, and it cannot run code or read your files.",
-    howToRead: [
-      "Review the permissions shown for a plugin before installing or enabling it.",
-      "The U.S. Drought Monitor source is a built-in plugin.",
-    ],
-  },
-  settings: {
-    usage: "SETTINGS",
-    oneLine: "Theme, price units, report reminders, export and setup.",
-    summary: "Your preferences, plus exports and setup. Choose dark or light, show prices per bushel or per metric tonne, choose how early to be reminded before a scheduled report, export any series as CSV or a workspace as a file, or run first-time setup again.",
-    howToRead: [
-      "Changing units only changes how prices are shown; stored prices stay in dollars per bushel.",
-      "Exports are written to the app's data folder, which this panel can open for you.",
-    ],
-  },
   calendar: {
     usage: "CALENDAR",
     oneLine: "When the next government reports are due. Prices often jump when they come out.",
-    summary: "When the next scheduled government reports are expected, in your local time. Markets often move sharply as these come out, so traders plan around them. Set a reminder lead time under SETTINGS.",
+    summary: "When the next scheduled government reports are expected, in your local time. Markets often move sharply as these come out, so traders plan around them. Choose how early to be reminded under Report reminders in ALERTS.",
     howToRead: [
       "Contracts lists the commodities each report covers.",
       "Times come from a schedule kept in the app, and some are expected windows. Check the agency's own calendar before relying on one.",
@@ -263,11 +235,12 @@ export const START_HERE = [
   "Click the ⓘ button at the top of any panel for a plain-language explanation of what it shows.",
   "Panels with the same coloured LINK letter follow the same crop: change the crop in one and the others switch too. Click LINK to change the group or unlink a panel.",
   "Drag a panel's tab to rearrange the layout. It saves automatically; use the menu beside the workspace name to keep several layouts.",
-  "Some data needs a key, added under Data sources on the price chart. Free without any key: demonstration corn prices, CFTC positioning, drought, weather, river conditions and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
+  "Some data needs a key, added in Settings › Data sources (the Settings button at the top). Free without any key: demonstration corn prices, CFTC positioning, drought, weather, river conditions and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
 ];
 
 export const OTHER_COMMANDS: { usage: string; meaning: string }[] = [
   { usage: "WS name", meaning: "Switch to the workspace with that name, or start a new one with that name." },
+  { usage: "SETTINGS", meaning: "Open Settings: theme and units, every data source and its key, plugins, exports and the stored data viewer." },
   { usage: "HELP or ?", meaning: "Open this guide." },
 ];
 
@@ -287,7 +260,7 @@ export const STATUS_LABELS: [string, string][] = [
   ["OK · 3h old", "The source refreshed on schedule. The age is how long ago it last confirmed the data was current."],
   ["STALE", "No successful refresh for more than one and a half times the source's usual schedule (about 10 days for a weekly report), so the numbers may be out of date."],
   ["ERROR · CACHED OBSERVATIONS", "The last refresh failed, so you are seeing the most recent saved data. The reason follows the label."],
-  ["WAITING · no data yet, or No cached data", "Nothing has been downloaded yet. Check whether the source needs a key under Data sources."],
+  ["WAITING · no data yet, or No cached data", "Nothing has been downloaded yet. Check whether the source needs a key in Settings › Data sources."],
 ];
 
 export const GLOSSARY: [string, string][] = [

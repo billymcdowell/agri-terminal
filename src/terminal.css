@@ -162,31 +162,131 @@ button {
   font-size: 9px;
   margin-top: 5px;
 }
-.source-name {
-  font-size: 10px;
+/* Settings: one screen for display preferences, every data source and key, and exports. */
+.settings-dialog {
+  width: calc(100vw - 48px);
+  max-width: 1040px;
+  height: calc(100vh - 48px);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+}
+.settings-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(var(--line-rgb), 0.12);
+}
+.settings-tabs {
+  min-height: 0;
+  gap: 0;
+}
+.settings-nav {
+  width: 180px;
+  flex-shrink: 0;
+  align-self: stretch;
+  justify-content: flex-start;
+  padding: 12px 8px;
+  border-right: 1px solid rgba(var(--line-rgb), 0.12);
+}
+.settings-body {
+  min-width: 0;
+  overflow: auto;
+  padding: 16px 20px 24px;
+  display: grid;
+  gap: 24px;
+  align-content: start;
+}
+.settings-group {
+  display: grid;
+  gap: 8px;
+}
+.settings-group h3,
+.settings-subheading {
+  margin: 0;
+  font:
+    600 13px "Instrument Sans Variable",
+    sans-serif;
+  color: var(--tone-e4e7df);
+}
+.settings-subheading {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.settings-intro,
+.settings-note,
+.source-note {
+  margin: 0;
+  max-width: 76ch;
+  color: var(--tone-879187);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.settings-note code {
   color: var(--tone-c8d0c5);
 }
-.source-detail {
-  color: var(--tone-748074);
-  font-size: 9px;
-  margin-top: 4px;
+.source-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.source-dialog-section {
+.source-item {
   display: grid;
-  gap: 12px;
+  gap: 6px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--tone-303630);
 }
-.source-dialog-note {
-  margin: 2px 0 0;
-  color: var(--tone-899388);
-  font-size: 10px;
-  line-height: 1.6;
+.source-item-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.source-dialog-success {
+.source-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  color: var(--tone-dce4d7);
+  font-size: 12px;
+}
+.source-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tone-879187);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.source-state[data-status="stale"] {
+  color: var(--tone-c49458);
+}
+.source-state[data-status="error"] {
+  color: var(--tone-d77b68);
+}
+.source-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 560px;
+  font-size: 11px;
+  color: var(--tone-9ba69a);
+}
+.source-permissions summary,
+.source-install summary {
+  cursor: pointer;
+  color: var(--tone-9ba69a);
+  font-size: 11px;
+}
+.source-install {
+  padding-top: 14px;
+}
+.source-install[open] > * + * {
+  margin-top: 8px;
+}
+.source-success {
   margin: 0;
   color: var(--tone-a8c594);
   font-size: 11px;
 }
-.source-dialog-error {
+.source-error {
   margin: 0;
   color: var(--tone-e38b7a);
   font-size: 11px;
@@ -242,11 +342,6 @@ button {
 .news-item a { color:var(--tone-e4e7df); font-size:13px; line-height:1.45; text-decoration:none; }
 .news-item a:hover { color:var(--tone-a8c393); text-decoration:underline; }
 .news-meta { color:var(--tone-879187); font-size:10px; margin-top:5px; }
-.source-controls-list { display:grid; max-height:340px; overflow:auto; gap:8px; }
-.source-control { padding:10px; border:1px solid rgba(var(--line-rgb),.14); border-radius:7px; background:var(--tone-0c100d); }
-.source-control-heading,.source-control-actions,.source-control-key { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.source-control-key { margin-top:9px; }
-.source-control-actions { justify-content:flex-start; margin:6px -5px -4px; }
 
 .panel-header-controls { display: flex; align-items: center; gap: 8px; }
 .link-group-button { gap: 5px; font-size: 10px; letter-spacing: .06em; color: var(--tone-9ba69a); }

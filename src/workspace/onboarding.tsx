@@ -49,7 +49,7 @@ export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
       saves.forEach(([field], index) => { if (results[index].status === "fulfilled") next[field] = ""; });
       return next;
     });
-    setNote(`Could not save the key for ${failed.join(", ")}. Try again, or continue and add it later under Data sources.`);
+    setNote(`Could not save the key for ${failed.join(", ")}. Try again, or continue and add it later in Settings › Data sources.`);
   }
 
   return (
