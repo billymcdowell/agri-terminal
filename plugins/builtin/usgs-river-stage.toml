@@ -1,0 +1,33 @@
+id = "usgs-river-stage"
+name = "USGS river stage"
+version = "1.0.0"
+description = "Daily 08:00 gage height for the Mississippi River at St. Louis (USGS 07010000), from the USGS Water Data API."
+license_note = "USGS data are public domain. Recent values are provisional and subject to revision. Credit the U.S. Geological Survey."
+
+[permissions]
+hosts = ["api.waterdata.usgs.gov"]
+
+[source]
+cadence = "daily"
+
+[request]
+# Statistic 30800 is the 08:00 reading; the site has no daily mean for stage. Six years of history
+# lets the five-year seasonal range work, and fits well under the default size limit.
+# The site must match config/waterways.json.
+url = "https://api.waterdata.usgs.gov/ogcapi/v1/collections/daily/items?f=json&monitoring_location_id=USGS-07010000&parameter_code=00065&statistic_id=30800&datetime={today-2200d}/{today}&skipGeometry=true&properties=time,value&limit=3000"
+
+[response]
+format = "json"
+rows = "/features"
+[response.period]
+field = "properties.time"
+
+# The 08:00 Central reading is posted by about 15:05 UTC in winter (14:05 in summer).
+[release]
+days_after_period = 0
+hour_utc = 16
+
+[[series]]
+id = "river.stlouis.stage"
+value = "properties.value"
+unit = "ft"

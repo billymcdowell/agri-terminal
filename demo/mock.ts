@@ -3,7 +3,7 @@
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { emit } from "@tauri-apps/api/event";
 import type { Driver, MoveExplanation, PriceBar, StressPoint } from "../src/lib/ipc";
-import { ALERTS, buildCalendar, buildMetrics, buildNews, buildPrices, buildStored, buildWeather, NOW, PLUGINS, SOURCES } from "./fixtures";
+import { ALERTS, RIVER_ALERTS, buildCalendar, buildMetrics, buildNews, buildPrices, buildRiverMetrics, buildRiverStatus, buildRiverTimeline, buildStored, buildWeather, NOW, PLUGINS, SOURCES } from "./fixtures";
 
 const params = new URLSearchParams(window.location.search);
 const LS = "agri-demo:";
@@ -17,7 +17,8 @@ function moveDrivers(commodity: string, date: string, up: boolean, i: number): D
     [{ kind: "scheduled_event", title: "USDA WASDE · expected window", url: null, source: "Report calendar", at, label: "Likely driver", score: 0.82, reasons: ["Scheduled release fell on the same session", `Covers ${name}`] },
       { kind: "news", title: `Stocks estimate surprises the trade in ${name}`, url: "https://example.invalid/news/1", source: "Example Grain Wire", at, label: "Possible driver", score: 0.55, reasons: ["Published within a day of the move", `Mentions ${name}`, up ? "Wording points higher, matching the move" : "Wording points lower, matching the move"] }],
     [{ kind: "news", title: up ? `Dry spell trims yield outlook for ${name}` : `Rain relief lifts crop prospects for ${name}`, url: "https://example.invalid/news/2", source: "Heartland Ag Report", at, label: "Possible driver", score: 0.61, reasons: ["Published the evening before the move", up ? "Wording points higher, matching the move" : "Wording points lower, matching the move"] }],
-    [{ kind: "news", title: `Weekly export sales for ${name} miss expectations`, url: "https://example.invalid/news/3", source: "Prairie Markets Daily", at, label: "Possible driver, low confidence", score: 0.31, reasons: ["Published on the same day", "Direction of the wording is unclear"] }],
+    [{ kind: "news", title: `Weekly export sales for ${name} miss expectations`, url: "https://example.invalid/news/3", source: "Prairie Markets Daily", at, label: "Possible driver, low confidence", score: 0.31, reasons: ["Published on the same day", "Direction of the wording is unclear"] },
+      { kind: "river_event", title: "St. Louis, MO stage fell below the restriction level", url: null, source: "River conditions · St. Louis, MO", at, label: "Possible driver, low confidence", score: 0.3, reasons: ["Timing: known 2 day(s) before the close of the move.", "River: the fictional demo stage read 0.85 ft, at or below the 1.00 ft restriction level.", "River conditions show up more in barge freight and basis than in futures, so this is weak evidence for a futures move."] }],
   ];
   return pool[i % pool.length];
 }
@@ -42,11 +43,12 @@ export function installMockBridge() {
   (window as unknown as { isTauri: boolean }).isTauri = true;
 
   const prices: Record<string, PriceBar[]> = { "price.ZC.close": buildPrices("ZC"), "price.ZS.close": buildPrices("ZS"), "price.ZW.close": buildPrices("ZW") };
-  const metrics = buildMetrics();
+  const metrics = { ...buildMetrics(), ...buildRiverMetrics() };
   const news = buildNews();
   const calendar = buildCalendar();
   const stored = buildStored(prices, metrics);
   let alerts = [...ALERTS];
+  let riverAlerts = [...RIVER_ALERTS];
   let plugins = [...PLUGINS];
   const workspaces: [string, string, string][] = JSON.parse(read("workspaces") ?? "[]");
   const settings: Record<string, string> = JSON.parse(read("settings") ?? "{}");
@@ -86,6 +88,11 @@ export function installMockBridge() {
           return { date: bar.period, close: bar.close, condition: c, conditionLow: c === null ? null : c - 7, conditionHigh: c === null ? null : c + 7, drought: at(dry, bar.period) };
         });
       }
+      case "get_river_status": return buildRiverStatus(String(a.gauge ?? "stlouis"));
+      case "get_river_timeline": return buildRiverTimeline(String(a.gauge ?? "stlouis"), prices[`price.${sym(a.commodity)}.close`] ?? []);
+      case "list_river_alerts": return riverAlerts;
+      case "set_river_alert_enabled": riverAlerts = riverAlerts.map((x) => (x.id === a.id ? { ...x, enabled: a.enabled, state: 0 } : x)); return null;
+      case "run_river_backtest": return [];
       case "run_backtest": return { total: 14, detected: 12, topMatch: 8, missedDates: ["2026-03-11", "2026-04-02"], topMatchRate: 0.667 };
       case "list_alerts": return alerts;
       case "save_alert": alerts = [...alerts.filter((x) => x.id !== a.alert.id), { ...a.alert, enabled: true, triggered: false }]; return null;

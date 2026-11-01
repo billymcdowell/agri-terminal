@@ -14,6 +14,12 @@ pub const RESERVED_IDS: &[&str] = &[
     "usda-nass",
     "usda-fas",
     "us-drought-monitor",
+    "usgs-river-stage",
+    "nwps-river-stage",
+    "nwps-river-forecast",
+    "usda-agtransport",
+    // Lineage of river stage history backfilled from the Iowa Environmental Mesonet archive.
+    "iem-hml",
 ];
 pub const DEFAULT_MAX_BYTES: usize = 5 * 1024 * 1024;
 pub const HARD_MAX_BYTES: usize = 20 * 1024 * 1024;

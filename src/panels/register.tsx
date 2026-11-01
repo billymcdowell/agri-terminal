@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { LINK_GROUP_PROPERTY, type ConfigSchema } from "@/lib/config-schema";
 import { REGIONS } from "@/lib/regions";
+import { GAUGES } from "@/lib/waterways";
 import { getPanel, registerPanel } from "@/workspace/registry";
 import type { PanelComponentProps } from "@/workspace/types";
 import { AlertsPanel } from "./alerts-panel";
@@ -11,6 +12,8 @@ import { MoveExplainerPanel } from "./move-explainer-panel";
 import { MetricPanel } from "./metric-panel";
 import { PluginsPanel } from "./plugins-panel";
 import { RawDataPanel } from "./raw-data-panel";
+import { RiverPanel } from "./river-panel";
+import { RiverTimelinePanel } from "./river-timeline-panel";
 import { SettingsPanel } from "./settings-panel";
 import { NewsPanel } from "./news-panel";
 import { WeatherPanel } from "./weather-panel";
@@ -21,6 +24,12 @@ const droughtSchema: ConfigSchema = {
   type: "object",
   properties: {
     region: { type: "string", title: "State", enum: REGIONS.map((region) => region.id), enumLabels: Object.fromEntries(REGIONS.map((region) => [region.id, region.name])) },
+  },
+};
+const gaugeSchema: ConfigSchema = {
+  type: "object",
+  properties: {
+    gauge: { type: "string", title: "River gauge", enum: GAUGES.map((gauge) => gauge.id), enumLabels: Object.fromEntries(GAUGES.map((gauge) => [gauge.id, `${gauge.name} · ${gauge.riverName}`])) },
   },
 };
 const movesSchema: ConfigSchema = {
@@ -46,6 +55,8 @@ export function registerBuiltInPanels(Market: MarketComponent) {
   registerPanel({ type: "wasde", configSchema: linkSchema, title: "Supply and demand", description: "FAS PSD balance sheet", command: "WASDE", defaultConfig: { linkGroup: "A" }, component: MetricPanel });
   registerPanel({ type: "drought", configSchema: { type: "object", properties: { ...droughtSchema.properties, ...linkSchema.properties } }, title: "Drought Monitor", description: "Weekly drought area by severity", command: "DROUGHT IOWA", defaultConfig: { region: "ia" }, component: MetricPanel });
   registerPanel({ type: "crop-stress", configSchema: linkSchema, title: "Crop stress timeline", description: "Price, crop condition and drought on one timeline", command: "STRESS", defaultConfig: { linkGroup: "A" }, component: CropStressPanel });
+  registerPanel({ type: "river", configSchema: gaugeSchema, title: "River status", description: "Low-water constraint score, stage, forecast, barge freight and lock traffic", command: "RIVER", defaultConfig: { gauge: GAUGES[0].id }, component: RiverPanel });
+  registerPanel({ type: "river-timeline", configSchema: { type: "object", properties: { ...gaugeSchema.properties, ...linkSchema.properties } }, title: "River timeline", description: "River stage, forecast, barge freight and the constraint score beside price", command: "RIVER TIMELINE", defaultConfig: { gauge: GAUGES[0].id, linkGroup: "A" }, component: RiverTimelinePanel });
   registerPanel({ type: "moves", configSchema: movesSchema, title: "Move explainer", description: "Flagged price moves with possible drivers", command: "MOVES", defaultConfig: { linkGroup: "A" }, component: MoveExplainerPanel });
   registerPanel({ type: "alerts", title: "Price alerts", description: "Notify when a daily close crosses a price", command: "ALERTS", defaultConfig: {}, component: AlertsPanel });
   registerPanel({ type: "raw-data", title: "Raw data", description: "Every stored row from each data source", command: "RAW", defaultConfig: {}, component: RawDataPanel });

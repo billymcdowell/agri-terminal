@@ -9,12 +9,13 @@ use rusqlite::Connection;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::{
-    alerts::{self, AlertRecord, PriceAlert},
+    alerts::{self, AlertRecord, PriceAlert, river::RiverAlertRecord},
     analytics::{
         attribution::{self, MoveExplanation},
         backtest::{self, BacktestReport, LabelFile},
         combined::{self, StressPoint},
         moves::{self, PricePoint},
+        river,
     },
     core::{DataSource, MetricObservation, Observation, SourceStatus, StoredRows, StoredSeries},
     plugins::{self, registry::PluginSummary},
@@ -190,8 +191,41 @@ fn resolve_source(app: &AppHandle, id: &str) -> Result<Box<dyn DataSource>, Stri
     if let Some(source) = built_in {
         return Ok(source);
     }
+    use crate::sources::{agtransport, river};
+    if id == agtransport::AGTRANSPORT_SOURCE {
+        return Ok(Box::new(agtransport::AgTransportSource {
+            config: waterways_config(app)?,
+        }));
+    }
+    if id == river::NWPS_STAGE_SOURCE || id == river::NWPS_FORECAST_SOURCE {
+        let config = waterways_config(app)?;
+        return with_connection(app, |connection| {
+            // The archive is only asked for days the store does not have yet.
+            let mut stored = std::collections::BTreeMap::new();
+            for (_, gauge) in config.gauges() {
+                for series in [gauge.stage_series(), gauge.forecast_series()] {
+                    let periods = store::metric_periods(connection, &series)?;
+                    stored.insert(series, periods.into_iter().collect());
+                }
+            }
+            let stored = |series: &str| stored.get(series).cloned().unwrap_or_default();
+            Ok(if id == river::NWPS_STAGE_SOURCE {
+                Box::new(river::NwpsStageSource::from_config(&config, stored))
+                    as Box<dyn DataSource>
+            } else {
+                Box::new(river::NwpsForecastSource::from_config(&config, stored))
+            })
+        });
+    }
     crate::plugins::registry::find_source(&plugin_directory(app)?, id)
         .ok_or_else(|| format!("Unknown source: {id}"))
+}
+
+/// The waterways file from the app data directory, or the bundled copy.
+pub(crate) fn waterways_config(
+    app: &AppHandle,
+) -> Result<crate::sources::river::WaterwaysConfig, String> {
+    crate::sources::river::load_waterways(&data_directory(app)?)
 }
 
 #[tauri::command]
@@ -279,10 +313,15 @@ pub async fn refresh_source(app: AppHandle, source_id: String) -> Result<(), Str
     let prices_changed = records
         .iter()
         .any(|record| matches!(record, crate::core::SourceRecord::Price(_)));
+    let river_changed = changed.iter().any(|id| id.starts_with("river."));
     app.emit("data-updated", changed)
         .map_err(|error| format!("Notify price panels: {error}"))?;
     if prices_changed {
         evaluate_alerts(&app)?;
+    }
+    if river_changed && let Err(error) = evaluate_river_alerts(&app) {
+        // The data is stored; a broken waterways file should not turn the refresh into a failure.
+        tracing::warn!(%error, "Could not evaluate river alerts");
     }
     app.emit("source-status", format!("{source_id}:ok"))
         .map_err(|error| format!("Notify source status: {error}"))
@@ -300,23 +339,59 @@ pub fn due_sources(app: &AppHandle) -> Result<Vec<String>, String> {
 /// Flags unusual daily moves for a commodity and lists possible drivers for each, newest first.
 #[tauri::command(async)]
 pub fn explain_moves(
-    state: State<'_, DbState>,
+    app: AppHandle,
     commodity: String,
     threshold_sd: Option<f64>,
 ) -> Result<Vec<MoveExplanation>, String> {
-    let connection = state
-        .0
-        .lock()
-        .map_err(|_| "Database lock is unavailable".to_string())?;
-    explain_commodity_moves(
-        &connection,
-        &commodity.to_ascii_uppercase(),
-        threshold_sd.unwrap_or(moves::DEFAULT_THRESHOLD_SD),
-    )
+    let config = waterways_config(&app)?;
+    with_connection(&app, |connection| {
+        explain_commodity_moves(
+            connection,
+            &config,
+            &commodity.to_ascii_uppercase(),
+            threshold_sd.unwrap_or(moves::DEFAULT_THRESHOLD_SD),
+        )
+    })
+}
+
+/// River crossings, band changes and freight jumps at every gauge up to `until`.
+fn river_events_until(
+    connection: &Connection,
+    config: &crate::sources::river::WaterwaysConfig,
+    until: NaiveDate,
+) -> Result<Vec<river::RiverEvent>, String> {
+    let mut events = Vec::new();
+    for (river_config, gauge) in config.gauges() {
+        let stored = StoredGaugeSeries::load(connection, river_config, gauge)?;
+        let points = river::river_timeline(
+            river_config,
+            gauge,
+            &config.bands,
+            &stored.view(),
+            &[],
+            until,
+        );
+        let location = gauge.barge_location.as_ref().and_then(|id| {
+            river_config
+                .barge_locations
+                .iter()
+                .find(|location| &location.id == id)
+                .map(|location| location.name.as_str())
+        });
+        events.extend(river::river_events(
+            gauge,
+            location,
+            &config.bands,
+            config.alerts.rearm_ft,
+            &points,
+        ));
+    }
+    Ok(events)
 }
 
 fn explain_commodity_moves(
     connection: &Connection,
+    config: &crate::sources::river::WaterwaysConfig,
     symbol: &str,
     threshold_sd: f64,
 ) -> Result<Vec<MoveExplanation>, String> {
@@ -340,9 +415,10 @@ fn explain_commodity_moves(
     let to = crate::analytics::alignment::market_close(last.date);
     let events = store::list_events_between(connection, from, to)?;
     let news = store::list_news_between(connection, symbol, from, to)?;
+    let river_events = river_events_until(connection, config, last.date)?;
     let mut explanations: Vec<_> = flagged
         .iter()
-        .map(|price_move| attribution::explain(price_move, symbol, &events, &news))
+        .map(|price_move| attribution::explain(price_move, symbol, &events, &news, &river_events))
         .collect();
     explanations.reverse();
     Ok(explanations)
@@ -364,6 +440,7 @@ pub fn run_backtest(app: AppHandle) -> Result<BacktestReport, String> {
     })?;
     let file: LabelFile =
         serde_json::from_str(&text).map_err(|error| format!("Parse backtest labels: {error}"))?;
+    let config = waterways_config(&app)?;
     with_connection(&app, |connection| {
         let mut explanations = Vec::new();
         let mut symbols: Vec<_> = file
@@ -375,7 +452,7 @@ pub fn run_backtest(app: AppHandle) -> Result<BacktestReport, String> {
         symbols.dedup();
         for symbol in symbols {
             // Labeled dates may be mild moves, so detect at a low threshold.
-            for explanation in explain_commodity_moves(connection, &symbol, 1.0)? {
+            for explanation in explain_commodity_moves(connection, &config, &symbol, 1.0)? {
                 explanations.push((symbol.clone(), explanation));
             }
         }
@@ -437,6 +514,212 @@ pub fn crop_stress_timeline(
     Ok(combined::crop_stress_timeline(
         &prices, &condition, &drought,
     ))
+}
+
+/// Every stored revision a gauge's constraint score needs.
+struct StoredGaugeSeries {
+    stage: Vec<MetricObservation>,
+    forecast: Vec<MetricObservation>,
+    barge_rate: Vec<MetricObservation>,
+    locks: Vec<Vec<MetricObservation>>,
+}
+
+impl StoredGaugeSeries {
+    fn load(
+        connection: &Connection,
+        river: &crate::sources::river::River,
+        gauge: &crate::sources::river::Gauge,
+    ) -> Result<Self, String> {
+        let barge_series = gauge.barge_location.as_ref().and_then(|id| {
+            river
+                .barge_locations
+                .iter()
+                .find(|location| &location.id == id)
+                .map(|location| location.series())
+        });
+        Ok(Self {
+            stage: store::query_metric_revisions(connection, &gauge.stage_series())?,
+            forecast: store::query_metric_revisions(connection, &gauge.forecast_series())?,
+            barge_rate: match barge_series {
+                Some(series) => store::query_metric_revisions(connection, &series)?,
+                None => Vec::new(),
+            },
+            locks: river
+                .locks
+                .iter()
+                .filter(|lock| gauge.locks.contains(&lock.id))
+                .map(|lock| store::query_metric_revisions(connection, &lock.series()))
+                .collect::<Result<_, _>>()?,
+        })
+    }
+
+    fn view(&self) -> river::GaugeSeries<'_> {
+        river::GaugeSeries {
+            stage: &self.stage,
+            forecast: &self.forecast,
+            barge_rate: &self.barge_rate,
+            locks: self.locks.iter().map(Vec::as_slice).collect(),
+        }
+    }
+}
+
+/// The configured gauge, or the first one when none is named.
+fn find_gauge<'a>(
+    config: &'a crate::sources::river::WaterwaysConfig,
+    gauge: Option<&str>,
+) -> Result<
+    (
+        &'a crate::sources::river::River,
+        &'a crate::sources::river::Gauge,
+    ),
+    String,
+> {
+    match gauge {
+        Some(id) => config
+            .gauge(&id.to_ascii_lowercase())
+            .ok_or_else(|| format!("Unknown river gauge {id}")),
+        None => config
+            .gauges()
+            .next()
+            .ok_or_else(|| "No river gauges are configured".to_string()),
+    }
+}
+
+/// Score, stage, forecast, barge rate and lock traffic for a gauge, as known now.
+#[tauri::command(async)]
+pub fn get_river_status(
+    app: AppHandle,
+    gauge: Option<String>,
+) -> Result<river::RiverStatus, String> {
+    let config = waterways_config(&app)?;
+    let (river_config, gauge_config) = find_gauge(&config, gauge.as_deref())?;
+    let stored = with_connection(&app, |connection| {
+        StoredGaugeSeries::load(connection, river_config, gauge_config)
+    })?;
+    Ok(river::river_status(
+        river_config,
+        gauge_config,
+        &config.bands,
+        &stored.view(),
+        Utc::now(),
+    ))
+}
+
+/// The gauge's stage, forecast, barge rate and score day by day, with the commodity's close.
+#[tauri::command(async)]
+pub fn get_river_timeline(
+    app: AppHandle,
+    gauge: Option<String>,
+    commodity: String,
+) -> Result<Vec<river::RiverPoint>, String> {
+    let config = waterways_config(&app)?;
+    let (river_config, gauge_config) = find_gauge(&config, gauge.as_deref())?;
+    let symbol = commodity.to_ascii_uppercase();
+    let (stored, prices) = with_connection(&app, |connection| {
+        let stored = StoredGaugeSeries::load(connection, river_config, gauge_config)?;
+        let mut prices = store::query_series(
+            connection,
+            &format!("price.{symbol}.close"),
+            None,
+            None,
+            None,
+        )?;
+        if prices.is_empty() && symbol == "ZC" {
+            prices = store::query_series(connection, "demo.price.ZC.close", None, None, None)?;
+        }
+        Ok((stored, prices))
+    })?;
+    Ok(river::river_timeline(
+        river_config,
+        gauge_config,
+        &config.bands,
+        &stored.view(),
+        &prices,
+        Utc::now().date_naive(),
+    ))
+}
+
+/// The river alerts replayed over every stored day of each gauge, against barge-freight episodes.
+#[tauri::command(async)]
+pub fn run_river_backtest(app: AppHandle) -> Result<Vec<alerts::river::GaugeBacktest>, String> {
+    let config = waterways_config(&app)?;
+    let today = Utc::now().date_naive();
+    with_connection(&app, |connection| {
+        config
+            .gauges()
+            .map(|(river_config, gauge)| {
+                let stored = StoredGaugeSeries::load(connection, river_config, gauge)?;
+                let points = river::river_timeline(
+                    river_config,
+                    gauge,
+                    &config.bands,
+                    &stored.view(),
+                    &[],
+                    today,
+                );
+                Ok(alerts::river::backtest(
+                    gauge,
+                    &config.bands,
+                    config.alerts.rearm_ft,
+                    &points,
+                ))
+            })
+            .collect()
+    })
+}
+
+/// Every river alert rule with its switch and state.
+#[tauri::command(async)]
+pub fn list_river_alerts(app: AppHandle) -> Result<Vec<RiverAlertRecord>, String> {
+    let config = waterways_config(&app)?;
+    let stored = with_connection(&app, store::river_alert_states)?;
+    Ok(alerts::river::rules(&config, &stored))
+}
+
+#[tauri::command(async)]
+pub fn set_river_alert_enabled(app: AppHandle, id: String, enabled: bool) -> Result<(), String> {
+    let config = waterways_config(&app)?;
+    if !alerts::river::rules(&config, &Default::default())
+        .iter()
+        .any(|record| record.id == id)
+    {
+        return Err(format!("Unknown river alert {id}"));
+    }
+    with_connection(&app, |connection| {
+        store::set_river_alert_enabled(connection, &id, enabled)
+    })?;
+    evaluate_river_alerts(&app)
+}
+
+/// Checks every river alert against each gauge's current status and emits `river-alert-fired`
+/// for each one that newly fires.
+fn evaluate_river_alerts(app: &AppHandle) -> Result<(), String> {
+    let config = waterways_config(app)?;
+    let now = Utc::now();
+    let fired = with_connection(app, |connection| {
+        let mut statuses = std::collections::HashMap::new();
+        for (river_config, gauge) in config.gauges() {
+            let stored = StoredGaugeSeries::load(connection, river_config, gauge)?;
+            statuses.insert(
+                gauge.id.clone(),
+                river::river_status(river_config, gauge, &config.bands, &stored.view(), now),
+            );
+        }
+        let records = alerts::river::rules(&config, &store::river_alert_states(connection)?);
+        let mut fired = Vec::new();
+        for change in
+            alerts::river::evaluate(&records, &statuses, &config.bands, config.alerts.rearm_ft)
+        {
+            store::set_river_alert_state(connection, &change.id, change.state)?;
+            fired.extend(change.fired);
+        }
+        Ok(fired)
+    })?;
+    for alert in fired {
+        app.emit("river-alert-fired", alert)
+            .map_err(|error| format!("Notify river alert: {error}"))?;
+    }
+    Ok(())
 }
 
 /// Checks every enabled price alert against the newest stored closes and emits `alert-fired`

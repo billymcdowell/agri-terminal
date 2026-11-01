@@ -1,8 +1,14 @@
 name: CI
 
+# Pull requests run these checks, and pushes to master run them through the
+# Release workflow. Pushing to a pull request cancels its run still in progress.
 on:
-  push:
   pull_request:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   frontend:

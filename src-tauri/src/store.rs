@@ -192,6 +192,67 @@ fn migrate(connection: &Connection) -> Result<(), String> {
             )
             .map_err(|error| format!("Create alerts schema: {error}"))?;
     }
+    if version < 11 {
+        // River alert rules come from config/waterways.json; only their switch and state are stored.
+        connection
+            .execute_batch(
+                "BEGIN;
+                CREATE TABLE river_alerts (
+                    id TEXT PRIMARY KEY,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    state INTEGER NOT NULL DEFAULT 0
+                );
+                PRAGMA user_version = 11;
+                COMMIT;",
+            )
+            .map_err(|error| format!("Create river alerts schema: {error}"))?;
+    }
+    Ok(())
+}
+
+/// Stored `(enabled, state)` for each river alert rule that has been switched or evaluated.
+pub fn river_alert_states(
+    connection: &Connection,
+) -> Result<std::collections::HashMap<String, (bool, i64)>, String> {
+    let mut statement = connection
+        .prepare("SELECT id, enabled, state FROM river_alerts")
+        .map_err(|error| format!("Prepare river alert list: {error}"))?;
+    statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                (row.get::<_, bool>(1)?, row.get::<_, i64>(2)?),
+            ))
+        })
+        .map_err(|error| format!("Query river alerts: {error}"))?
+        .collect::<Result<_, _>>()
+        .map_err(|error| format!("Read river alert: {error}"))
+}
+
+/// Switching a river alert on or off re-arms it, like a price alert.
+pub fn set_river_alert_enabled(
+    connection: &Connection,
+    id: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    connection
+        .execute(
+            "INSERT INTO river_alerts (id, enabled, state) VALUES (?1, ?2, 0)
+             ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled, state = 0",
+            params![id, enabled],
+        )
+        .map_err(|error| format!("Update river alert: {error}"))?;
+    Ok(())
+}
+
+pub fn set_river_alert_state(connection: &Connection, id: &str, state: i64) -> Result<(), String> {
+    connection
+        .execute(
+            "INSERT INTO river_alerts (id, state) VALUES (?1, ?2)
+             ON CONFLICT(id) DO UPDATE SET state = excluded.state",
+            params![id, state],
+        )
+        .map_err(|error| format!("Update river alert state: {error}"))?;
     Ok(())
 }
 
@@ -361,6 +422,37 @@ pub fn append_source_records(
     append_metric_revisions(connection, &metrics)
 }
 
+/// Sources date backfilled rows to their scheduled release, but a changed value seen later was not
+/// public at that time: the app learned it when it fetched it. Dating a revision to the original
+/// release would let an as-of join use a correction before anyone could have known it. A revision
+/// the source dates after the one it replaces, such as a new forecast issue, keeps that date.
+fn revision_release(
+    previous_release: Option<DateTime<Utc>>,
+    released_at: DateTime<Utc>,
+    fetched_at: DateTime<Utc>,
+) -> DateTime<Utc> {
+    match previous_release {
+        Some(previous) if released_at <= previous => released_at.max(fetched_at),
+        _ => released_at,
+    }
+}
+
+/// The periods stored for a metric series, in order.
+pub fn metric_periods(connection: &Connection, series_id: &str) -> Result<Vec<NaiveDate>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT DISTINCT period FROM metric_observations WHERE series_id = ?1 ORDER BY period",
+        )
+        .map_err(|error| format!("Prepare stored period query: {error}"))?;
+    statement
+        .query_map([series_id], |row| {
+            parse_period(0, &row.get::<_, String>(0)?)
+        })
+        .map_err(|error| format!("Query stored periods: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Read stored period: {error}"))
+}
+
 fn append_metric_revisions(
     connection: &Connection,
     observations: &[MetricObservation],
@@ -370,26 +462,37 @@ fn append_metric_revisions(
         .map_err(|error| format!("Start metric transaction: {error}"))?;
     let mut inserted = 0;
     {
-        let mut latest = transaction.prepare("SELECT revision, value FROM metric_observations WHERE series_id = ?1 AND period = ?2 ORDER BY revision DESC LIMIT 1").map_err(|error| format!("Prepare metric revision lookup: {error}"))?;
+        let mut latest = transaction.prepare("SELECT revision, value, released_at FROM metric_observations WHERE series_id = ?1 AND period = ?2 ORDER BY revision DESC LIMIT 1").map_err(|error| format!("Prepare metric revision lookup: {error}"))?;
         let mut insert = transaction.prepare("INSERT INTO metric_observations (series_id, period, revision, released_at, value, unit, source_id, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)").map_err(|error| format!("Prepare metric insert: {error}"))?;
         for observation in observations {
-            let previous: Option<(i64, f64)> = latest
+            let previous: Option<(i64, f64, String)> = latest
                 .query_row(
                     params![observation.series_id.0, observation.period.to_string()],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                 )
                 .optional()
                 .map_err(|error| format!("Read metric revision: {error}"))?;
-            if previous.is_some_and(|(_, value)| value == observation.value) {
+            if previous
+                .as_ref()
+                .is_some_and(|(_, value, _)| *value == observation.value)
+            {
                 continue;
             }
-            let revision = previous.map_or(0, |(revision, _)| revision + 1);
+            let revision = previous.as_ref().map_or(0, |(revision, ..)| revision + 1);
+            let released_at = revision_release(
+                previous
+                    .as_ref()
+                    .and_then(|(_, _, released)| DateTime::parse_from_rfc3339(released).ok())
+                    .map(|time| time.with_timezone(&Utc)),
+                observation.released_at,
+                observation.fetched_at,
+            );
             insert
                 .execute(params![
                     observation.series_id.0,
                     observation.period.to_string(),
                     revision,
-                    observation.released_at.to_rfc3339(),
+                    released_at.to_rfc3339(),
                     observation.value,
                     observation.unit,
                     observation.source_id.0,
@@ -663,7 +766,7 @@ pub fn append_observations_as_revisions(
     {
         let mut latest_query = transaction
             .prepare(
-                "SELECT revision, open, high, low, close FROM observations
+                "SELECT revision, open, high, low, close, released_at FROM observations
                  WHERE series_id = ?1 AND period = ?2
                  ORDER BY revision DESC LIMIT 1",
             )
@@ -676,7 +779,7 @@ pub fn append_observations_as_revisions(
             )
             .map_err(|error| format!("Prepare revision insert: {error}"))?;
         for observation in observations {
-            let latest: Option<(i64, f64, f64, f64, f64)> = latest_query
+            let latest: Option<(i64, f64, f64, f64, f64, String)> = latest_query
                 .query_row(
                     params![&observation.series_id.0, observation.period.to_string()],
                     |row| {
@@ -686,26 +789,38 @@ pub fn append_observations_as_revisions(
                             row.get(2)?,
                             row.get(3)?,
                             row.get(4)?,
+                            row.get(5)?,
                         ))
                     },
                 )
                 .optional()
                 .map_err(|error| format!("Read latest observation: {error}"))?;
-            if latest.is_some_and(|(_, open, high, low, close)| {
-                open == observation.open
-                    && high == observation.high
-                    && low == observation.low
-                    && close == observation.close
-            }) {
+            if latest
+                .as_ref()
+                .is_some_and(|(_, open, high, low, close, _)| {
+                    *open == observation.open
+                        && *high == observation.high
+                        && *low == observation.low
+                        && *close == observation.close
+                })
+            {
                 continue;
             }
-            let revision = latest.map_or(0, |(revision, ..)| revision + 1);
+            let revision = latest.as_ref().map_or(0, |(revision, ..)| revision + 1);
+            let released_at = revision_release(
+                latest
+                    .as_ref()
+                    .and_then(|(.., released)| DateTime::parse_from_rfc3339(released).ok())
+                    .map(|time| time.with_timezone(&Utc)),
+                observation.released_at,
+                observation.fetched_at,
+            );
             insert
                 .execute(params![
                     &observation.series_id.0,
                     observation.period.to_string(),
                     revision,
-                    observation.released_at.to_rfc3339(),
+                    released_at.to_rfc3339(),
                     observation.open,
                     observation.high,
                     observation.low,
@@ -794,6 +909,14 @@ pub fn register_sources(connection: &Connection) -> Result<(), String> {
         ("usda-nass", "USDA NASS QuickStats", 604_800),
         ("usda-fas", "USDA FAS OpenData", 604_800),
         ("us-drought-monitor", "U.S. Drought Monitor", 604_800),
+        ("usgs-river-stage", "USGS river stage", 86_400),
+        ("nwps-river-stage", "NWS river stage", 86_400),
+        ("nwps-river-forecast", "NWS river forecasts", 86_400),
+        (
+            "usda-agtransport",
+            "USDA AgTransport barge rates and locks",
+            86_400,
+        ),
     ] {
         register_source(connection, id, name, cadence, true)?;
     }
@@ -1215,6 +1338,14 @@ fn seed_fixture_if_empty(connection: &Connection) -> Result<(), String> {
     Ok(())
 }
 
+/// An empty in-memory database with the current schema, for tests in other modules.
+#[cfg(test)]
+pub(crate) fn test_connection() -> Connection {
+    let connection = Connection::open_in_memory().unwrap();
+    migrate(&connection).unwrap();
+    connection
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1417,6 +1548,8 @@ mod tests {
             && event.scheduled_at.date_naive().to_string() == "2026-10-26"));
         assert!(events.iter().any(|event| event.kind == "WASDE"
             && event.scheduled_at.date_naive().to_string() == "2026-11-10"));
+        assert!(events.iter().any(|event| event.kind == "GTR"
+            && event.scheduled_at.to_rfc3339() == "2026-10-29T16:00:00+00:00"));
         assert!(
             events.iter().any(|event| event.kind == "COT"
                 && event.scheduled_at.date_naive().to_string() == "2026-10-23"),
@@ -1528,6 +1661,96 @@ mod tests {
                 .unwrap()
                 .len(),
             1
+        );
+    }
+
+    #[test]
+    fn a_revision_seen_later_is_released_when_it_was_fetched_not_at_the_old_schedule() {
+        let connection = test_db();
+        let at = |value: &str| {
+            DateTime::parse_from_rfc3339(value)
+                .unwrap()
+                .with_timezone(&Utc)
+        };
+        let scheduled = at("2026-06-01T16:00:00Z");
+        let row = |value: f64, fetched: &str| MetricObservation {
+            series_id: SeriesId::from("river.stlouis.stage"),
+            period: NaiveDate::from_ymd_opt(2026, 6, 1).unwrap(),
+            // Backfill always dates the row to its scheduled release.
+            released_at: scheduled,
+            value,
+            unit: "ft".into(),
+            source_id: SourceId::from("usgs-river-stage"),
+            fetched_at: at(fetched),
+            revision: 0,
+        };
+        append_metric_revisions(&connection, &[row(4.10, "2026-06-20T12:00:00Z")]).unwrap();
+        // Months later the provisional value is approved with a correction.
+        append_metric_revisions(&connection, &[row(4.25, "2026-10-01T12:00:00Z")]).unwrap();
+        let revisions = query_metric_revisions(&connection, "river.stlouis.stage").unwrap();
+        assert_eq!(revisions[0].released_at, scheduled);
+        assert_eq!(revisions[1].released_at, at("2026-10-01T12:00:00Z"));
+        let visible =
+            crate::analytics::alignment::visible_as_of(&revisions, at("2026-07-01T00:00:00Z"))
+                .unwrap();
+        assert_eq!(visible.value, 4.10);
+
+        // Prices follow the same rule.
+        let first = at("2026-10-20T20:00:00Z");
+        upsert_observations(&connection, &[sample(first, 4.52)]).unwrap();
+        let mut corrected = sample(first, 4.61);
+        corrected.fetched_at = at("2026-10-28T09:00:00Z");
+        append_observations_as_revisions(&connection, &[corrected]).unwrap();
+        let prices = query_price_revisions(&connection, "price.ZC.close").unwrap();
+        assert_eq!(prices[1].released_at, at("2026-10-28T09:00:00Z"));
+    }
+
+    #[test]
+    fn river_alert_switches_and_states_are_stored() {
+        let connection = test_db();
+        assert!(river_alert_states(&connection).unwrap().is_empty());
+        set_river_alert_state(&connection, "river:stlouis:band_up", 2).unwrap();
+        set_river_alert_enabled(&connection, "river:memphis:below_critical", false).unwrap();
+        let states = river_alert_states(&connection).unwrap();
+        assert_eq!(states["river:stlouis:band_up"], (true, 2));
+        assert_eq!(states["river:memphis:below_critical"], (false, 0));
+        // Resuming re-arms.
+        set_river_alert_enabled(&connection, "river:stlouis:band_up", true).unwrap();
+        assert_eq!(
+            river_alert_states(&connection).unwrap()["river:stlouis:band_up"],
+            (true, 0)
+        );
+    }
+
+    #[test]
+    fn stored_metric_periods_are_listed_once_in_order() {
+        let connection = test_db();
+        let at = DateTime::parse_from_rfc3339("2026-10-20T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let row = |day: u32, value: f64| MetricObservation {
+            series_id: SeriesId::from("river.memphis.stage"),
+            period: NaiveDate::from_ymd_opt(2026, 10, day).unwrap(),
+            released_at: at,
+            value,
+            unit: "ft".into(),
+            source_id: SourceId::from("nwps-river-stage"),
+            fetched_at: at,
+            revision: 0,
+        };
+        append_metric_revisions(&connection, &[row(12, 1.0), row(3, 2.0)]).unwrap();
+        append_metric_revisions(&connection, &[row(12, 1.5)]).unwrap();
+        assert_eq!(
+            metric_periods(&connection, "river.memphis.stage").unwrap(),
+            vec![
+                NaiveDate::from_ymd_opt(2026, 10, 3).unwrap(),
+                NaiveDate::from_ymd_opt(2026, 10, 12).unwrap()
+            ]
+        );
+        assert!(
+            metric_periods(&connection, "river.none")
+                .unwrap()
+                .is_empty()
         );
     }
 

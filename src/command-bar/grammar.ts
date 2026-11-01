@@ -8,6 +8,8 @@ export type Command =
   | { kind: "news" }
   | { kind: "cropCondition" }
   | { kind: "stress" }
+  | { kind: "river"; gauge?: string }
+  | { kind: "riverTimeline"; gauge?: string }
   | { kind: "moves" }
   | { kind: "alerts" }
   | { kind: "settings" }
@@ -29,6 +31,12 @@ export function parseCommand(input: string): Command | null {
   if (head === "CALENDAR" && parts.length === 1) return { kind: "calendar" };
   if (head === "NEWS" && parts.length === 1) return { kind: "news" };
   if (head === "STRESS" && parts.length === 1) return { kind: "stress" };
+  if (head === "RIVER") {
+    const rest = parts.slice(1);
+    const timeline = rest[0]?.toUpperCase() === "TIMELINE";
+    const gauge = (timeline ? rest.slice(1) : rest).join(" ").toUpperCase() || undefined;
+    return timeline ? { kind: "riverTimeline", gauge } : { kind: "river", gauge };
+  }
   if (head === "TEMPLATE" && parts.length === 2) return { kind: "template", id: parts[1].toLowerCase() };
   if (head === "PLUGINS" && parts.length === 1) return { kind: "plugins" };
   if (head === "RAW" && (parts.length === 1 || (parts.length === 2 && parts[1].toUpperCase() === "DATA"))) return { kind: "raw" };
