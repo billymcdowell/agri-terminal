@@ -50,7 +50,7 @@ All guiding rules from the main implementation plan apply. In addition:
 4. **Benchmark honestly.** Every model is compared against USDA's own estimate at the same point in the season and against a simple trend baseline. A model that does not beat the baseline is not shipped.
 5. **Language models never produce numbers.** The AI brief only describes numbers the pipeline computed. A validator checks this (Phase 7).
 6. **AI provider:** Cloudflare AI Gateway using the **OpenAI chat completions schema**. Do not use Claude or Anthropic models. Default to an open-weights model on Workers AI. Base URL and model are configuration.
-7. **Secrets** (NASS key, Cloudflare token) live in GitHub Actions secrets or the OS keychain. Never in the repo, logs or SQLite.
+7. **Secrets** (NASS key, Cloudflare token, the data repository's write token) live in GitHub Actions secrets or the OS keychain. Never in the repo, logs or SQLite.
 8. **Confirm before building.** Endpoints, collection ids and model names come from desk research and must be verified in Phase 0.
 
 ## 4. Scope
@@ -198,7 +198,7 @@ The quick win: data AgriTerminal already uses.
 - **WASDE backtest:** for each past August–November release, did the sign of the pre-report gap (model p50 minus USDA's previous estimate) match the direction of USDA's revision? Report the hit rate and how it varies with gap size, in the model card and the Help panel.
 - Move explainer: add a driver kind `nowcast_gap` for WASDE and Crop Production release days, with wording like "The model estimated a lower yield than USDA going into this report (possible driver)".
 - Alerts: gap above a user-set size before a release; damage event in a user's chosen states.
-- Turn on the scheduled GitHub Actions run (weekly in season, using secrets), publishing to the location agreed in Phase 0. Switch the app's manifest and Rust source from the sample output to the published `latest/` URLs.
+- Turn on the scheduled GitHub Actions run (weekly in season, using secrets), publishing to the public repository `billymcdowell/agri-terminal-data` (decided in Phase 0). Ask before creating it. Give it a README with the data licence and source credits, and write to it with a fine-grained token that can write only to that repository. Switch the app's manifest and Rust source from the sample output to `https://raw.githubusercontent.com/billymcdowell/agri-terminal-data/main/latest/…`, with `raw.githubusercontent.com` as the only permitted host.
 - Write `docs/crop-nowcast.md`: method, sources and credits, metrics, limitations.
 
 **Done:** the weekly pipeline publishes automatically; the app shows live nowcasts with a visible accuracy record.

@@ -163,7 +163,7 @@ curl -sS -w '\nHTTP %{http_code} in %{time_total}s\n' -X POST "https://api.cloud
 
 ## Publishing the outputs
 
-**Recommendation: a separate public repository, `billymcdowell/agri-terminal-data`, read through `raw.githubusercontent.com`.** Not created; this needs a decision.
+**Decision (1 November 2026): a separate public repository, `billymcdowell/agri-terminal-data`, read through `raw.githubusercontent.com`.** The plan's Phase 8 has been updated to match. The repository is not created yet; create it when Phase 8 starts. The reasons, and the alternative considered:
 
 - Weekly data commits stay out of the app's history and clones. A `data` branch here would still be fetched by every full clone and would mix data commits into the app's activity.
 - The data can carry its own licence and credits (USDA, NOAA, NASA, Copernicus, gridMET, IEM, and Open-Meteo's CC BY 4.0 if it is used), separate from the code's MIT licence.
@@ -181,7 +181,7 @@ curl -sS -w '\nHTTP %{http_code} in %{time_total}s\n' -X POST "https://api.cloud
 
 ## Recommended changes to the plan
 
-Not yet applied to `docs/Crop Nowcast Plan.md`.
+Not yet applied to `docs/Crop Nowcast Plan.md`, apart from the publishing decision above.
 
 1. **Section 5, USDA forecasts by vintage:** replace "and/or FAS PSD" with NASS Quick Stats (August to November, national and state) plus the WASDE archive on ESMIS (May to July, national only). PSD has no vintages.
 2. **Section 6 and Phase 3, yield gap:** state rows have no USDA figure before August. Allow an empty `usda_latest`, and give `usda_vintage` a source and month (for example `wasde-2026-07`, `nass-2026-08`). The June–July state gap can only be against trend.
