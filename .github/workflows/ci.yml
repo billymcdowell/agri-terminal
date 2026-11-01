@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
+    # Pushes to master run these checks through the Release workflow instead.
+    branches-ignore: [master]
   pull_request:
+  workflow_call:
 
 jobs:
   frontend:

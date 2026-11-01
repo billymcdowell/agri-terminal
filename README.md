@@ -54,7 +54,7 @@ Frontend (`src`)
 - Dark and light themes (or match the system), USD per bushel or per metric tonne display, and a release-alert lead time from 1 to 48 hours or off, all under `SETTINGS`. The terminal palette is paired dark and light tokens in `src/theme.css`; stored prices stay in USD per bushel.
 - First-run onboarding (role, crops, home state, optional keys) that loads a Farmer, Trader, Analyst or Student template from `config/workspace-templates.json`; `TEMPLATE name` reloads one. Link-group crops persist between launches.
 
-Not built yet: panel and analysis plugins, a plugin registry, the USDA AMS basis connector (so the river timeline has no Gulf–interior basis spread yet), the demand pulse and other combined views, and packaging. NASS and FAS parsers are tested against invented fixtures shaped from documentation because both need a key; verify them with a keyed response. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md), [the product requirements](docs/prd.md) and, for the river constraint index, [its method and calibration](docs/river.md).
+Not built yet: panel and analysis plugins, a plugin registry, the USDA AMS basis connector (so the river timeline has no Gulf–interior basis spread yet), the demand pulse and other combined views, code-signed installers and in-app updates. NASS and FAS parsers are tested against invented fixtures shaped from documentation because both need a key; verify them with a keyed response. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md), [the product requirements](docs/prd.md) and, for the river constraint index, [its method and calibration](docs/river.md).
 
 ## Checks
 
@@ -65,6 +65,14 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml -- --ignored   # live provider contracts
 ```
+
+## Releases
+
+Every push to `master` that changes more than documentation runs the checks above, then builds installers and publishes them as a GitHub release: a universal `.dmg` for macOS, an `.msi` and a setup `.exe` for Windows, and a `.deb`, `.rpm` and `.AppImage` for Linux. To release a commit that a documentation-only push skipped, run the Release workflow from the Actions tab.
+
+The release version starts from `version` in `src-tauri/tauri.conf.json`. Its first release is tagged with that version as it is (`v0.1.0`), and each later release counts up the patch number (`v0.1.1`, `v0.1.2`, …). To start a new series, set a new version there, such as `0.2.0`. The version in the repository is not changed; each build stamps its own.
+
+The macOS app has only an ad-hoc signature and the Windows installers are unsigned. On first launch, macOS asks you to allow AgriTerminal under System Settings › Privacy & Security, and Windows SmartScreen warns before it installs.
 
 ## License
 
