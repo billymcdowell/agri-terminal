@@ -1,0 +1,152 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
+
+# One release at a time, so two pushes never pick the same version. A push that
+# arrives while another is still waiting replaces it and releases its commits too.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    name: Checks
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    name: Choose version
+    needs: checks
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The first release of a version in tauri.conf.json uses it as is; later
+      # releases in the same MAJOR.MINOR series count up the patch number.
+      - id: next
+        run: |
+          released=$(git tag --points-at HEAD --list 'v*')
+          if [ -n "$released" ]; then
+            echo "::notice::This commit is already released as $released."
+            exit 0
+          fi
+          base=$(jq -r .version src-tauri/tauri.conf.json)
+          if [[ ! "$base" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error file=src-tauri/tauri.conf.json::version \"$base\" is not MAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          series="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          version="$base"
+          if git rev-parse --quiet --verify "refs/tags/v$base" > /dev/null; then
+            last=$(git tag --list "v$series.*" | sed -n "s/^v${series//./\\.}\.\([0-9][0-9]*\)$/\1/p" | sort -n | tail -n 1)
+            version="$series.$((last + 1))"
+          fi
+          echo "Releasing v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: version
+    if: needs.version.outputs.version != ''
+    strategy:
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin
+            bundle: src-tauri/target/universal-apple-darwin/release/bundle
+          # 22.04 rather than latest so the .deb and AppImage run on older glibc.
+          - name: Linux
+            os: ubuntu-22.04
+            bundle: src-tauri/target/release/bundle
+          - name: Windows
+            os: windows-latest
+            bundle: src-tauri/target/release/bundle
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - name: Stamp the release version
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = "src-tauri/tauri.conf.json";
+            const conf = JSON.parse(fs.readFileSync(path, "utf8"));
+            conf.version = process.env.VERSION;
+            fs.writeFileSync(path, JSON.stringify(conf, null, 2) + "\n");
+          '
+      - name: Build installers
+        run: npm run tauri build -- ${{ matrix.args }}
+        env:
+          # Ad-hoc signature until there is an Apple Developer ID. macOS then
+          # offers "Open Anyway" instead of reporting the app as damaged.
+          APPLE_SIGNING_IDENTITY: "-"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.name }}
+          path: |
+            ${{ matrix.bundle }}/dmg/*.dmg
+            ${{ matrix.bundle }}/msi/*.msi
+            ${{ matrix.bundle }}/nsis/*.exe
+            ${{ matrix.bundle }}/deb/*.deb
+            ${{ matrix.bundle }}/rpm/*.rpm
+            ${{ matrix.bundle }}/appimage/*.AppImage
+          if-no-files-found: error
+
+  # Runs only when every platform built, so a release always has all installers.
+  publish:
+    name: Publish release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bundle-*
+          path: bundles
+          merge-multiple: true
+      - name: Create the GitHub release
+        run: |
+          mapfile -t files < <(find bundles -type f | sort)
+          printf '%s\n' "${files[@]}"
+          gh release create "$TAG" "${files[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "AgriTerminal $TAG" \
+            --generate-notes

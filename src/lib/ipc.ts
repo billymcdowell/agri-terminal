@@ -61,10 +61,44 @@ export function refreshSource(sourceId: string) {
 }
 
 export type PriceMove = { date: string; previousDate: string; logReturn: number; zScore: number };
-export type Driver = { kind: "scheduled_event" | "news"; title: string; url: string | null; source: string; at: string; label: string; score: number; reasons: string[] };
+export type Driver = { kind: "scheduled_event" | "news" | "river_event"; title: string; url: string | null; source: string; at: string; label: string; score: number; reasons: string[] };
 export type MoveExplanation = { move: PriceMove; label: string; drivers: Driver[] };
 export type StressPoint = { date: string; close: number; condition: number | null; conditionLow: number | null; conditionHigh: number | null; drought: number | null };
 export type BacktestReport = { total: number; detected: number; topMatch: number; missedDates: string[]; topMatchRate: number | null };
+
+export type RiverThresholds = { normal: number; restriction: number; critical: number };
+/** The latest value of one river input and when it was published and fetched. */
+export type RiverInput = { period: string; value: number; releasedAt: string; fetchedAt: string; sourceId: string };
+export type SeasonalBand = { low: number; mean: number; high: number; years: number };
+export type ScoreComponent = { value: number; weight: number; points: number };
+export type RiverBand = "NORMAL" | "ELEVATED" | "HIGH";
+export type ConstraintScore = { total: number; band: RiverBand; depth: ScoreComponent | null; forecast: ScoreComponent | null; traffic: ScoreComponent | null; partial: boolean };
+export type BargeRateStatus = { latest: RiverInput; dollarsPerTon: number | null; previous: RiverInput | null; changePercent: number | null; location: string };
+/** How far the barge rate moved per foot of change in depth below the restriction level, over `horizonWeeks`. */
+export type Sensitivity = { beta: number; intercept: number; rSquared: number; pairs: number; depthChangePairs: number; horizonWeeks: number };
+/** The barge-rate change implied if the river follows the forecast for two weeks, in percent of tariff. */
+export type ExpectedPressure = { currentDepth: number; expectedDepth: number; change: number; dollarsPerTon: number | null; sensitivity: Sensitivity };
+export type TrafficStatus = { week: string; tons: number; averageTons: number; changePercent: number; locks: string[]; releasedAt: string };
+export type RiverStatus = {
+  gaugeId: string; gaugeName: string; riverName: string; unit: string; thresholds: RiverThresholds; provisional: boolean; asOf: string;
+  stage: RiverInput | null; stageBand: SeasonalBand | null;
+  forecastIssuedAt: string | null; forecastFetchedAt: string | null; forecast: { date: string; low: number }[]; forecastMin: number | null; restrictionForecastOn: string | null;
+  bargeRate: BargeRateStatus | null; traffic: TrafficStatus | null; score: ConstraintScore | null; pressure: ExpectedPressure | null;
+};
+/** One day of the river timeline, as known at that day's close. `bargeRate` is percent of the 1976 tariff. */
+export type RiverPoint = {
+  date: string; close: number | null; stage: number | null; stageLow: number | null; stageMean: number | null; stageHigh: number | null;
+  forecastMin: number | null; bargeRate: number | null; score: number | null; band: RiverBand | null; partial: boolean; basisSpread: number | null;
+};
+export type FreightEpisode = { start: string; risePercent: number; stage: number | null; warnedDaysBefore: number | null };
+/** River alerts replayed over a gauge's stored history against weeks barge freight rose 25% or more. */
+export type GaugeBacktest = {
+  gaugeId: string; gaugeName: string; from: string | null; to: string | null; episodes: FreightEpisode[]; warnedEpisodes: number;
+  alerts: number; alertsPerYear: number; warnings: number; warningsFollowed: number;
+};
+export function runRiverBacktest() { return invoke<GaugeBacktest[]>("run_river_backtest"); }
+export function getRiverStatus(gauge?: string) { return invoke<RiverStatus>("get_river_status", { gauge }); }
+export function getRiverTimeline(gauge: string | undefined, commodity: string) { return invoke<RiverPoint[]>("get_river_timeline", { gauge, commodity }); }
 
 export function explainMoves(commodity: string, thresholdSd?: number) { return invoke<MoveExplanation[]>("explain_moves", { commodity, thresholdSd }); }
 export function cropStressTimeline(commodity: string) { return invoke<StressPoint[]>("crop_stress_timeline", { commodity }); }
@@ -82,6 +116,16 @@ export function deleteAlert(id: string) { return invoke<void>("delete_alert", { 
 export function setAlertEnabled(id: string, enabled: boolean) { return invoke<void>("set_alert_enabled", { id, enabled }); }
 export function subscribeToAlerts(callback: (alert: AlertFired) => void) {
   return listen<AlertFired>("alert-fired", (event) => callback(event.payload));
+}
+
+export type RiverRule = "below_restriction" | "below_critical" | "forecast_restriction" | "band_up";
+/** A built-in river alert. `state` is 1 while its condition holds, or the band reached (0 normal, 1 elevated, 2 high) for band_up. */
+export type RiverAlertRecord = { id: string; gaugeId: string; gaugeName: string; rule: RiverRule; description: string; enabled: boolean; state: number };
+export type RiverAlertFired = { id: string; gaugeId: string; rule: RiverRule; title: string; body: string; date: string };
+export function listRiverAlerts() { return invoke<RiverAlertRecord[]>("list_river_alerts"); }
+export function setRiverAlertEnabled(id: string, enabled: boolean) { return invoke<void>("set_river_alert_enabled", { id, enabled }); }
+export function subscribeToRiverAlerts(callback: (alert: RiverAlertFired) => void) {
+  return listen<RiverAlertFired>("river-alert-fired", (event) => callback(event.payload));
 }
 
 export function getDataDirectory() { return invoke<string>("get_data_directory"); }

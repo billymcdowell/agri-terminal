@@ -5,4 +5,5 @@ pub mod attribution;
 pub mod backtest;
 pub mod combined;
 pub mod moves;
+pub mod river;
 pub mod seasonal;

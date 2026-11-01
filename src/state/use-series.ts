@@ -63,6 +63,22 @@ export function useSources() {
   return query;
 }
 
+/** Refetches river panels when any river series or price changes. */
+export function useRiverUpdates() {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    subscribeToDataUpdates((seriesIds) => {
+      if (seriesIds.some((id) => id.startsWith("river.") || id.startsWith("price."))) {
+        void queryClient.invalidateQueries({ queryKey: ["river-status"] });
+        void queryClient.invalidateQueries({ queryKey: ["river-timeline"] });
+      }
+    }).then((stop) => { if (cancelled) stop(); else unlisten = stop; }).catch(() => undefined);
+    return () => { cancelled = true; unlisten?.(); };
+  }, [queryClient]);
+}
+
 export function useMetricSeries(seriesId: string) {
   const queryClient = useQueryClient();
   const query = useQuery({

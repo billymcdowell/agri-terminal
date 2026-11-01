@@ -62,6 +62,7 @@ export function initTheme(): () => void {
 export type Palette = {
   chartBackground: string; text: string; muted: string; grid: string; gridStrong: string; border: string; crosshair: string;
   up: string; down: string; price: string; condition: string; conditionBand: string; drought: string;
+  stage: string; stageBand: string; forecast: string; score: string; freight: string; threshold: string;
   tooltipBackground: string; tooltipBorder: string; mapStroke: string;
   groups: Record<string, string>;
 };
@@ -70,12 +71,14 @@ export const PALETTES: Record<ResolvedTheme, Palette> = {
   dark: {
     chartBackground: "#101411", text: "#828c83", muted: "#829083", grid: "rgba(167, 180, 164, 0.07)", gridStrong: "rgba(167, 180, 164, 0.09)", border: "rgba(167, 180, 164, 0.14)", crosshair: "#889488",
     up: "#8aac75", down: "#d77b68", price: "#dce4d7", condition: "#88ac75", conditionBand: "rgba(136,172,117,0.18)", drought: "#c49458",
+    stage: "#7a9db8", stageBand: "rgba(122,157,184,0.18)", forecast: "#a9c6db", score: "#c49458", freight: "#88ac75", threshold: "#d77b68",
     tooltipBackground: "#101411", tooltipBorder: "#343a34", mapStroke: "#f3eee4",
     groups: { A: "#88ac75", B: "#c49458", C: "#7a9db8" },
   },
   light: {
     chartBackground: "#ebefec", text: "#566057", muted: "#566057", grid: "rgba(40, 56, 42, 0.08)", gridStrong: "rgba(40, 56, 42, 0.10)", border: "rgba(40, 56, 42, 0.2)", crosshair: "#5a665b",
     up: "#3d7a2a", down: "#b3402b", price: "#1b2017", condition: "#3d7a2a", conditionBand: "rgba(61,122,42,0.16)", drought: "#8a5a1c",
+    stage: "#2f6a94", stageBand: "rgba(47,106,148,0.16)", forecast: "#4f86ad", score: "#8a5a1c", freight: "#3d7a2a", threshold: "#b3402b",
     tooltipBackground: "#f7f9f7", tooltipBorder: "#c5cbc5", mapStroke: "#ffffff",
     groups: { A: "#3d7a2a", B: "#8a5a1c", C: "#2f6a94" },
   },

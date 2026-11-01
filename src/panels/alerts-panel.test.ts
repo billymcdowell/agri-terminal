@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alertNotification, describeAlert, parseThreshold } from "./alerts-panel";
+import { alertNotification, describeAlert, parseThreshold, riverAlertStatus } from "./alerts-panel";
 
 describe("alerts panel helpers", () => {
   it("accepts only positive prices", () => {
@@ -11,6 +11,12 @@ describe("alerts panel helpers", () => {
   });
   it("describes an alert in plain words", () => {
     expect(describeAlert({ symbol: "ZW", direction: "below", threshold: 5.5 })).toBe("ZW at or below 5.50 USD/bu");
+  });
+  it("labels river alerts by their state", () => {
+    expect(riverAlertStatus({ rule: "below_restriction", enabled: true, state: 0 })).toBe("ARMED");
+    expect(riverAlertStatus({ rule: "below_restriction", enabled: true, state: 1 })).toBe("TRIGGERED");
+    expect(riverAlertStatus({ rule: "band_up", enabled: true, state: 2 })).toBe("AT HIGH");
+    expect(riverAlertStatus({ rule: "band_up", enabled: false, state: 2 })).toBe("PAUSED");
   });
   it("words a fired alert's notification in the display unit", () => {
     const fired = { id: "a", symbol: "ZC", direction: "above" as const, threshold: 4.5, close: 4.55, date: "2026-10-23" };

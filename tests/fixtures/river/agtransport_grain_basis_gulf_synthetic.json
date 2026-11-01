@@ -1,0 +1,94 @@
+[
+  {
+    "date": "2026-10-23T00:00:00.000",
+    "week": "42",
+    "month": "10",
+    "year": "2026",
+    "market_name": "Gulf - Louisiana",
+    "market_type": "30-Day to Arrive",
+    "commodity": "Corn",
+    "source": "USDA AMS Market News Report JO_GR850 and U.S. Wheat Associates Price Reports",
+    "latitude": "30.155915499",
+    "longitude": "-89.06658215",
+    "geocoded_column": {
+      "type": "Point",
+      "coordinates": [
+        -89.06658215,
+        30.155915499
+      ]
+    },
+    "bid": "4.750",
+    "contract_month": "Dec",
+    "futures_price": "4.000",
+    "basis": "0.750"
+  },
+  {
+    "date": "2026-10-23T00:00:00.000",
+    "week": "42",
+    "month": "10",
+    "year": "2026",
+    "market_name": "Gulf - Louisiana",
+    "market_type": "30-Day to Arrive",
+    "commodity": "Hard Red Spring Wheat",
+    "source": "USDA AMS Market News Report JO_GR850 and U.S. Wheat Associates Price Reports",
+    "latitude": "30.155915499",
+    "longitude": "-89.06658215",
+    "geocoded_column": {
+      "type": "Point",
+      "coordinates": [
+        -89.06658215,
+        30.155915499
+      ]
+    },
+    "bid": "7.500",
+    "contract_month": "Dec",
+    "futures_price": "6.000",
+    "basis": "1.500"
+  },
+  {
+    "date": "2026-10-23T00:00:00.000",
+    "week": "42",
+    "month": "10",
+    "year": "2026",
+    "market_name": "Gulf - Louisiana",
+    "market_type": "30-Day to Arrive",
+    "commodity": "Soft Red Winter Wheat",
+    "source": "USDA AMS Market News Report JO_GR850 and U.S. Wheat Associates Price Reports",
+    "latitude": "30.155915499",
+    "longitude": "-89.06658215",
+    "geocoded_column": {
+      "type": "Point",
+      "coordinates": [
+        -89.06658215,
+        30.155915499
+      ]
+    },
+    "bid": "5.900",
+    "contract_month": "Dec",
+    "futures_price": "5.000",
+    "basis": "0.900"
+  },
+  {
+    "date": "2026-10-23T00:00:00.000",
+    "week": "42",
+    "month": "10",
+    "year": "2026",
+    "market_name": "Gulf - Louisiana",
+    "market_type": "30-Day to Arrive",
+    "commodity": "Soybeans",
+    "source": "USDA AMS Market News Report JO_GR850 and U.S. Wheat Associates Price Reports",
+    "latitude": "30.155915499",
+    "longitude": "-89.06658215",
+    "geocoded_column": {
+      "type": "Point",
+      "coordinates": [
+        -89.06658215,
+        30.155915499
+      ]
+    },
+    "bid": "10.800",
+    "contract_month": "Dec",
+    "futures_price": "10.000",
+    "basis": "0.800"
+  }
+]

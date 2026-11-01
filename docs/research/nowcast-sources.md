@@ -176,7 +176,7 @@ curl -sS -w '\nHTTP %{http_code} in %{time_total}s\n' -X POST "https://api.cloud
 - `crop-nowcast` must be added to `RESERVED_IDS` in `src-tauri/src/plugins/manifest.rs`. Built-in manifests are trusted and may write any series id.
 - Series ids elsewhere use the futures symbol (`nass.zc.condition.good_excellent`, `drought.ia.D1`), and link groups carry `ZC` and `ZS`. `nowcast.zc.ia.yield_p50` would fit better than the plan's `nowcast.corn.ia.yield_p50`.
 - `config/crop-regions.json` has nine states (IA, IL, NE, MN, IN, KS, ND, SD, OH) with **no Missouri**, and maps ZC to only five of them. The plan lists ten states including MO.
-- This branch starts from `master`. `feature/river-constraint` (eight unmerged commits) changes files that Phases 3, 6 and 8 will also change: `src/panels/help-text.ts`, `src/panels/register.tsx`, `src/workspace/templates.ts`, `src-tauri/src/alerts.rs`, `src-tauri/src/analytics/attribution.rs`, `src-tauri/src/store.rs` and `demo/fixtures.ts`.
+- The river constraint work is now on `master` and merged into this branch (1 November 2026). Its `river_alerts` table took database migration 11, so the nowcast `documents` table is migration 12.
 - The revision caveat in `docs/research/river-sources.md` (on the river branch) applies here: revised values inherit their original release time unless the source supplies a real one.
 
 ## Recommended changes to the plan
@@ -198,7 +198,7 @@ Not yet applied to `docs/Crop Nowcast Plan.md`, apart from the publishing decisi
 13. **Section 7, AI Gateway:** default to the REST endpoint (`api.cloudflare.com/client/v4/accounts/{id}/ai/v1`), which takes a Cloudflare API token in `Authorization` and the gateway in `cf-aig-gateway-id`. Model ids differ by endpoint (`@cf/…` on REST, `workers-ai/@cf/…` on `/compat`), so config needs `AI_BASE_URL`, `AI_MODEL`, `AI_GATEWAY_ID` and one token. The 24,000-token context limits the structured input.
 14. **Phase 1, app ingestion:** add an optional row field for `released_at` to the manifest format (or read the numbers in the Rust source too), reserve the `crop-nowcast` id, and use `zc`/`zs` in series ids.
 15. **Section 4, states:** add Missouri to `config/crop-regions.json` or drop it from the plan.
-16. **Before Phase 3:** merge or rebase onto `feature/river-constraint`, which changes the same panel, alert, attribution and demo files.
+16. **Before Phase 3:** merge `feature/river-constraint`, which changes the same panel, alert, attribution and demo files. Done: it is on `master` and merged here.
 
 ## Still unconfirmed
 

@@ -113,6 +113,42 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       "Each weekly value appears only from the day it was published, so the chart shows what was known at the time. Gaps mean there was no current report, for example in winter.",
     ],
   },
+  river: {
+    usage: "RIVER, RIVER MISS, RIVER ST LOUIS or RIVER MEMPHIS",
+    oneLine: "Whether low water on the Mississippi is restricting barges, and what freight is doing.",
+    summary: "A 0 to 100 river constraint score for a Mississippi gauge, with the river level, the National Weather Service forecast, the weekly USDA barge freight rate and grain moving through the locks. When the river runs low, barges must load lighter, so freight costs rise and the gap between Gulf and inland grain prices tends to widen. Pick the gauge in the panel settings.",
+    howToRead: [
+      "The score combines how far the river is below its normal level (depth, 60%) and how low the forecast goes over the next 7 days (forecast, 40%). 0 to 39 is Normal, 40 to 69 Elevated, 70 and above High.",
+      "Lock tonnage is shown for context but not scored: it follows the harvest calendar more than the river, rising every September lull and falling at harvest even at record low water.",
+      "PARTIAL means one part was missing or out of date, so the score was worked out from the other with its weight scaled up.",
+      "River stage is the gauge reading in feet. It can be below zero: the zero is a fixed reference point, not the river bed. The five-year range is the same time of year in the previous five years.",
+      "The restriction level is roughly where barges start loading lighter; the critical level is where restrictions become severe. They come from National Weather Service, Corps and extension sources and were checked against 2020 to 2026.",
+      "How well it has worked, October 2020 to October 2026: in both big low-water years the score and alerts warned before barge freight jumped, by 39 and 35 days at St. Louis (September 2022 and August 2023) and by 7 and 34 days at Memphis. Most freight jumps happen for other reasons, such as harvest demand at high water, and the river alerts miss those by design. Only about one warning in five was followed by a freight jump of 25% or more within six weeks, because freight often stays high once the river is low. Treat the score as context, not a signal to trade on.",
+      "Barge freight is quoted as a percent of a 1976 benchmark tariff for that stretch of river. The dollar figure converts it to dollars per short ton.",
+      "River effects usually show up more in freight, basis and spreads than in futures prices, so treat the score as a possible pressure, not a price call.",
+      "Freight pressure, next 14 days, applies how far the barge rate has moved in the past per foot of change in depth below the restriction level to the forecast's second week. The fit (R²) says how much of freight's movement river depth has explained, which is usually little: treat it as a rough guide.",
+      "Gulf versus interior basis is not shown yet. Public interior bids for the river states need the USDA AMS Market News connector, which is not built, so barge freight stands in as the price side.",
+      "Each part shows when it was published and fetched. Barge rates and lock tonnage come out on Thursdays in the USDA Grain Transportation Report.",
+    ],
+    terms: [
+      ["Stage", "The height of the river at a gauge, in feet, above a fixed zero point."],
+      ["Restriction level", "The stage below which barges usually have to carry less, set per gauge in config/waterways.json."],
+      ["Percent of tariff", "How barge freight is quoted: a percentage of the 1976 benchmark rate for each origin. 500% at St. Louis is about $19.95 a short ton."],
+      ["Lock tonnage", "Grain moving downriver through Mississippi Lock 27 and the Ohio River's Olmsted lock each week, from the Army Corps of Engineers."],
+      ["Basis", "Cash price minus the futures price. Low water tends to weaken basis at river elevators and widen the gap to the Gulf."],
+    ],
+  },
+  "river-timeline": {
+    usage: "RIVER TIMELINE, or RIVER TIMELINE MEMPHIS",
+    oneLine: "River level, forecast, barge freight and the constraint score beside the futures price.",
+    summary: "The river stage against its five-year range, the lowest forecast stage, the restriction and critical levels, barge freight and the constraint score on one timeline with the futures close, to see how freight and prices behaved as the river fell or rose.",
+    howToRead: [
+      "The top chart shows the stage in feet (left axis) and the futures close (right axis). The shaded band is the stage range for the same days over the previous five years; the dashed line is the lowest stage forecast over the next 7 days.",
+      "The bottom chart shows the constraint score (left, 0 to 100) and the barge rate in percent of tariff (right).",
+      "Every value appears only from the day it was published, so the chart shows what was known at the time. A barge rate published on Thursday is not on Wednesday.",
+      "1Y, 3Y and ALL change how much history is shown. The futures close follows the panel's link group.",
+    ],
+  },
   moves: {
     usage: "MOVES",
     oneLine: "Days the price moved unusually far, and news or reports that might explain why.",
@@ -127,16 +163,19 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       ["Likely driver", "A government report with a fixed release time came out between the previous close and this one."],
       ["Possible driver", "A report whose date is only an expected window, or one headline that clearly stands out from the rest."],
       ["Possible driver, low confidence", "Headlines that match on timing and wording only."],
-      ["No clear driver found", "Nothing in the cached calendar or news lines up with the move."],
+      ["River event", "The river crossed a restriction or critical level, the river constraint score changed band, or barge freight jumped in the days before the move. River conditions show up more in freight, basis and spreads than in futures, so these are always low confidence."],
+      ["No clear driver found", "Nothing in the cached calendar, news or river data lines up with the move."],
     ],
   },
   alerts: {
     usage: "ALERTS",
-    oneLine: "A notification when a closing price crosses a level you choose.",
-    summary: "Notifications when a daily closing price crosses a level you set, for example corn closing at or above $4.50 a bushel.",
+    oneLine: "A notification when a closing price crosses a level you choose, or the river runs low.",
+    summary: "Notifications when a daily closing price crosses a level you set, for example corn closing at or above $4.50 a bushel, and built-in river alerts for each Mississippi gauge.",
     howToRead: [
       "Alerts are checked after each price update against the daily close, so they cannot fire during the trading day.",
       "An alert fires once per crossing, then re-arms after the price moves back across the level.",
+      "River alerts fire when a gauge falls to its restriction or critical level, when the forecast reaches the restriction level within the forecast window, and each time the river constraint score moves up a band. Pause any you do not want.",
+      "So a river hovering at a level does not notify again and again, a level alert re-arms only once the river is a foot back above it, and the score must pass a band's cut-off by 5 points to count as moving up. In 2020 to 2026 that meant about 18 alerts a year at St. Louis and 11 at Memphis, mostly in the low-water autumns.",
     ],
     terms: [
       ["ARMED", "Waiting for the close to cross your level."],
@@ -186,6 +225,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       ["Crop Progress", "USDA NASS, Mondays at 4 p.m. Eastern in season: crop condition and planting or harvest progress. See CROP CONDITION."],
       ["Export Sales", "USDA FAS, Thursday mornings: how much U.S. grain foreign buyers ordered last week."],
       ["WASDE", "USDA, monthly around the 10th at noon Eastern: the official supply and demand estimates. See WASDE."],
+      ["Grain Transportation Report", "USDA AMS, Thursdays: barge freight rates, lock tonnage and other grain transport data. See RIVER."],
     ],
   },
   weather: {
@@ -217,12 +257,12 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
 };
 
 export const START_HERE = [
-  "AgriTerminal puts U.S. grain market information side by side: prices, trader positioning, crop health, drought, weather, supply and demand, news and report dates. Everything is saved on your computer, so it works offline.",
+  "AgriTerminal puts U.S. grain market information side by side: prices, trader positioning, crop health, drought, weather, river conditions, supply and demand, news and report dates. Everything is saved on your computer, so it works offline.",
   "Press / to open the command bar, then type a command such as ZC for corn prices, or pick one from the list. Press ? any time to come back to this guide.",
   "Click the ⓘ button at the top of any panel for a plain-language explanation of what it shows.",
   "Panels with the same coloured LINK letter follow the same crop: change the crop in one and the others switch too. Click LINK to change the group or unlink a panel.",
   "Drag a panel's tab to rearrange the layout. It saves automatically; use the menu beside the workspace name to keep several layouts.",
-  "Some data needs a key, added under Data sources on the price chart. Free without any key: demonstration corn prices, CFTC positioning, drought, weather and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
+  "Some data needs a key, added under Data sources on the price chart. Free without any key: demonstration corn prices, CFTC positioning, drought, weather, river conditions and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
 ];
 
 export const OTHER_COMMANDS: { usage: string; meaning: string }[] = [
@@ -253,6 +293,8 @@ export const STATUS_LABELS: [string, string][] = [
 
 export const GLOSSARY: [string, string][] = [
   ["Balance sheet", "A table of a crop's supply (stocks, harvest, imports) against its use (consumption, exports). See WASDE."],
+  ["Barge rate", "Freight for moving grain downriver by barge, quoted weekly by USDA as a percent of a 1976 benchmark tariff. See RIVER."],
+  ["Basis", "The local cash price minus the futures price. It reflects local supply, demand and transport costs, such as barge freight when the river is low."],
   ["Bushel", "The unit U.S. grain is traded in. A bushel of corn weighs 56 lb (25.4 kg); soybeans and wheat weigh 60 lb (27.2 kg)."],
   ["CBOT", "Chicago Board of Trade, the exchange where U.S. corn, soybean and wheat futures trade. It is part of CME Group."],
   ["CFTC", "Commodity Futures Trading Commission, the U.S. regulator of futures markets. It publishes the Commitments of Traders report."],
@@ -267,6 +309,7 @@ export const GLOSSARY: [string, string][] = [
   ["Futures contract", "An agreement to buy or sell a set amount of grain (5,000 bushels at CBOT) at an agreed price on a future date. Most are closed before delivery; the price works as the market's benchmark."],
   ["Hedger", "Someone who owns or needs physical grain, such as a farmer or processor, and uses futures to lock in a price."],
   ["Link group", "A coloured letter (A, B, C…) shared by panels that follow the same crop."],
+  ["Lock", "A chamber that lifts or lowers barges past a dam. Weekly grain tonnage through the last locks on the Mississippi and Ohio shows how much grain is moving downriver."],
   ["Long", "Holding a position that gains when the price rises."],
   ["Managed money", "Hedge funds and trading advisers speculating on price, as counted in the COT report."],
   ["Marketing year", "The 12 months a crop is sold and used in, starting at harvest: September to August for U.S. corn and soybeans, June to May for wheat."],
@@ -274,8 +317,10 @@ export const GLOSSARY: [string, string][] = [
   ["Net position", "Long contracts minus short contracts. Positive is net long, negative is net short."],
   ["OHLC candle", "Open, high, low and close for one day, drawn as a box (open to close) with lines to the high and low."],
   ["Percentile", "Where a value sits against its own history, from 0 (the lowest stored) to 100 (the highest)."],
+  ["River constraint score", "AgriTerminal's 0 to 100 measure of how much low water is limiting barges at a gauge, from river depth, the forecast and lock traffic. See RIVER."],
   ["Short", "Holding a position that gains when the price falls."],
   ["Speculator", "A trader with no physical grain who aims to profit from price changes."],
+  ["Stage", "The height of a river at a gauge, in feet above a fixed zero point. Low readings mean shallower water for barges."],
   ["Standard deviation (SD)", "How much prices usually move day to day. A 2 SD day moved about twice as far as a typical recent day."],
   ["Template", "A ready-made layout for a role: Farmer, Trader, Analyst or Student."],
   ["USDA", "United States Department of Agriculture, the source of most crop statistics in this app."],

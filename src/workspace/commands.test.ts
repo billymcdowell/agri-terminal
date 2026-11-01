@@ -19,6 +19,14 @@ describe("planCommand", () => {
     expect(planCommand("stress")).toEqual({ type: "open", params: { kind: "crop-stress", linkGroup: "A" } });
     expect(planCommand("moves")).toEqual({ type: "open", params: { kind: "moves", linkGroup: "A" } });
   });
+  it("opens the river panels at a gauge, a river or the default gauge", () => {
+    expect(planCommand("RIVER")).toEqual({ type: "open", params: { kind: "river", gauge: "stlouis" } });
+    expect(planCommand("RIVER MISS")).toEqual({ type: "open", params: { kind: "river", gauge: "stlouis" } });
+    expect(planCommand("river memphis")).toEqual({ type: "open", params: { kind: "river", gauge: "memphis" } });
+    expect(planCommand("RIVER TIMELINE")).toEqual({ type: "open", params: { kind: "river-timeline", gauge: "stlouis", linkGroup: "A" } });
+    expect(planCommand("RIVER TIMELINE Memphis")).toMatchObject({ params: { kind: "river-timeline", gauge: "memphis" } });
+    expect(planCommand("RIVER Rhine")).toMatchObject({ type: "error", message: expect.stringContaining("RIVER MEMPHIS") });
+  });
   it("opens the raw data panel", () => {
     expect(planCommand("raw data")).toEqual({ type: "open", params: { kind: "raw-data" } });
   });

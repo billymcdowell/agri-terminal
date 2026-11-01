@@ -43,18 +43,19 @@ Backend (`src-tauri/src`)
 - Keychain storage for provider keys, connection tests, and a report calendar seeded from `config/report-calendar.json` (a copy in the app data directory overrides it).
 - A declarative plugin system: TOML manifests run by one permission-enforcing HTTP client, a validating installer, and a Plugins panel that shows permissions before anything runs. The Drought Monitor connector is a bundled manifest (see `docs/plugins.md`).
 - NWS and Open-Meteo weather and GDELT plus USDA RSS news, cached locally and refreshed in the background.
-- Price alerts that fire once per crossing and re-arm when the price moves back, CSV and workspace export into the app data directory, and a settings table.
-- `analytics`: an as-of join that cannot look ahead, seasonal ranges, move detection, scheduled-event and news attribution with confidence labels, a combined crop stress timeline, and a backtest harness (see `docs/backtest.md`).
+- River data for the Mississippi at St. Louis and Memphis: daily stage (USGS, and NWS with an Iowa Environmental Mesonet backfill), NWS forecasts by issue time, and weekly USDA barge rates and lock tonnage dated to the Grain Transportation Report that published them. Gauges, thresholds and weights are in `config/waterways.json` (a copy in the app data directory overrides it).
+- Price alerts that fire once per crossing and re-arm when the price moves back, built-in river alerts, CSV and workspace export into the app data directory, and a settings table.
+- `analytics`: an as-of join that cannot look ahead, seasonal ranges, move detection, scheduled-event, news and river attribution with confidence labels, combined crop stress and river timelines, a river constraint score with freight sensitivity, and backtest harnesses for the move explainer and the river alerts (see `docs/backtest.md` and `docs/river.md`).
 - Crop nowcast ingestion, switched off by default: two bundled manifests read the yield and acreage files of `docs/nowcast-data-contract.md` with each row's publish time as its release time, and a small source keeps the weekly brief and crop damage events whole in a documents table. For now they read invented sample output from `pipelines/crop-nowcast/sample_output/` and are labelled "(sample)". The pipeline itself is a Python project in `pipelines/crop-nowcast/` (see `docs/Crop Nowcast Plan.md`).
 
 Frontend (`src`)
 
 - A dockview workspace with a command bar (`/`), link groups, saved workspaces (the menu beside the workspace name switches between them, saves the layout as a new one, or deletes one; `WS name` switches from the command bar), pop-out windows (`Alt+P`), and keyboard navigation (`Alt+Left/Right` to cycle panels, `Alt+W` to close).
-- Panels: price chart with flagged-move markers, COT, crop condition, supply and demand, drought, weather, news, report calendar, crop stress timeline, move explainer, price alerts, raw data (`RAW`: every stored row by source, plus the weather and news caches, as a table or JSON), settings and export, and help (`HELP` or `?`: every command, what each panel shows and how to read it, status labels and a glossary of market terms; the ⓘ button on any panel shows its part of the guide in place). Panel settings forms are generated from each panel's JSON schema and preview live.
+- Panels: price chart with flagged-move markers, COT, crop condition, supply and demand, drought, weather, news, report calendar, crop stress timeline, river status and river timeline (`RIVER`, `RIVER TIMELINE`), move explainer, price and river alerts, raw data (`RAW`: every stored row by source, plus the weather and news caches, as a table or JSON), settings and export, and help (`HELP` or `?`: every command, what each panel shows and how to read it, status labels and a glossary of market terms; the ⓘ button on any panel shows its part of the guide in place). Panel settings forms are generated from each panel's JSON schema and preview live.
 - Dark and light themes (or match the system), USD per bushel or per metric tonne display, and a release-alert lead time from 1 to 48 hours or off, all under `SETTINGS`. The terminal palette is paired dark and light tokens in `src/theme.css`; stored prices stay in USD per bushel.
 - First-run onboarding (role, crops, home state, optional keys) that loads a Farmer, Trader, Analyst or Student template from `config/workspace-templates.json`; `TEMPLATE name` reloads one. Link-group crops persist between launches.
 
-Not built yet: panel and analysis plugins, a plugin registry, the USDA AMS basis connector, the demand pulse and other combined views, and packaging. NASS and FAS parsers are tested against invented fixtures shaped from documentation because both need a key; verify them with a keyed response. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md) and [the product requirements](docs/prd.md).
+Not built yet: panel and analysis plugins, a plugin registry, the USDA AMS basis connector (so the river timeline has no Gulf–interior basis spread yet), the demand pulse and other combined views, code-signed installers and in-app updates. NASS and FAS parsers are tested against invented fixtures shaped from documentation because both need a key; verify them with a keyed response. See [the implementation plan](docs/AgriTerminal%20Implementation%20Plan.md), [the product requirements](docs/prd.md) and, for the river constraint index, [its method and calibration](docs/river.md).
 
 ## Checks
 
@@ -71,6 +72,14 @@ The crop nowcast pipeline has its own checks, run from `pipelines/crop-nowcast` 
 ```bash
 uv run ruff check && uv run ruff format --check && uv run pytest
 ```
+
+## Releases
+
+Every push to `master` that changes more than documentation runs the checks above, then builds installers and publishes them as a GitHub release: a universal `.dmg` for macOS, an `.msi` and a setup `.exe` for Windows, and a `.deb`, `.rpm` and `.AppImage` for Linux. To release a commit that a documentation-only push skipped, run the Release workflow from the Actions tab.
+
+The release version starts from `version` in `src-tauri/tauri.conf.json`. Its first release is tagged with that version as it is (`v0.1.0`), and each later release counts up the patch number (`v0.1.1`, `v0.1.2`, …). To start a new series, set a new version there, such as `0.2.0`. The version in the repository is not changed; each build stamps its own.
+
+The macOS app has only an ad-hoc signature and the Windows installers are unsigned. On first launch, macOS asks you to allow AgriTerminal under System Settings › Privacy & Security, and Windows SmartScreen warns before it installs.
 
 ## License
 

@@ -114,7 +114,9 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     if (!definition) return;
     const existing = api.panels.find((panel) => {
       const current = panel.params as Partial<PanelParams> | undefined;
-      return (current?.kind ?? panel.api.component) === params.kind && (params.kind !== "drought" || current?.region === params.region);
+      return (current?.kind ?? panel.api.component) === params.kind
+        && (params.kind !== "drought" || current?.region === params.region)
+        && (!params.gauge || (current?.gauge ?? definition.defaultConfig.gauge) === params.gauge);
     });
     if (existing) { existing.api.setActive(); return; }
     const merged = { ...definition.defaultConfig, ...params };

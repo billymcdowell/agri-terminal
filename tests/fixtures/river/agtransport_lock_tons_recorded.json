@@ -1,0 +1,28 @@
+[{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Corn","lock":"AK Lock 1","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Other Grain","lock":"AK Lock 1","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Soybeans","lock":"AK Lock 1","tons":"5700"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Wheat","lock":"AK Lock 1","tons":"1400"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Corn","lock":"IL La Grange","tons":"75300"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Other Grain","lock":"IL La Grange","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Soybeans","lock":"IL La Grange","tons":"124300"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Wheat","lock":"IL La Grange","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Corn","lock":"MS Lock 15","tons":"24900"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Other Grain","lock":"MS Lock 15","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Soybeans","lock":"MS Lock 15","tons":"179600"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Wheat","lock":"MS Lock 15","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Corn","lock":"MS Lock 25","tons":"46000"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Other Grain","lock":"MS Lock 25","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Soybeans","lock":"MS Lock 25","tons":"281700"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Wheat","lock":"MS Lock 25","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Corn","lock":"MS Lock 26","tons":"89300"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Other Grain","lock":"MS Lock 26","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Soybeans","lock":"MS Lock 26","tons":"326900"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Wheat","lock":"MS Lock 26","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Corn","lock":"MS Locks 27","tons":"89400"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Other Grain","lock":"MS Locks 27","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Soybeans","lock":"MS Locks 27","tons":"364900"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Wheat","lock":"MS Locks 27","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Corn","lock":"OH Olmsted","tons":"14150"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Other Grain","lock":"OH Olmsted","tons":"0"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Soybeans","lock":"OH Olmsted","tons":"60050"}
+,{"date":"2026-10-24T00:00:00.000","week":"42","month":"10","year":"2026","commodity":"Wheat","lock":"OH Olmsted","tons":"0"}]

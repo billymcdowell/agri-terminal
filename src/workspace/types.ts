@@ -9,6 +9,10 @@ export type PanelParams = {
   /** Raw data panel selection: a source, and one of its series or a commodity for weather and news. */
   sourceId?: string;
   dataset?: string;
+  /** River panels: the gauge id from config/waterways.json. */
+  gauge?: string;
+  /** Plain wording for a reader, such as "farmer" on the river panel. */
+  audience?: string;
 };
 
 export type PanelApiLike = {
