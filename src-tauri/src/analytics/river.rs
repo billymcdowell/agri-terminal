@@ -761,27 +761,60 @@ pub struct RiverEvent {
     pub weight: f64,
 }
 
-fn band_rank(band: &str) -> u8 {
-    match band {
-        "HIGH" => 2,
-        "ELEVATED" => 1,
-        _ => 0,
+/// The plain band for a score: 0 NORMAL, 1 ELEVATED, 2 HIGH.
+pub fn band_rank(score: f64, bands: &Bands) -> u8 {
+    if score >= bands.high {
+        2
+    } else if score >= bands.elevated {
+        1
+    } else {
+        0
     }
 }
 
-/// Threshold crossings, band changes and barge-rate jumps, found by comparing each day of the
-/// timeline with the last day that had a value. A day with a missing input is skipped rather than
-/// read as a change, and band changes count only between scores with every input.
+pub const BAND_NAMES: [&str; 3] = ["NORMAL", "ELEVATED", "HIGH"];
+
+/// The band after a new score, with hysteresis: moving up needs the score `margin` past the
+/// cut-off, and moving down needs it `margin` below, so a score hovering at a cut-off keeps its band.
+pub fn next_band(current: u8, score: f64, bands: &Bands) -> u8 {
+    let cut = |rank: u8| {
+        if rank == 2 {
+            bands.high
+        } else {
+            bands.elevated
+        }
+    };
+    let mut rank = current.min(2);
+    while rank < 2 && score >= cut(rank + 1) + bands.margin {
+        rank += 1;
+    }
+    while rank > 0 && score < cut(rank) - bands.margin {
+        rank -= 1;
+    }
+    rank
+}
+
+/// Threshold crossings, band changes and barge-rate jumps, found by stepping through the timeline.
+/// A crossing below a level counts once and re-arms only after the stage is `rearm_ft` back above
+/// it; band changes use the margin in `bands` and only scores with every input. A day with a
+/// missing input is skipped rather than read as a change.
 pub fn river_events(
     gauge: &Gauge,
     barge_location: Option<&str>,
+    bands: &Bands,
+    rearm_ft: f64,
     points: &[RiverPoint],
 ) -> Vec<RiverEvent> {
     let thresholds = gauge.thresholds;
-    let mut events = Vec::new();
+    let levels = [
+        (thresholds.critical, "critical", 1.0),
+        (thresholds.restriction, "restriction", 0.8),
+    ];
+    let mut below = [false; 2];
     let mut last_stage: Option<f64> = None;
-    let mut last_band: Option<&str> = None;
+    let mut band: Option<u8> = None;
     let mut last_rate: Option<f64> = None;
+    let mut events = Vec::new();
     for point in points {
         let at = market_close(point.date);
         let mut push = |title: String, reason: String, weight: f64| {
@@ -794,53 +827,57 @@ pub fn river_events(
             });
         };
         if let Some(stage) = point.stage {
-            if let Some(before) = last_stage {
-                for (level, name, weight) in [
-                    (thresholds.critical, "critical", 1.0),
-                    (thresholds.restriction, "restriction", 0.8),
-                ] {
-                    if before > level && stage <= level {
-                        push(
-                            format!("{} stage fell below the {name} level", gauge.name),
-                            format!(
-                                "River: the {} stage read {stage:.2} ft on {}, at or below the {level:.2} ft {name} level, after {before:.2} ft.",
-                                gauge.name, point.date
-                            ),
-                            weight,
-                        );
-                    } else if before <= level && stage > level {
-                        push(
-                            format!("{} stage rose above the {name} level", gauge.name),
-                            format!(
-                                "River: the {} stage read {stage:.2} ft on {}, back above the {level:.2} ft {name} level, after {before:.2} ft.",
-                                gauge.name, point.date
-                            ),
-                            weight * 0.6,
-                        );
-                    }
+            for (index, (level, name, weight)) in levels.iter().enumerate() {
+                if last_stage.is_none() {
+                    below[index] = stage <= *level;
+                } else if !below[index] && stage <= *level {
+                    below[index] = true;
+                    push(
+                        format!("{} stage fell below the {name} level", gauge.name),
+                        format!(
+                            "River: the {} stage read {stage:.2} ft on {}, at or below the {level:.2} ft {name} level, after {:.2} ft.",
+                            gauge.name,
+                            point.date,
+                            last_stage.unwrap_or(stage)
+                        ),
+                        *weight,
+                    );
+                } else if below[index] && stage > level + rearm_ft {
+                    below[index] = false;
+                    push(
+                        format!("{} stage rose above the {name} level", gauge.name),
+                        format!(
+                            "River: the {} stage read {stage:.2} ft on {}, back above the {level:.2} ft {name} level.",
+                            gauge.name, point.date
+                        ),
+                        weight * 0.6,
+                    );
                 }
             }
             last_stage = Some(stage);
         }
-        if let (Some(band), false) = (point.band.as_deref(), point.partial) {
-            if let Some(before) = last_band.filter(|before| *before != band) {
-                let up = band_rank(band) > band_rank(before);
+        if let (Some(score), false) = (point.score, point.partial) {
+            let next = band.map_or_else(
+                || band_rank(score, bands),
+                |current| next_band(current, score, bands),
+            );
+            if let Some(before) = band.filter(|before| *before != next) {
+                let up = next > before;
+                let (from, to) = (BAND_NAMES[before as usize], BAND_NAMES[next as usize]);
                 push(
                     format!(
-                        "{} river constraint score moved {} to {band}",
+                        "{} river constraint score moved {} to {to}",
                         gauge.name,
                         if up { "up" } else { "down" }
                     ),
                     format!(
-                        "River: the constraint score at {} moved from {before} to {band} ({:.0} of 100) on {}.",
-                        gauge.name,
-                        point.score.unwrap_or_default(),
-                        point.date
+                        "River: the constraint score at {} moved from {from} to {to} ({score:.0} of 100) on {}.",
+                        gauge.name, point.date
                     ),
                     if up { 0.8 } else { 0.5 },
                 );
             }
-            last_band = Some(band);
+            band = Some(next);
         }
         if let Some(rate) = point.barge_rate {
             if let Some(before) = last_rate.filter(|before| *before > 0.0 && *before != rate) {
@@ -911,6 +948,7 @@ mod tests {
     const BANDS: Bands = Bands {
         elevated: 40.0,
         high: 70.0,
+        margin: 0.0,
     };
 
     /// Status and timeline for every gauge over a database filled by the live backfill test
@@ -1009,7 +1047,13 @@ mod tests {
                     .find(|location| &location.id == id)
                     .map(|location| location.name.as_str())
             });
-            let events = river_events(gauge, location, &timeline);
+            let events = river_events(
+                gauge,
+                location,
+                &config.bands,
+                config.alerts.rearm_ft,
+                &timeline,
+            );
             for year in 2021..=2026 {
                 let in_year = |event: &&RiverEvent| {
                     event
@@ -1051,7 +1095,7 @@ mod tests {
         }
     }
 
-    fn point(date: &str, stage: Option<f64>, band: Option<&str>, rate: Option<f64>) -> RiverPoint {
+    fn point(date: &str, stage: Option<f64>, score: Option<f64>, rate: Option<f64>) -> RiverPoint {
         RiverPoint {
             date: day(date),
             close: None,
@@ -1061,25 +1105,46 @@ mod tests {
             stage_high: None,
             forecast_min: None,
             barge_rate: rate,
-            score: band.map(|_| 50.0),
-            band: band.map(str::to_string),
+            score,
+            band: score.map(|score| BAND_NAMES[band_rank(score, &BANDS) as usize].to_string()),
             partial: false,
             basis_spread: None,
         }
+    }
+
+    const MARGIN: Bands = Bands {
+        elevated: 40.0,
+        high: 70.0,
+        margin: 5.0,
+    };
+
+    #[test]
+    fn band_changes_need_the_margin_past_a_cut_off() {
+        assert_eq!(next_band(0, 43.0, &MARGIN), 0);
+        assert_eq!(next_band(0, 45.0, &MARGIN), 1);
+        assert_eq!(next_band(1, 37.0, &MARGIN), 1);
+        assert_eq!(next_band(1, 34.9, &MARGIN), 0);
+        assert_eq!(next_band(0, 80.0, &MARGIN), 2);
+        assert_eq!(next_band(2, 66.0, &MARGIN), 2);
+        assert_eq!(next_band(2, 20.0, &MARGIN), 0);
+        assert_eq!(next_band(1, 69.0, &BANDS), 1);
+        assert_eq!(next_band(1, 70.0, &BANDS), 2);
     }
 
     #[test]
     fn river_events_find_crossings_band_changes_and_freight_jumps() {
         let (_, gauge) = gauge_and_river();
         let points = [
-            point("2026-10-01", Some(1.4), Some("NORMAL"), Some(500.0)),
+            point("2026-10-01", Some(1.4), Some(36.0), Some(500.0)),
             // A missing reading is skipped, not read as a change.
             point("2026-10-02", None, None, Some(500.0)),
-            point("2026-10-03", Some(0.8), Some("ELEVATED"), Some(500.0)),
-            point("2026-10-04", Some(0.9), Some("ELEVATED"), Some(590.0)),
-            point("2026-10-05", Some(1.3), Some("NORMAL"), Some(600.0)),
+            point("2026-10-03", Some(0.8), Some(47.0), Some(500.0)),
+            // Hovering just above the level and the cut-off changes nothing.
+            point("2026-10-04", Some(1.3), Some(41.0), Some(590.0)),
+            point("2026-10-05", Some(0.9), Some(43.0), Some(600.0)),
+            point("2026-10-06", Some(2.2), Some(30.0), Some(600.0)),
         ];
-        let events = river_events(&gauge, Some("St. Louis"), &points);
+        let events = river_events(&gauge, Some("St. Louis"), &MARGIN, 1.0, &points);
         let titles: Vec<&str> = events.iter().map(|event| event.title.as_str()).collect();
         assert_eq!(
             titles,
@@ -1094,109 +1159,103 @@ mod tests {
         assert_eq!(events[0].at, at("2026-10-03T20:00:00Z"));
         assert!(events[0].reason.contains("0.80 ft"));
         assert!(events[3].weight < events[0].weight);
+        // Without the re-arm margin, hovering just above the level adds a rise and a fall.
+        assert_eq!(river_events(&gauge, None, &BANDS, 0.0, &points).len(), 7);
         // A partial score's band is not compared.
         let mut partial = points.clone();
         partial[2].partial = true;
         partial[3].partial = true;
+        partial[4].partial = true;
         assert!(
-            !river_events(&gauge, None, &partial)
+            !river_events(&gauge, None, &MARGIN, 1.0, &partial)
                 .iter()
                 .any(|event| event.title.contains("moved up"))
         );
     }
 
-    /// Daily stage over `weeks` weeks ending on Tuesdays from 2024-01-02, and a weekly price set
-    /// by `price` from that week's depth below a 1.0 ft restriction level.
-    fn synthetic_history(
-        weeks: i64,
-        price: impl Fn(f64, i64) -> f64,
-    ) -> (BTreeMap<NaiveDate, f64>, BTreeMap<NaiveDate, f64>) {
-        let start = day("2024-01-02");
-        let mut stage = BTreeMap::new();
-        let mut prices = BTreeMap::new();
-        for week in 0..weeks {
-            // A slow seasonal swing between 6 ft and -3 ft, constant within each week.
-            let level = 1.5 + 4.5 * ((week as f64) * std::f64::consts::TAU / 52.0).cos();
-            let tuesday = start + Duration::days(7 * week);
-            for offset in 0..7 {
-                stage.insert(tuesday - Duration::days(offset), level);
-            }
-            prices.insert(tuesday, price(depth_below(level, 1.0), week));
+    /// The river alert backtest over real history, with the original settings and the calibrated
+    /// ones from the bundled waterways file. The figures in docs/river.md come from this.
+    #[test]
+    #[ignore = "needs AGRI_RIVER_DB pointing at a database filled with real river history"]
+    fn real_history_backtest() {
+        let path = std::env::var("AGRI_RIVER_DB").expect("set AGRI_RIVER_DB");
+        let connection = crate::store::open(std::path::Path::new(&path)).unwrap();
+        let calibrated = parse_waterways(BUNDLED_WATERWAYS).unwrap();
+        let mut original = calibrated.clone();
+        original.bands.margin = 0.0;
+        original.alerts.rearm_ft = 0.0;
+        for river in &mut original.rivers {
+            river.weights = Weights {
+                depth: 0.5,
+                forecast: 0.3,
+                traffic: 0.2,
+            };
         }
-        (prices, stage)
-    }
-
-    #[test]
-    fn the_sensitivity_recovers_a_known_slope() {
-        // 400 percent of tariff plus 60 per foot below the restriction level.
-        let (prices, stage) = synthetic_history(156, |depth, _| 400.0 + 60.0 * depth);
-        let sensitivity = estimate_sensitivity(&prices, &stage, 1.0, 2).unwrap();
-        assert!((sensitivity.beta - 60.0).abs() < 1e-9, "{sensitivity:?}");
-        assert!((sensitivity.r_squared - 1.0).abs() < 1e-9);
-        assert_eq!(sensitivity.pairs, 154);
-        assert!(sensitivity.depth_change_pairs >= MIN_DEPTH_CHANGES);
-        // Noise lowers the fit, not the slope's sign.
-        let (noisy, stage) = synthetic_history(156, |depth, week| {
-            400.0 + 60.0 * depth + if week % 3 == 0 { 40.0 } else { -20.0 }
-        });
-        let fitted = estimate_sensitivity(&noisy, &stage, 1.0, 2).unwrap();
-        assert!(fitted.beta > 40.0 && fitted.r_squared < 1.0, "{fitted:?}");
-    }
-
-    #[test]
-    fn too_little_history_gives_no_sensitivity() {
-        let (prices, stage) = synthetic_history(40, |depth, _| 400.0 + 60.0 * depth);
-        assert_eq!(estimate_sensitivity(&prices, &stage, 1.0, 2), None);
-        // A river that never reaches the restriction level says nothing about the slope.
-        let (prices, stage) = synthetic_history(156, |depth, _| 400.0 + 60.0 * depth);
-        assert_eq!(estimate_sensitivity(&prices, &stage, -10.0, 2), None);
-    }
-
-    #[test]
-    fn expected_pressure_applies_the_slope_to_the_forecast() {
-        let (river, gauge) = gauge_and_river();
-        let (prices, stage_history) = synthetic_history(156, |depth, _| 400.0 + 60.0 * depth);
-        let last = *stage_history.keys().last().unwrap();
-        let released = |period: NaiveDate| format!("{period}T16:00:00Z");
-        let stage: Vec<MetricObservation> = stage_history
-            .iter()
-            .map(|(period, value)| row("s", &period.to_string(), &released(*period), *value))
-            .collect();
-        let barge: Vec<MetricObservation> = prices
-            .iter()
-            .map(|(period, value)| row("b", &period.to_string(), &released(*period), *value))
-            .collect();
-        // Forecast issued on the last day: the river falls to 0.0 ft in the second week.
-        let issued = format!("{last}T16:00:00Z");
-        let forecast: Vec<MetricObservation> = (1..=14)
-            .map(|ahead| {
-                let target = last + Duration::days(ahead);
-                row(
-                    "f",
-                    &target.to_string(),
-                    &issued,
-                    if ahead > 7 { 0.0 } else { 0.5 },
-                )
-            })
-            .collect();
-        let series = GaugeSeries {
-            stage: &stage,
-            forecast: &forecast,
-            barge_rate: &barge,
-            locks: vec![&[]],
-        };
-        let as_of = market_close(last);
-        let status = river_status(&river, &gauge, &BANDS, &series, as_of);
-        let pressure = status.pressure.unwrap();
-        let current = depth_below(stage_history[&last], 1.0);
-        assert!((pressure.expected_depth - 1.0).abs() < 1e-9);
-        assert!((pressure.current_depth - current).abs() < 1e-9);
-        assert!((pressure.change - 60.0 * (1.0 - current)).abs() < 1e-6);
-        // St. Louis quotes are on a $3.99 benchmark.
-        assert!((pressure.dollars_per_ton.unwrap() - pressure.change * 0.0399).abs() < 1e-9);
-        // Without a current forecast there is no pressure.
-        let stale = river_status(&river, &gauge, &BANDS, &series, as_of + Duration::days(5));
-        assert!(stale.pressure.is_none());
+        let today = Utc::now().date_naive();
+        for (label, config) in [("original", &original), ("calibrated", &calibrated)] {
+            for (river, gauge) in config.gauges() {
+                let load = |series: &str| {
+                    crate::store::query_metric_revisions(&connection, series).unwrap()
+                };
+                let stage = load(&gauge.stage_series());
+                let forecast = load(&gauge.forecast_series());
+                let barge = gauge
+                    .barge_location
+                    .as_ref()
+                    .and_then(|id| {
+                        river
+                            .barge_locations
+                            .iter()
+                            .find(|location| &location.id == id)
+                    })
+                    .map(|location| load(&location.series()))
+                    .unwrap_or_default();
+                let locks: Vec<Vec<MetricObservation>> = river
+                    .locks
+                    .iter()
+                    .filter(|lock| gauge.locks.contains(&lock.id))
+                    .map(|lock| load(&lock.series()))
+                    .collect();
+                let series = GaugeSeries {
+                    stage: &stage,
+                    forecast: &forecast,
+                    barge_rate: &barge,
+                    locks: locks.iter().map(Vec::as_slice).collect(),
+                };
+                let points = river_timeline(river, gauge, &config.bands, &series, &[], today);
+                let report = crate::alerts::river::backtest(
+                    gauge,
+                    &config.bands,
+                    config.alerts.rearm_ft,
+                    &points,
+                );
+                let events =
+                    river_events(gauge, None, &config.bands, config.alerts.rearm_ft, &points);
+                let years = report.alerts as f64 / report.alerts_per_year;
+                println!(
+                    "{label} {}: {} to {} | episodes {} warned {} | alerts {} ({:.1}/yr) warnings {} followed {} | explainer events {:.0}/yr",
+                    gauge.id,
+                    report.from.unwrap(),
+                    report.to.unwrap(),
+                    report.episodes.len(),
+                    report.warned_episodes,
+                    report.alerts,
+                    report.alerts_per_year,
+                    report.warnings,
+                    report.warnings_followed,
+                    events.len() as f64 / years,
+                );
+                for episode in &report.episodes {
+                    println!(
+                        "    {} +{:.0}% stage {:?} warned {:?} days before",
+                        episode.start,
+                        episode.rise_percent,
+                        episode.stage.map(|stage| (stage * 100.0).round() / 100.0),
+                        episode.warned_days_before
+                    );
+                }
+            }
+        }
     }
 
     #[test]

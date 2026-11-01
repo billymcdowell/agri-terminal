@@ -17,6 +17,8 @@ export const RIVER_TEXT = {
   partial: "PARTIAL",
   partialNote: "Some inputs are missing or out of date, so the score uses the others, re-weighted.",
   provisional: "Thresholds are provisional starting values until they are calibrated against past low-water years.",
+  calibrated: "Thresholds and weights were checked against 2020–2026. See HELP for how well the score and alerts have worked.",
+  trafficNote: "Shown for context. Lock tonnage follows the harvest calendar more than the river, so it is not part of the score.",
   noScore: "No river data yet. The stage, forecast and barge sources fill in after their first refresh.",
   noForecast: "No current forecast.",
   noFreight: "No current barge rate.",
@@ -67,6 +69,6 @@ export function describeSensitivity(sensitivity: { beta: number; rSquared: numbe
 
 /** The weighted points each component adds, for the breakdown line. */
 export function componentBreakdown(score: ConstraintScore) {
-  const part = (label: string, component: ConstraintScore["depth"]) => (component ? `${label} ${component.points.toFixed(1)}` : `${label} missing`);
+  const part = (label: string, component: ConstraintScore["depth"]) => (!component ? `${label} missing` : component.weight === 0 ? `${label} not scored` : `${label} ${component.points.toFixed(1)}`);
   return [part("Depth", score.depth), part("Forecast", score.forecast), part("Traffic", score.traffic)].join(" · ");
 }

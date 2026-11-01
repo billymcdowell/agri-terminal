@@ -28,5 +28,7 @@ describe("river wording", () => {
     expect(formatPercentChange(null)).toBe("—");
     expect(componentBreakdown({ total: 50, band: "ELEVATED", partial: true, depth: { value: 0.5, weight: 5 / 7, points: 35.7 }, forecast: null, traffic: { value: 0.5, weight: 2 / 7, points: 14.3 } }))
       .toBe("Depth 35.7 · Forecast missing · Traffic 14.3");
+    expect(componentBreakdown({ total: 50, band: "ELEVATED", partial: false, depth: { value: 0.5, weight: 0.6, points: 30 }, forecast: { value: 0.5, weight: 0.4, points: 20 }, traffic: { value: 0.9, weight: 0, points: 0 } }))
+      .toBe("Depth 30.0 · Forecast 20.0 · Traffic not scored");
   });
 });

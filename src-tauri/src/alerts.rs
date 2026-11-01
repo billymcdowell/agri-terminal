@@ -227,8 +227,8 @@ pub mod river {
     use chrono::NaiveDate;
     use serde::{Deserialize, Serialize};
 
-    use crate::analytics::river::RiverStatus;
-    use crate::sources::river::WaterwaysConfig;
+    use crate::analytics::river::{BAND_NAMES, RiverPoint, RiverStatus, next_band};
+    use crate::sources::river::{Bands, Gauge, Thresholds, WaterwaysConfig};
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case")]
@@ -337,31 +337,72 @@ pub mod river {
             .collect()
     }
 
-    fn band_rank(band: &str) -> i64 {
-        match band {
-            "HIGH" => 2,
-            "ELEVATED" => 1,
-            _ => 0,
-        }
+    /// What the rules need to know about a gauge on one day.
+    #[derive(Clone, Copy, Debug, Default, PartialEq)]
+    pub struct RuleInputs {
+        pub stage: Option<f64>,
+        /// Lowest stage over the forecast window, from a current forecast.
+        pub forecast_min: Option<f64>,
+        pub score: Option<f64>,
     }
 
-    /// Whether a condition rule holds, or `None` when its input is missing, which leaves the
-    /// rule as it was rather than re-arming it.
-    fn holds(rule: RiverRule, status: &RiverStatus) -> Option<bool> {
-        let stage = status.stage.as_ref().map(|stage| stage.value);
-        match rule {
-            RiverRule::BelowRestriction => {
-                stage.map(|stage| stage <= status.thresholds.restriction)
+    impl RuleInputs {
+        pub fn of_status(status: &RiverStatus) -> Self {
+            Self {
+                stage: status.stage.as_ref().map(|stage| stage.value),
+                forecast_min: status.forecast_min,
+                score: status.score.as_ref().map(|score| score.total),
             }
-            RiverRule::BelowCritical => stage.map(|stage| stage <= status.thresholds.critical),
-            RiverRule::ForecastRestriction => status
-                .forecast_min
-                .map(|_| status.restriction_forecast_on.is_some()),
-            RiverRule::BandUp => None,
+        }
+
+        pub fn of_point(point: &RiverPoint) -> Self {
+            Self {
+                stage: point.stage,
+                forecast_min: point.forecast_min,
+                score: point.score,
+            }
         }
     }
 
-    fn message(rule: RiverRule, status: &RiverStatus) -> (String, String) {
+    /// One rule's new state for a day's inputs, and whether it fires. A condition rule fires when
+    /// its condition starts and re-arms once the level is `rearm_ft` back above its threshold, so
+    /// a river hovering at a threshold does not notify again and again. The band rule follows the
+    /// score with the band margin and fires on each move up. Missing inputs change nothing.
+    pub fn step(
+        rule: RiverRule,
+        state: i64,
+        inputs: &RuleInputs,
+        thresholds: &Thresholds,
+        bands: &Bands,
+        rearm_ft: f64,
+    ) -> (i64, bool) {
+        let condition = |met: bool, clear: bool| match (state > 0, met, clear) {
+            (false, true, _) => (1, true),
+            (true, _, true) => (0, false),
+            _ => (state, false),
+        };
+        match (rule, inputs.stage, inputs.forecast_min, inputs.score) {
+            (RiverRule::BelowRestriction, Some(stage), _, _) => condition(
+                stage <= thresholds.restriction,
+                stage > thresholds.restriction + rearm_ft,
+            ),
+            (RiverRule::BelowCritical, Some(stage), _, _) => condition(
+                stage <= thresholds.critical,
+                stage > thresholds.critical + rearm_ft,
+            ),
+            (RiverRule::ForecastRestriction, Some(stage), Some(low), _) => condition(
+                stage > thresholds.restriction && low <= thresholds.restriction,
+                low > thresholds.restriction + rearm_ft,
+            ),
+            (RiverRule::BandUp, _, _, Some(score)) => {
+                let next = i64::from(next_band(state.clamp(0, 2) as u8, score, bands));
+                (next, next > state)
+            }
+            _ => (state, false),
+        }
+    }
+
+    fn message(rule: RiverRule, status: &RiverStatus, rank: i64) -> (String, String) {
         let stage = status.stage.as_ref().map_or(0.0, |stage| stage.value);
         let gauge = &status.gauge_name;
         match rule {
@@ -384,24 +425,22 @@ pub mod river {
                 format!(
                     "The latest NWS forecast reaches {:.2} ft by {}; the stage is {stage:.2} ft now.",
                     status.thresholds.restriction,
-                    status
-                        .restriction_forecast_on
-                        .map_or_else(String::new, |day| day.to_string())
+                    status.restriction_forecast_on.map_or_else(
+                        || "the end of the forecast window".to_string(),
+                        |day| day.to_string()
+                    )
                 ),
             ),
-            RiverRule::BandUp => {
-                let score = status.score.as_ref();
-                (
-                    format!(
-                        "{gauge} river constraint {}",
-                        score.map_or("", |score| score.band.as_str())
-                    ),
-                    format!(
-                        "The constraint score is {:.0} of 100. River effects tend to show in freight and basis more than futures.",
-                        score.map_or(0.0, |score| score.total)
-                    ),
-                )
-            }
+            RiverRule::BandUp => (
+                format!(
+                    "{gauge} river constraint {}",
+                    BAND_NAMES[rank.clamp(0, 2) as usize]
+                ),
+                format!(
+                    "The constraint score is {:.0} of 100. River effects tend to show in freight and basis more than futures.",
+                    status.score.as_ref().map_or(0.0, |score| score.total)
+                ),
+            ),
         }
     }
 
@@ -409,51 +448,187 @@ pub mod river {
     pub fn evaluate(
         records: &[RiverAlertRecord],
         statuses: &HashMap<String, RiverStatus>,
+        bands: &Bands,
+        rearm_ft: f64,
     ) -> Vec<RiverEvaluation> {
         records
             .iter()
             .filter(|record| record.enabled)
             .filter_map(|record| {
                 let status = statuses.get(&record.gauge_id)?;
-                let date = status.as_of.date_naive();
-                let fire = |state: i64| {
-                    let (title, body) = message(record.rule, status);
-                    RiverEvaluation {
-                        id: record.id.clone(),
-                        state,
-                        fired: Some(RiverAlertFired {
+                let (state, fired) = step(
+                    record.rule,
+                    record.state,
+                    &RuleInputs::of_status(status),
+                    &status.thresholds,
+                    bands,
+                    rearm_ft,
+                );
+                (state != record.state || fired).then(|| RiverEvaluation {
+                    id: record.id.clone(),
+                    state,
+                    fired: fired.then(|| {
+                        let (title, body) = message(record.rule, status, state);
+                        RiverAlertFired {
                             id: record.id.clone(),
                             gauge_id: record.gauge_id.clone(),
                             rule: record.rule,
                             title,
                             body,
-                            date,
-                        }),
-                    }
-                };
-                if record.rule == RiverRule::BandUp {
-                    let rank = band_rank(&status.score.as_ref()?.band);
-                    return match rank.cmp(&record.state) {
-                        std::cmp::Ordering::Greater => Some(fire(rank)),
-                        std::cmp::Ordering::Less => Some(RiverEvaluation {
-                            id: record.id.clone(),
-                            state: rank,
-                            fired: None,
-                        }),
-                        std::cmp::Ordering::Equal => None,
-                    };
-                }
-                match (holds(record.rule, status)?, record.state > 0) {
-                    (true, false) => Some(fire(1)),
-                    (false, true) => Some(RiverEvaluation {
-                        id: record.id.clone(),
-                        state: 0,
-                        fired: None,
+                            date: status.as_of.date_naive(),
+                        }
                     }),
-                    _ => None,
-                }
+                })
             })
             .collect()
+    }
+
+    /// Every day a rule would have fired over a timeline, with every rule switched on.
+    pub fn replay(
+        gauge: &Gauge,
+        bands: &Bands,
+        rearm_ft: f64,
+        points: &[RiverPoint],
+    ) -> Vec<(NaiveDate, RiverRule)> {
+        let mut states = [0_i64; 4];
+        let mut fired = Vec::new();
+        for point in points {
+            let inputs = RuleInputs::of_point(point);
+            for (state, rule) in states.iter_mut().zip(RiverRule::ALL) {
+                let (next, fires) = step(rule, *state, &inputs, &gauge.thresholds, bands, rearm_ft);
+                *state = next;
+                if fires {
+                    fired.push((point.date, rule));
+                }
+            }
+        }
+        fired
+    }
+
+    /// A week-on-week rise in the barge rate at least this large starts or extends a freight episode.
+    pub const FREIGHT_JUMP_PERCENT: f64 = 25.0;
+    /// Jumps this close to the last one belong to the same episode.
+    const EPISODE_GAP_DAYS: i64 = 28;
+    /// Alerts this close to the first of a run count as one warning.
+    const WARNING_CLUSTER_DAYS: i64 = 14;
+    /// A warning counts for an episode that starts within this many days after it.
+    pub const LEAD_WINDOW_DAYS: i64 = 42;
+
+    #[derive(Clone, Debug, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct FreightEpisode {
+        /// The day the first jump of the episode was published.
+        pub start: NaiveDate,
+        pub rise_percent: f64,
+        /// The stage that day, to tell low-water episodes from harvest demand.
+        pub stage: Option<f64>,
+        /// Days from the earliest warning in the lead window to the start, if there was one.
+        pub warned_days_before: Option<i64>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct GaugeBacktest {
+        pub gauge_id: String,
+        pub gauge_name: String,
+        pub from: Option<NaiveDate>,
+        pub to: Option<NaiveDate>,
+        pub episodes: Vec<FreightEpisode>,
+        /// Episodes with a warning in the lead window.
+        pub warned_episodes: usize,
+        pub alerts: usize,
+        pub alerts_per_year: f64,
+        /// Runs of alerts, counted once per run.
+        pub warnings: usize,
+        /// Warnings followed by an episode start within the lead window.
+        pub warnings_followed: usize,
+    }
+
+    /// Replays the river alerts over a timeline and checks them against barge-freight episodes:
+    /// weeks the published rate rose 25% or more. Episodes come from the data, not from labels, and
+    /// include harvest-demand jumps at high water, which the river alerts are not meant to catch.
+    pub fn backtest(
+        gauge: &Gauge,
+        bands: &Bands,
+        rearm_ft: f64,
+        points: &[RiverPoint],
+    ) -> GaugeBacktest {
+        let mut episodes: Vec<FreightEpisode> = Vec::new();
+        let mut last_jump: Option<NaiveDate> = None;
+        let mut last_rate: Option<f64> = None;
+        for point in points {
+            let Some(rate) = point.barge_rate else {
+                continue;
+            };
+            if let Some(before) = last_rate.filter(|before| *before > 0.0 && *before != rate) {
+                let rise = (rate / before - 1.0) * 100.0;
+                if rise >= FREIGHT_JUMP_PERCENT {
+                    let continues = last_jump
+                        .is_some_and(|last| (point.date - last).num_days() <= EPISODE_GAP_DAYS);
+                    if !continues {
+                        episodes.push(FreightEpisode {
+                            start: point.date,
+                            rise_percent: rise,
+                            stage: point.stage,
+                            warned_days_before: None,
+                        });
+                    }
+                    last_jump = Some(point.date);
+                }
+            }
+            last_rate = Some(rate);
+        }
+        let alerts = replay(gauge, bands, rearm_ft, points);
+        let mut warnings: Vec<NaiveDate> = Vec::new();
+        for (date, _) in &alerts {
+            if warnings
+                .last()
+                .is_none_or(|first| (*date - *first).num_days() > WARNING_CLUSTER_DAYS)
+            {
+                warnings.push(*date);
+            }
+        }
+        let window = |warning: NaiveDate, start: NaiveDate| {
+            (0..=LEAD_WINDOW_DAYS).contains(&(start - warning).num_days())
+        };
+        for episode in &mut episodes {
+            episode.warned_days_before = warnings
+                .iter()
+                .filter(|warning| window(**warning, episode.start))
+                .map(|warning| (episode.start - *warning).num_days())
+                .max();
+        }
+        let warnings_followed = warnings
+            .iter()
+            .filter(|warning| {
+                episodes
+                    .iter()
+                    .any(|episode| window(**warning, episode.start))
+            })
+            .count();
+        let (from, to) = (
+            points.first().map(|point| point.date),
+            points.last().map(|point| point.date),
+        );
+        let years = match (from, to) {
+            (Some(from), Some(to)) => ((to - from).num_days() as f64 / 365.25).max(1.0 / 365.25),
+            _ => 1.0,
+        };
+        GaugeBacktest {
+            gauge_id: gauge.id.clone(),
+            gauge_name: gauge.name.clone(),
+            from,
+            to,
+            warned_episodes: episodes
+                .iter()
+                .filter(|episode| episode.warned_days_before.is_some())
+                .count(),
+            episodes,
+            alerts: alerts.len(),
+            alerts_per_year: alerts.len() as f64 / years,
+            warnings: warnings.len(),
+            warnings_followed,
+        }
     }
 
     #[cfg(test)]
@@ -470,7 +645,7 @@ pub mod river {
         fn status(
             stage: Option<f64>,
             forecast_on: Option<&str>,
-            band: Option<&str>,
+            score: Option<f64>,
         ) -> RiverStatus {
             let at = DateTime::parse_from_rfc3339("2026-10-31T21:00:00Z")
                 .unwrap()
@@ -504,9 +679,11 @@ pub mod river {
                     .map(|day| NaiveDate::parse_from_str(day, "%Y-%m-%d").unwrap()),
                 barge_rate: None,
                 traffic: None,
-                score: band.map(|band| ConstraintScore {
-                    total: 55.0,
-                    band: band.into(),
+                score: score.map(|total| ConstraintScore {
+                    total,
+                    band: BAND_NAMES
+                        [crate::analytics::river::band_rank(total, &config().bands) as usize]
+                        .into(),
                     depth: None,
                     forecast: None,
                     traffic: None,
@@ -527,7 +704,13 @@ pub mod river {
         }
 
         fn run(record: RiverAlertRecord, status: RiverStatus) -> Vec<RiverEvaluation> {
-            evaluate(&[record], &HashMap::from([("stlouis".to_string(), status)]))
+            let config = config();
+            evaluate(
+                &[record],
+                &HashMap::from([("stlouis".to_string(), status)]),
+                &config.bands,
+                config.alerts.rearm_ft,
+            )
         }
 
         #[test]
@@ -564,11 +747,19 @@ pub mod river {
                 )
                 .is_empty()
             );
-            // Back above: re-armed without a notification.
-            assert_eq!(
+            // Just back above the level is not enough to re-arm.
+            assert!(
                 run(
                     record(RiverRule::BelowRestriction, 1, true),
                     status(Some(1.5), None, None)
+                )
+                .is_empty()
+            );
+            // A foot above it, the rule re-arms without a notification.
+            assert_eq!(
+                run(
+                    record(RiverRule::BelowRestriction, 1, true),
+                    status(Some(2.5), None, None)
                 ),
                 vec![RiverEvaluation {
                     id: "river:stlouis:below_restriction".into(),
@@ -621,16 +812,24 @@ pub mod river {
 
         #[test]
         fn the_band_rule_fires_on_each_move_up_and_follows_moves_down_quietly() {
+            // 42 is ELEVATED on screen but not past the 5-point margin.
+            assert!(
+                run(
+                    record(RiverRule::BandUp, 0, true),
+                    status(Some(2.0), None, Some(42.0))
+                )
+                .is_empty()
+            );
             let up = run(
                 record(RiverRule::BandUp, 0, true),
-                status(Some(2.0), None, Some("ELEVATED")),
+                status(Some(2.0), None, Some(50.0)),
             );
             assert_eq!(up[0].state, 1);
             assert!(up[0].fired.as_ref().unwrap().title.ends_with("ELEVATED"));
             assert_eq!(
                 run(
                     record(RiverRule::BandUp, 1, true),
-                    status(Some(2.0), None, Some("HIGH"))
+                    status(Some(2.0), None, Some(80.0))
                 )[0]
                 .state,
                 2
@@ -638,13 +837,13 @@ pub mod river {
             assert!(
                 run(
                     record(RiverRule::BandUp, 2, true),
-                    status(Some(2.0), None, Some("HIGH"))
+                    status(Some(2.0), None, Some(68.0))
                 )
                 .is_empty()
             );
             let down = run(
                 record(RiverRule::BandUp, 2, true),
-                status(Some(2.0), None, Some("NORMAL")),
+                status(Some(2.0), None, Some(20.0)),
             );
             assert_eq!(
                 down,
@@ -660,13 +859,76 @@ pub mod river {
         fn alert_wording_never_claims_cause() {
             for rule in RiverRule::ALL {
                 let (title, body) =
-                    message(rule, &status(Some(0.8), Some("2026-11-04"), Some("HIGH")));
+                    message(rule, &status(Some(0.8), Some("2026-11-04"), Some(80.0)), 2);
                 for text in [title, body] {
                     for banned in crate::analytics::backtest::BANNED_PHRASES {
                         assert!(!text.to_lowercase().contains(banned), "{text}");
                     }
                 }
             }
+        }
+
+        fn day(value: &str) -> NaiveDate {
+            NaiveDate::parse_from_str(value, "%Y-%m-%d").unwrap()
+        }
+
+        fn point(date: NaiveDate, stage: f64, rate: f64) -> RiverPoint {
+            RiverPoint {
+                date,
+                close: None,
+                stage: Some(stage),
+                stage_low: None,
+                stage_mean: None,
+                stage_high: None,
+                forecast_min: Some(stage),
+                barge_rate: Some(rate),
+                score: None,
+                band: None,
+                partial: false,
+                basis_spread: None,
+            }
+        }
+
+        #[test]
+        fn the_backtest_finds_freight_episodes_and_the_warnings_before_them() {
+            let config = config();
+            let (_, gauge) = config.gauge("stlouis").unwrap();
+            let start = day("2026-06-01");
+            // The river falls below the 1.0 ft restriction level on day 20; freight jumps 30% on
+            // day 40 and again on day 54 (one episode), then a harvest jump at high water on day 150.
+            let points: Vec<RiverPoint> = (0..200)
+                .map(|offset| {
+                    let stage = if (20..100).contains(&offset) {
+                        0.5
+                    } else {
+                        6.0
+                    };
+                    let rate = match offset {
+                        0..40 => 400.0,
+                        40..54 => 520.0,
+                        54..150 => 700.0,
+                        _ => 910.0,
+                    };
+                    point(start + chrono::Duration::days(offset), stage, rate)
+                })
+                .collect();
+            let report = backtest(gauge, &config.bands, config.alerts.rearm_ft, &points);
+            assert_eq!(report.episodes.len(), 2);
+            assert_eq!(report.episodes[0].start, start + chrono::Duration::days(40));
+            assert!((report.episodes[0].rise_percent - 30.0).abs() < 1e-9);
+            assert_eq!(report.episodes[0].warned_days_before, Some(20));
+            assert_eq!(report.episodes[1].stage, Some(6.0));
+            assert_eq!(report.episodes[1].warned_days_before, None);
+            assert_eq!(report.warned_episodes, 1);
+            // One alert below the restriction level on day 20; recovery re-arms it without a new one.
+            assert_eq!(
+                replay(gauge, &config.bands, config.alerts.rearm_ft, &points),
+                vec![(
+                    start + chrono::Duration::days(20),
+                    RiverRule::BelowRestriction
+                )]
+            );
+            assert_eq!((report.warnings, report.warnings_followed), (1, 1));
         }
     }
 }

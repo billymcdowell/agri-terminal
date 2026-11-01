@@ -112,7 +112,7 @@ Regressing the change in rate on the change in depth below restriction over the 
 
 ## Low-water thresholds (provisional)
 
-All in feet on each gauge's own datum, for `config/waterways.json`. They are starting values for Phase 7 calibration, not operational limits.
+All in feet on each gauge's own datum, for `config/waterways.json`. They are reference levels, not operational limits. The Phase 7 calibration against 2020–2026 kept them unchanged; see [`../river.md`](../river.md).
 
 | Gauge | Normal | Restriction | Critical | Sources |
 | --- | --- | --- | --- | --- |

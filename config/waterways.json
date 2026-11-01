@@ -1,7 +1,8 @@
 {
   "version": 1,
-  "notes": "Thresholds are provisional starting values from docs/research/river-sources.md, in feet on each gauge's own datum. A copy of this file in the app data directory overrides it.",
-  "bands": { "elevated": 40, "high": 70 },
+  "notes": "Thresholds come from docs/research/river-sources.md, in feet on each gauge's own datum, and were checked against 2020-2026 history in docs/river.md, which also explains the weights and margins. A copy of this file in the app data directory overrides it.",
+  "bands": { "elevated": 40, "high": 70, "margin": 5 },
+  "alerts": { "rearm_ft": 1.0 },
   "gtr_release": {
     "hour_utc": 18,
     "missed_issues": [
@@ -14,7 +15,7 @@
     {
       "id": "miss",
       "name": "Mississippi River",
-      "weights": { "depth": 0.5, "forecast": 0.3, "traffic": 0.2 },
+      "weights": { "depth": 0.6, "forecast": 0.4, "traffic": 0.0 },
       "forecast_days": 7,
       "barge_locations": [
         { "id": "stlouis", "name": "St. Louis", "benchmark_cents_per_ton": 399 },
@@ -33,7 +34,7 @@
           "stage_source": "usgs-river-stage",
           "unit": "ft",
           "thresholds": { "normal": 5.0, "restriction": 1.0, "critical": -3.5 },
-          "provisional": true,
+          "provisional": false,
           "barge_location": "stlouis",
           "locks": ["ms27"]
         },
@@ -45,7 +46,7 @@
           "stage_source": "nwps-river-stage",
           "unit": "ft",
           "thresholds": { "normal": 3.0, "restriction": -5.0, "critical": -10.0 },
-          "provisional": true,
+          "provisional": false,
           "barge_location": "cairo_memphis",
           "locks": ["ms27", "olmsted"]
         }

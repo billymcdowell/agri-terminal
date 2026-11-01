@@ -78,6 +78,7 @@ pub fn run() {
             commands::get_river_status,
             commands::get_river_timeline,
             commands::run_backtest,
+            commands::run_river_backtest,
             commands::list_alerts,
             commands::save_alert,
             commands::delete_alert,

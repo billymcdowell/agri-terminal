@@ -378,7 +378,13 @@ fn river_events_until(
                 .find(|location| &location.id == id)
                 .map(|location| location.name.as_str())
         });
-        events.extend(river::river_events(gauge, location, &points));
+        events.extend(river::river_events(
+            gauge,
+            location,
+            &config.bands,
+            config.alerts.rearm_ft,
+            &points,
+        ));
     }
     Ok(events)
 }
@@ -633,6 +639,35 @@ pub fn get_river_timeline(
     ))
 }
 
+/// The river alerts replayed over every stored day of each gauge, against barge-freight episodes.
+#[tauri::command(async)]
+pub fn run_river_backtest(app: AppHandle) -> Result<Vec<alerts::river::GaugeBacktest>, String> {
+    let config = waterways_config(&app)?;
+    let today = Utc::now().date_naive();
+    with_connection(&app, |connection| {
+        config
+            .gauges()
+            .map(|(river_config, gauge)| {
+                let stored = StoredGaugeSeries::load(connection, river_config, gauge)?;
+                let points = river::river_timeline(
+                    river_config,
+                    gauge,
+                    &config.bands,
+                    &stored.view(),
+                    &[],
+                    today,
+                );
+                Ok(alerts::river::backtest(
+                    gauge,
+                    &config.bands,
+                    config.alerts.rearm_ft,
+                    &points,
+                ))
+            })
+            .collect()
+    })
+}
+
 /// Every river alert rule with its switch and state.
 #[tauri::command(async)]
 pub fn list_river_alerts(app: AppHandle) -> Result<Vec<RiverAlertRecord>, String> {
@@ -672,7 +707,9 @@ fn evaluate_river_alerts(app: &AppHandle) -> Result<(), String> {
         }
         let records = alerts::river::rules(&config, &store::river_alert_states(connection)?);
         let mut fired = Vec::new();
-        for change in alerts::river::evaluate(&records, &statuses) {
+        for change in
+            alerts::river::evaluate(&records, &statuses, &config.bands, config.alerts.rearm_ft)
+        {
             store::set_river_alert_state(connection, &change.id, change.state)?;
             fired.extend(change.fired);
         }

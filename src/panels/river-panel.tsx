@@ -32,7 +32,7 @@ function ScoreCard({ status }: { status: RiverStatus }) {
             {score.partial && <p className="metric-foot">{RIVER_TEXT.partialNote}</p>}
           </>
         ) : <p className="metric-foot">{RIVER_TEXT.noScore}</p>}
-        {status.provisional && <p className="metric-foot">{RIVER_TEXT.provisional}</p>}
+        <p className="metric-foot">{status.provisional ? RIVER_TEXT.provisional : RIVER_TEXT.calibrated}</p>
       </CardContent>
     </Card>
   );
@@ -146,6 +146,7 @@ function TrafficCard({ status }: { status: RiverStatus }) {
             <p className="metric-foot">Week ending {traffic.week} · {traffic.locks.join(" and ")} · released {new Date(traffic.releasedAt).toLocaleDateString()}</p>
           </>
         )}
+        {status.score?.traffic?.weight === 0 && <p className="metric-foot">{RIVER_TEXT.trafficNote}</p>}
       </CardContent>
     </Card>
   );

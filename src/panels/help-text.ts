@@ -118,10 +118,12 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     oneLine: "Whether low water on the Mississippi is restricting barges, and what freight is doing.",
     summary: "A 0 to 100 river constraint score for a Mississippi gauge, with the river level, the National Weather Service forecast, the weekly USDA barge freight rate and grain moving through the locks. When the river runs low, barges must load lighter, so freight costs rise and the gap between Gulf and inland grain prices tends to widen. Pick the gauge in the panel settings.",
     howToRead: [
-      "The score adds up three parts: how far the river is below its normal level (depth), how low the forecast goes over the next 7 days (forecast) and how far lock tonnage has fallen against the four weeks before (traffic). 0 to 39 is Normal, 40 to 69 Elevated, 70 and above High.",
-      "PARTIAL means one part was missing or out of date, so the score was worked out from the others with their weights scaled up.",
+      "The score combines how far the river is below its normal level (depth, 60%) and how low the forecast goes over the next 7 days (forecast, 40%). 0 to 39 is Normal, 40 to 69 Elevated, 70 and above High.",
+      "Lock tonnage is shown for context but not scored: it follows the harvest calendar more than the river, rising every September lull and falling at harvest even at record low water.",
+      "PARTIAL means one part was missing or out of date, so the score was worked out from the other with its weight scaled up.",
       "River stage is the gauge reading in feet. It can be below zero: the zero is a fixed reference point, not the river bed. The five-year range is the same time of year in the previous five years.",
-      "The restriction level is roughly where barges start loading lighter; the critical level is where restrictions become severe. These starting values are provisional.",
+      "The restriction level is roughly where barges start loading lighter; the critical level is where restrictions become severe. They come from National Weather Service, Corps and extension sources and were checked against 2020 to 2026.",
+      "How well it has worked, October 2020 to October 2026: in both big low-water years the score and alerts warned before barge freight jumped, by 39 and 35 days at St. Louis (September 2022 and August 2023) and by 7 and 34 days at Memphis. Most freight jumps happen for other reasons, such as harvest demand at high water, and the river alerts miss those by design. Only about one warning in five was followed by a freight jump of 25% or more within six weeks, because freight often stays high once the river is low. Treat the score as context, not a signal to trade on.",
       "Barge freight is quoted as a percent of a 1976 benchmark tariff for that stretch of river. The dollar figure converts it to dollars per short ton.",
       "River effects usually show up more in freight, basis and spreads than in futures prices, so treat the score as a possible pressure, not a price call.",
       "Freight pressure, next 14 days, applies how far the barge rate has moved in the past per foot of change in depth below the restriction level to the forecast's second week. The fit (R²) says how much of freight's movement river depth has explained, which is usually little: treat it as a rough guide.",
@@ -173,6 +175,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       "Alerts are checked after each price update against the daily close, so they cannot fire during the trading day.",
       "An alert fires once per crossing, then re-arms after the price moves back across the level.",
       "River alerts fire when a gauge falls to its restriction or critical level, when the forecast reaches the restriction level within the forecast window, and each time the river constraint score moves up a band. Pause any you do not want.",
+      "So a river hovering at a level does not notify again and again, a level alert re-arms only once the river is a foot back above it, and the score must pass a band's cut-off by 5 points to count as moving up. In 2020 to 2026 that meant about 18 alerts a year at St. Louis and 11 at Memphis, mostly in the low-water autumns.",
     ],
     terms: [
       ["ARMED", "Waiting for the close to cross your level."],

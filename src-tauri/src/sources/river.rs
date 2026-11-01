@@ -47,6 +47,8 @@ pub struct WaterwaysConfig {
     #[serde(default)]
     pub notes: String,
     pub bands: Bands,
+    #[serde(default)]
+    pub alerts: AlertSettings,
     pub gtr_release: GtrRelease,
     pub rivers: Vec<River>,
 }
@@ -77,6 +79,23 @@ pub struct MissedIssues {
 pub struct Bands {
     pub elevated: f64,
     pub high: f64,
+    /// Band changes for alerts and the move explainer need the score this far past a cut-off,
+    /// so a score hovering around one does not flip back and forth. The shown band ignores it.
+    #[serde(default)]
+    pub margin: f64,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AlertSettings {
+    /// A stage or forecast alert re-arms only once the level is this far back above its threshold.
+    pub rearm_ft: f64,
+}
+
+impl Default for AlertSettings {
+    fn default() -> Self {
+        Self { rearm_ft: 0.0 }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -145,7 +164,7 @@ pub struct Gauge {
     pub stage_source: String,
     pub unit: String,
     pub thresholds: Thresholds,
-    /// True until Phase 7 calibration replaces the starting values.
+    /// True while the thresholds are untested starting values; false once checked against history.
     pub provisional: bool,
     /// The barge rate location whose freight reacts to this gauge.
     pub barge_location: Option<String>,
@@ -218,6 +237,17 @@ pub fn parse_waterways(text: &str) -> Result<WaterwaysConfig, String> {
         && config.bands.high <= 100.0)
     {
         problems.push("bands: need 0 < elevated < high <= 100".into());
+    }
+    if !(0.0..(config.bands.high - config.bands.elevated) / 2.0).contains(&config.bands.margin)
+        || config.bands.margin >= config.bands.elevated
+    {
+        problems.push(
+            "bands.margin: must be 0 or more and smaller than half the gap between the cut-offs"
+                .into(),
+        );
+    }
+    if !(0.0..=10.0).contains(&config.alerts.rearm_ft) {
+        problems.push("alerts.rearm_ft: must be between 0 and 10 feet".into());
     }
     if config.gtr_release.hour_utc > 23 {
         problems.push("gtr_release.hour_utc: must be 0 to 23".into());
@@ -911,13 +941,15 @@ mod tests {
     #[test]
     fn invalid_waterways_files_name_the_field_to_change() {
         let broken = BUNDLED_WATERWAYS
-            .replace("\"depth\": 0.5", "\"depth\": 0.6")
+            .replace("\"depth\": 0.6", "\"depth\": 0.7")
+            .replace("\"margin\": 5", "\"margin\": 20")
             .replace("\"critical\": -3.5", "\"critical\": 2.0")
             .replace("\"MEMT1\"", "\"MEM\"");
         let error = parse_waterways(&broken).unwrap_err();
         assert!(error.contains("rivers.miss.weights"), "{error}");
         assert!(error.contains("gauges.stlouis.thresholds"), "{error}");
         assert!(error.contains("gauges.memphis.nws_id"), "{error}");
+        assert!(error.contains("bands.margin"), "{error}");
         assert!(parse_waterways("{\"version\": 1}").is_err());
     }
 

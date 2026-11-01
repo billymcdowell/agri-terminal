@@ -92,6 +92,7 @@ export function installMockBridge() {
       case "get_river_timeline": return buildRiverTimeline(String(a.gauge ?? "stlouis"), prices[`price.${sym(a.commodity)}.close`] ?? []);
       case "list_river_alerts": return riverAlerts;
       case "set_river_alert_enabled": riverAlerts = riverAlerts.map((x) => (x.id === a.id ? { ...x, enabled: a.enabled, state: 0 } : x)); return null;
+      case "run_river_backtest": return [];
       case "run_backtest": return { total: 14, detected: 12, topMatch: 8, missedDates: ["2026-03-11", "2026-04-02"], topMatchRate: 0.667 };
       case "list_alerts": return alerts;
       case "save_alert": alerts = [...alerts.filter((x) => x.id !== a.alert.id), { ...a.alert, enabled: true, triggered: false }]; return null;

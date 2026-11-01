@@ -90,6 +90,13 @@ export type RiverPoint = {
   date: string; close: number | null; stage: number | null; stageLow: number | null; stageMean: number | null; stageHigh: number | null;
   forecastMin: number | null; bargeRate: number | null; score: number | null; band: RiverBand | null; partial: boolean; basisSpread: number | null;
 };
+export type FreightEpisode = { start: string; risePercent: number; stage: number | null; warnedDaysBefore: number | null };
+/** River alerts replayed over a gauge's stored history against weeks barge freight rose 25% or more. */
+export type GaugeBacktest = {
+  gaugeId: string; gaugeName: string; from: string | null; to: string | null; episodes: FreightEpisode[]; warnedEpisodes: number;
+  alerts: number; alertsPerYear: number; warnings: number; warningsFollowed: number;
+};
+export function runRiverBacktest() { return invoke<GaugeBacktest[]>("run_river_backtest"); }
 export function getRiverStatus(gauge?: string) { return invoke<RiverStatus>("get_river_status", { gauge }); }
 export function getRiverTimeline(gauge: string | undefined, commodity: string) { return invoke<RiverPoint[]>("get_river_timeline", { gauge, commodity }); }
 

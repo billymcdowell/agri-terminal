@@ -252,7 +252,7 @@ function buildRiver(id: string): DemoRiver {
     const average = before.length === 4 ? before.reduce((a, w) => a + w.v, 0) / 4 : 0;
     return { depth: deficit(stage[i]), forecast: deficit(forecastMin[i]), traffic: latest && average ? clamp01((average - latest.v) / average / 0.5) : 0 };
   });
-  const score = components.map((c) => Math.round((50 * c.depth + 30 * c.forecast + 20 * c.traffic) * 10) / 10);
+  const score = components.map((c) => Math.round((60 * c.depth + 40 * c.forecast) * 10) / 10);
   return { days, stage, forecastMin, barge, tons, score, gauge, components };
 }
 
@@ -275,13 +275,13 @@ export function buildRiverStatus(id: string): RiverStatus {
   const total = r.score[n];
   return {
     gaugeId: id, gaugeName: id === "memphis" ? "Memphis, TN" : "St. Louis, MO", riverName: "Mississippi River", unit: "ft",
-    thresholds: { normal: g.normal, restriction: g.restriction, critical: g.critical }, provisional: true, asOf: iso(NOW),
+    thresholds: { normal: g.normal, restriction: g.restriction, critical: g.critical }, provisional: false, asOf: iso(NOW),
     stage: input(n, r.stage[n], 16), stageBand: { low: Math.min(...sameDay), mean: sameDay.reduce((a, v) => a + v, 0) / sameDay.length, high: Math.max(...sameDay), years: sameDay.length },
     forecastIssuedAt: iso(today + 16 * 3600_000 - DAY), forecastFetchedAt: iso(NOW - 2 * 3600_000), forecast, forecastMin: Math.min(...forecast.map((f) => f.low)),
     restrictionForecastOn: r.stage[n] > g.restriction ? forecast.find((f) => f.low <= g.restriction)?.date ?? null : null,
     bargeRate: { latest: input(barge.i, barge.v, 66), previous: input(previous.i, previous.v, 66), changePercent: (barge.v / previous.v - 1) * 100, dollarsPerTon: (barge.v * g.benchmark) / 10_000, location: g.location },
     traffic: { week: day(r.days[tons.i]), tons: tons.v, averageTons: average, changePercent: (tons.v / average - 1) * 100, locks: id === "memphis" ? ["MS Locks 27", "OH Olmsted"] : ["MS Locks 27"], releasedAt: iso(r.days[tons.i] + 5 * DAY + 18 * 3600_000) },
-    score: { total, band: total >= 70 ? "HIGH" : total >= 40 ? "ELEVATED" : "NORMAL", partial: false, depth: weight(c.depth, 0.5), forecast: weight(c.forecast, 0.3), traffic: weight(c.traffic, 0.2) },
+    score: { total, band: total >= 70 ? "HIGH" : total >= 40 ? "ELEVATED" : "NORMAL", partial: false, depth: weight(c.depth, 0.6), forecast: weight(c.forecast, 0.4), traffic: weight(c.traffic, 0) },
     pressure: (() => {
       const currentDepth = Math.max(0, g.restriction - r.stage[n]);
       const lows = forecast.slice(-4).map((f) => f.low);
