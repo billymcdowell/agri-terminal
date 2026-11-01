@@ -96,6 +96,7 @@ impl Cadence {
 pub enum SourceRecord {
     Price(Observation),
     Metric(MetricObservation),
+    Document(DocumentRecord),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
@@ -103,6 +104,23 @@ pub enum SourceRecord {
 pub enum SeriesKind {
     Price,
     Metric,
+    Document,
+}
+
+/// A text record that does not fit a numeric series, such as a written summary or a crop damage
+/// event, kept whole as the source published it. Its publish time is its release time.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentRecord {
+    /// Groups documents the way a series id groups values, such as `nowcast.brief`.
+    pub dataset: String,
+    /// Identifies one document across publishes; a changed document becomes a new revision.
+    pub doc_id: String,
+    pub published_at: DateTime<Utc>,
+    pub document: serde_json::Value,
+    pub source_id: SourceId,
+    pub fetched_at: DateTime<Utc>,
+    pub revision: u32,
 }
 
 /// A stored series and the source that wrote it, for browsing raw rows.
@@ -125,6 +143,7 @@ pub struct StoredSeries {
 pub enum StoredRows {
     Price(Vec<Observation>),
     Metric(Vec<MetricObservation>),
+    Document(Vec<DocumentRecord>),
 }
 
 #[derive(Clone, Debug, Serialize)]

@@ -7,9 +7,11 @@ use super::source::{PluginSource, has_secret};
 use crate::core::DataSource;
 
 /// Manifests that ship with the app. They run through the same loader as installed plugins.
-const BUILTIN: &[&str] = &[include_str!(
-    "../../../plugins/builtin/us-drought-monitor.toml"
-)];
+const BUILTIN: &[&str] = &[
+    include_str!("../../../plugins/builtin/us-drought-monitor.toml"),
+    include_str!("../../../plugins/builtin/crop-nowcast-yield.toml"),
+    include_str!("../../../plugins/builtin/crop-nowcast-acreage.toml"),
+];
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -305,6 +307,103 @@ mod tests {
             headers,
             vec![("Accept".to_string(), "application/json".to_string())]
         );
+    }
+
+    fn builtin(id: &str) -> Manifest {
+        load_all(&temp_dir(id))
+            .into_iter()
+            .find(|item| item.summary.id == id)
+            .and_then(|item| {
+                assert!(item.summary.builtin && item.summary.errors.is_empty());
+                item.manifest
+            })
+            .unwrap_or_else(|| panic!("bundled manifest {id}"))
+    }
+
+    #[test]
+    fn the_nowcast_yield_manifest_reads_the_sample_output_with_publish_times() {
+        let manifest = builtin("crop-nowcast-yield");
+        let body = include_str!("../../../pipelines/crop-nowcast/sample_output/latest/yield.csv");
+        let fetched = chrono::DateTime::parse_from_rfc3339("2026-08-20T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let rows = crate::plugins::source::extract(&manifest, body.as_bytes(), fetched).unwrap();
+        let find = |id: &str, period: &str| {
+            rows.iter()
+                .find(|row| row.series_id.0 == id && row.period.to_string() == period)
+                .unwrap_or_else(|| panic!("{id} {period}"))
+        };
+        // corn, US, week ending 2026-08-16, published 2026-08-18T18:00:00Z
+        let p50 = find("nowcast.corn.us.yield_p50", "2026-08-16");
+        assert_eq!(p50.value, 183.0);
+        assert_eq!(p50.unit, "bu/acre");
+        assert_eq!(p50.released_at.to_rfc3339(), "2026-08-18T18:00:00+00:00");
+        assert_eq!(
+            find("nowcast.corn.us.yield_gap_p50", "2026-08-16").value,
+            -0.4
+        );
+        assert_eq!(
+            find("nowcast.soybeans.ia.yield_usda_latest", "2026-08-16").value,
+            58.5
+        );
+        // The first week was published in June, long before this fetch.
+        assert_eq!(
+            find("nowcast.corn.ia.yield_p10", "2026-06-14")
+                .released_at
+                .to_rfc3339(),
+            "2026-06-16T18:00:00+00:00"
+        );
+        // State rows have no USDA yield before the August Crop Production report.
+        let crop_production_week = chrono::NaiveDate::from_ymd_opt(2026, 8, 16).unwrap();
+        assert!(!rows.iter().any(|row| {
+            row.series_id.0 == "nowcast.corn.ia.yield_usda_latest"
+                && row.period < crop_production_week
+        }));
+        assert!(
+            rows.iter()
+                .all(|row| row.source_id.0 == "crop-nowcast-yield")
+        );
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row.series_id.0.ends_with(".yield_p50"))
+                .count(),
+            2 * 11 * 10
+        );
+    }
+
+    #[test]
+    fn the_nowcast_acreage_manifest_reads_the_sample_output() {
+        let manifest = builtin("crop-nowcast-acreage");
+        let body = include_str!("../../../pipelines/crop-nowcast/sample_output/latest/acreage.csv");
+        let fetched = chrono::DateTime::parse_from_rfc3339("2026-08-20T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let rows = crate::plugins::source::extract(&manifest, body.as_bytes(), fetched).unwrap();
+        let first = rows
+            .iter()
+            .find(|row| {
+                row.series_id.0 == "nowcast.corn.us.acres_p50"
+                    && row.period.to_string() == "2026-06-14"
+            })
+            .unwrap();
+        assert_eq!(first.value, 93_500_000.0);
+        assert_eq!(first.unit, "acres");
+        assert_eq!(first.released_at.to_rfc3339(), "2026-06-16T18:00:00+00:00");
+        assert_eq!(rows.len(), 2 * 11 * 10 * 4);
+    }
+
+    #[test]
+    fn the_nowcast_manifests_cover_the_configured_crop_states() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../../../config/crop-regions.json")).unwrap();
+        let body = include_str!("../../../pipelines/crop-nowcast/sample_output/latest/yield.csv");
+        for region in config["regions"].as_array().unwrap() {
+            let state = region["id"].as_str().unwrap().to_uppercase();
+            assert!(
+                body.contains(&format!(",corn,{state},")),
+                "{state} is in config/crop-regions.json but not in the sample output"
+            );
+        }
     }
 
     #[test]

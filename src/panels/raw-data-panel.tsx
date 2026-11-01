@@ -14,9 +14,9 @@ import { buildRawSources, formatCell, lastRefresh, rawColumns, totalRows, type R
 
 const PAGE_SIZE = 200;
 /** Fields that identify the dataset, which the panel already shows above the rows. */
-const OMIT: Record<RawSourceKind, string[]> = { series: ["seriesId", "sourceId"], weather: [], news: ["commodity"] };
+const OMIT: Record<RawSourceKind, string[]> = { series: ["seriesId", "sourceId", "dataset"], weather: [], news: ["commodity"] };
 const NOTES: Record<RawSourceKind, string> = {
-  series: "Every stored revision, newest period first, exactly as saved after parsing. Prices are in USD per bushel and times in UTC.",
+  series: "Every stored revision, newest period first, exactly as saved after parsing. Prices are in USD per bushel and times in UTC. Text records, such as the nowcast brief, are kept whole and listed newest publish first.",
   weather: "The cached forecast for the commodity's growing regions. The Weather panel refreshes it.",
   news: "The newest 100 cached headlines for the commodity. The News panel refreshes them.",
 };

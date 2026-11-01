@@ -181,7 +181,7 @@ curl -sS -w '\nHTTP %{http_code} in %{time_total}s\n' -X POST "https://api.cloud
 
 ## Recommended changes to the plan
 
-Not yet applied to `docs/Crop Nowcast Plan.md`, apart from the publishing decision above.
+Not yet applied to `docs/Crop Nowcast Plan.md`, apart from the publishing decision above and the parts of item 14 done in Phase 1 (the `[response.released_at]` manifest field and the reserved ids).
 
 1. **Section 5, USDA forecasts by vintage:** replace "and/or FAS PSD" with NASS Quick Stats (August to November, national and state) plus the WASDE archive on ESMIS (May to July, national only). PSD has no vintages.
 2. **Section 6 and Phase 3, yield gap:** state rows have no USDA figure before August. Allow an empty `usda_latest`, and give `usda_vintage` a source and month (for example `wasde-2026-07`, `nass-2026-08`). The June–July state gap can only be against trend.

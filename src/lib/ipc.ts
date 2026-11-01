@@ -86,9 +86,11 @@ export function subscribeToAlerts(callback: (alert: AlertFired) => void) {
 
 export function getDataDirectory() { return invoke<string>("get_data_directory"); }
 export function listSeries() { return invoke<string[]>("list_series"); }
-/** A stored series and the source that wrote it; `rows` counts every revision. */
-export type StoredSeries = { seriesId: string; sourceId: string; kind: "price" | "metric"; rows: number; firstPeriod: string; lastPeriod: string; lastFetchedAt: string };
-export type StoredRows = { kind: "price"; rows: PriceBar[] } | { kind: "metric"; rows: MetricPoint[] };
+/** A stored series, or a dataset of documents, and the source that wrote it; `rows` counts every revision. */
+export type StoredSeries = { seriesId: string; sourceId: string; kind: "price" | "metric" | "document"; rows: number; firstPeriod: string; lastPeriod: string; lastFetchedAt: string };
+/** A text record kept whole as published, such as the nowcast brief or a damage event. `publishedAt` is its release time. */
+export type StoredDocument = { dataset: string; docId: string; publishedAt: string; document: unknown; sourceId: string; fetchedAt: string; revision: number };
+export type StoredRows = { kind: "price"; rows: PriceBar[] } | { kind: "metric"; rows: MetricPoint[] } | { kind: "document"; rows: StoredDocument[] };
 export function listStoredSeries() { return invoke<StoredSeries[]>("list_stored_series"); }
 export function getStoredRows(seriesId: string) { return invoke<StoredRows>("get_stored_rows", { seriesId }); }
 export function exportSeriesCsv(seriesId: string) { return invoke<string>("export_series_csv", { seriesId }); }

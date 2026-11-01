@@ -718,7 +718,7 @@ mod tests {
             .iter()
             .filter_map(|record| match record {
                 SourceRecord::Metric(row) => Some(row),
-                SourceRecord::Price(_) => None,
+                _ => None,
             })
             .collect()
     }

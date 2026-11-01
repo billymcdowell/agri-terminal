@@ -1,0 +1,54 @@
+id = "crop-nowcast-yield"
+name = "Crop nowcast · yield (sample)"
+version = "0.1.0"
+description = "Weekly corn and soybean yield nowcasts (p10, p50, p90) for the US and the main producing states, with USDA's latest estimate and the gap to it. This reads the synthetic sample output: every value is invented, and none is a forecast."
+license_note = "Sample data invented for testing AgriTerminal. Live nowcasts will credit their USDA, NOAA and NASA sources."
+
+[permissions]
+hosts = ["raw.githubusercontent.com"]
+
+[source]
+cadence = "weekly"
+
+[request]
+# The format is docs/nowcast-data-contract.md. Phase 8 points this at billymcdowell/agri-terminal-data.
+url = "https://raw.githubusercontent.com/billymcdowell/agri-terminal/master/pipelines/crop-nowcast/sample_output/latest/yield.csv"
+max_bytes = 1048576
+
+[response]
+format = "csv"
+[response.period]
+field = "week_ending"
+# Each row carries the time it was first published, so as-of joins never use it earlier.
+[response.released_at]
+field = "published_at"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.yield_p10"
+value = "p10"
+unit = "bu/acre"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.yield_p50"
+value = "p50"
+unit = "bu/acre"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.yield_p90"
+value = "p90"
+unit = "bu/acre"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.yield_usda_latest"
+value = "usda_latest"
+unit = "bu/acre"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.yield_gap_p50"
+value = "gap_p50"
+unit = "bu/acre"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.yield_trend"
+value = "baseline_trend"
+unit = "bu/acre"

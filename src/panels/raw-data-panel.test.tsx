@@ -59,6 +59,27 @@ describe("RawDataPanel", () => {
     expect(screen.getByText(/"close": 4.7/)).toBeTruthy();
   });
 
+  it("shows text records such as the nowcast brief whole, newest publish first", async () => {
+    ipc.listSources.mockResolvedValue([
+      { sourceId: "crop-nowcast-brief", name: "Crop nowcast · brief and damage events (sample)", state: "ok", lastOk: null, error: null, enabled: true },
+    ]);
+    ipc.listStoredSeries.mockResolvedValue([
+      { seriesId: "nowcast.brief", sourceId: "crop-nowcast-brief", kind: "document", rows: 2, firstPeriod: "2026-08-11", lastPeriod: "2026-08-18", lastFetchedAt: "2026-08-20T00:00:00+00:00" },
+    ]);
+    const brief = (publishedAt: string, summary: string) => ({
+      dataset: "nowcast.brief", docId: publishedAt, publishedAt: publishedAt.replace("Z", "+00:00"),
+      document: { published_at: publishedAt, summary }, sourceId: "crop-nowcast-brief", fetchedAt: "2026-08-20T00:00:00+00:00", revision: 0,
+    });
+    ipc.getStoredRows.mockResolvedValue({ kind: "document", rows: [brief("2026-08-11T18:00:00Z", "Sample data, older."), brief("2026-08-18T18:00:00Z", "Sample data, newer.")] });
+    renderPanel({ sourceId: "crop-nowcast-brief" });
+    expect(await screen.findByText(/Sample data, newer/)).toBeTruthy();
+    expect(ipc.getStoredRows).toHaveBeenCalledWith("nowcast.brief");
+    const rows = screen.getAllByRole("row").filter((row) => within(row).queryByText(/Sample data/));
+    expect(rows.map((row) => within(row).getAllByRole("cell")[0].textContent)).toEqual(["2026-08-18T18:00:00Z", "2026-08-11T18:00:00Z"]);
+    expect(screen.queryByRole("columnheader", { name: "dataset" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "document" })).toBeTruthy();
+  });
+
   it("selects a source through the panel parameters and explains an empty or failing one", async () => {
     const api = renderPanel({ sourceId: "usda-nass" });
     expect(await screen.findByText(/LAST REFRESH FAILED · Authentication/)).toBeTruthy();

@@ -1,0 +1,44 @@
+id = "crop-nowcast-acreage"
+name = "Crop nowcast · acreage (sample)"
+version = "0.1.0"
+description = "Weekly corn and soybean planted-area nowcasts (p10, p50, p90) for the US and the main producing states, with USDA's latest figure. This reads the synthetic sample output: every value is invented, and none is a forecast."
+license_note = "Sample data invented for testing AgriTerminal. Live nowcasts will credit their USDA, NASA and Copernicus sources."
+
+[permissions]
+hosts = ["raw.githubusercontent.com"]
+
+[source]
+cadence = "weekly"
+
+[request]
+# The format is docs/nowcast-data-contract.md. Phase 8 points this at billymcdowell/agri-terminal-data.
+url = "https://raw.githubusercontent.com/billymcdowell/agri-terminal/master/pipelines/crop-nowcast/sample_output/latest/acreage.csv"
+max_bytes = 1048576
+
+[response]
+format = "csv"
+[response.period]
+field = "week_ending"
+# Each row carries the time it was first published, so as-of joins never use it earlier.
+[response.released_at]
+field = "published_at"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.acres_p10"
+value = "acres_p10"
+unit = "acres"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.acres_p50"
+value = "acres_p50"
+unit = "acres"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.acres_p90"
+value = "acres_p90"
+unit = "acres"
+
+[[series]]
+id = "nowcast.{crop}.{geo:lower}.acres_usda_latest"
+value = "usda_latest"
+unit = "acres"

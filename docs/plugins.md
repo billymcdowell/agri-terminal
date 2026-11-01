@@ -14,10 +14,21 @@ Start from [`plugins/template/plugin.toml`](../plugins/template/plugin.toml) (a 
 | `[request]` | `https` URL with `{placeholders}`, extra `headers`, `vars`, and an optional `max_bytes`. |
 | `[auth]` | Header or query-parameter credentials, taken from a declared secret. |
 | `[response]` | `json` or `csv`, the rows to read, and the date field (`[response.period]`). |
+| `[response.released_at]` | Optional: a row field holding the time each row became public, as an RFC 3339 time such as `2026-08-18T18:00:00Z`. |
 | `[[series]]` | One entry per series: `id`, the row field for `value`, and the `unit`. |
 | `[release]` | Optional schedule so as-of joins never use a report before it was public. |
 
-The built-in Drought Monitor connector is a manifest too: [`plugins/builtin/us-drought-monitor.toml`](../plugins/builtin/us-drought-monitor.toml).
+## When rows become public
+
+As-of joins only use a row once it was public, so each row needs a release time. A manifest sets it one of three ways:
+
+- **`[response.released_at]`**, when the source publishes a time with each row. A row with no time, or one later than the fetch, counts as released when it was fetched; a time that cannot be read is an error.
+- **`[release]`**, when the source publishes on a schedule: `days_after_period` days after the row's date at `hour_utc:minute_utc`. Rows fetched within a week of that time use the fetch time instead.
+- **Neither**: every row counts as released when it was fetched.
+
+A manifest may not use both `[release]` and `[response.released_at]`.
+
+The built-in Drought Monitor connector is a manifest too: [`plugins/builtin/us-drought-monitor.toml`](../plugins/builtin/us-drought-monitor.toml). So are the crop nowcast's yield and acreage files ([`crop-nowcast-yield.toml`](../plugins/builtin/crop-nowcast-yield.toml) and [`crop-nowcast-acreage.toml`](../plugins/builtin/crop-nowcast-acreage.toml)), which take each row's release time from its `published_at` column.
 
 ## How permissions are enforced
 

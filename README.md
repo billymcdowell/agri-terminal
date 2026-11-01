@@ -45,6 +45,7 @@ Backend (`src-tauri/src`)
 - NWS and Open-Meteo weather and GDELT plus USDA RSS news, cached locally and refreshed in the background.
 - Price alerts that fire once per crossing and re-arm when the price moves back, CSV and workspace export into the app data directory, and a settings table.
 - `analytics`: an as-of join that cannot look ahead, seasonal ranges, move detection, scheduled-event and news attribution with confidence labels, a combined crop stress timeline, and a backtest harness (see `docs/backtest.md`).
+- Crop nowcast ingestion, switched off by default: two bundled manifests read the yield and acreage files of `docs/nowcast-data-contract.md` with each row's publish time as its release time, and a small source keeps the weekly brief and crop damage events whole in a documents table. For now they read invented sample output from `pipelines/crop-nowcast/sample_output/` and are labelled "(sample)". The pipeline itself is a Python project in `pipelines/crop-nowcast/` (see `docs/Crop Nowcast Plan.md`).
 
 Frontend (`src`)
 
@@ -63,6 +64,12 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml -- --ignored   # live provider contracts
+```
+
+The crop nowcast pipeline has its own checks, run from `pipelines/crop-nowcast` with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv run ruff check && uv run ruff format --check && uv run pytest
 ```
 
 ## License

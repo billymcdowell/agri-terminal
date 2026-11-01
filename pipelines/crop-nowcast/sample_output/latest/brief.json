@@ -1,0 +1,13 @@
+{
+  "published_at": "2026-08-18T18:00:00Z",
+  "model_version": "sample-0.1.0",
+  "ai_model": null,
+  "summary": "Sample data, not a model result. For the week ending 2026-08-16, the sample model estimates U.S. corn yield at 183.0 bu/acre (range 177.0 to 187.8) and soybeans at 51.4 bu/acre (range 49.4 to 53.0).",
+  "bullets": [
+    "Corn: the sample estimate is 0.4 bu/acre below the August 2026 Crop Production figure of 183.4 bu/acre.",
+    "Soybeans: the sample estimate is 1.1 bu/acre below the August 2026 Crop Production figure of 52.5 bu/acre.",
+    "2 sample damage events on record."
+  ],
+  "validated": true,
+  "fallback_used": true
+}

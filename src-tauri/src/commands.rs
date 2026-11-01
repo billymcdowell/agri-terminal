@@ -185,6 +185,9 @@ fn resolve_source(app: &AppHandle, id: &str) -> Result<Box<dyn DataSource>, Stri
         "cftc-cot" => Some(Box::new(crate::sources::fundamentals::CftcSource)),
         "usda-nass" => Some(Box::new(crate::sources::fundamentals::NassSource)),
         "usda-fas" => Some(Box::new(crate::sources::fundamentals::FasSource)),
+        crate::sources::nowcast::SOURCE_ID => {
+            Some(Box::new(crate::sources::nowcast::NowcastBriefSource))
+        }
         _ => None,
     };
     if let Some(source) = built_in {
@@ -274,6 +277,7 @@ pub async fn refresh_source(app: AppHandle, source_id: String) -> Result<(), Str
         .map(|record| match record {
             crate::core::SourceRecord::Price(row) => row.series_id.0.clone(),
             crate::core::SourceRecord::Metric(row) => row.series_id.0.clone(),
+            crate::core::SourceRecord::Document(row) => row.dataset.clone(),
         })
         .collect();
     let prices_changed = records

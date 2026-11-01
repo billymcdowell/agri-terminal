@@ -14,6 +14,9 @@ pub const RESERVED_IDS: &[&str] = &[
     "usda-nass",
     "usda-fas",
     "us-drought-monitor",
+    "crop-nowcast-yield",
+    "crop-nowcast-acreage",
+    "crop-nowcast-brief",
 ];
 pub const DEFAULT_MAX_BYTES: usize = 5 * 1024 * 1024;
 pub const HARD_MAX_BYTES: usize = 20 * 1024 * 1024;
@@ -93,6 +96,16 @@ pub struct ResponseSpec {
     #[serde(default)]
     pub rows: String,
     pub period: PeriodSpec,
+    /// A row field holding the time the row became public, for sources that publish it.
+    #[serde(default)]
+    pub released_at: Option<ReleasedAtSpec>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleasedAtSpec {
+    /// An RFC 3339 time such as `2026-08-18T18:00:00Z`.
+    pub field: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -338,6 +351,20 @@ pub fn validate(manifest: &Manifest, trusted: bool) -> Vec<String> {
             "must name the row field holding the date".into(),
         );
     }
+    if let Some(released_at) = &manifest.response.released_at {
+        if released_at.field.trim().is_empty() {
+            bad(
+                "response.released_at.field",
+                "must name the row field holding the release time".into(),
+            );
+        }
+        if manifest.release.is_some() {
+            bad(
+                "release",
+                "use either [release] or [response.released_at], not both".into(),
+            );
+        }
+    }
 
     if manifest.series.is_empty() {
         bad("series", "define at least one [[series]]".into());
@@ -564,5 +591,23 @@ unit = "celsius"
                 .join("\n")
                 .contains("request.max_bytes")
         );
+    }
+
+    #[test]
+    fn a_release_time_field_replaces_the_release_schedule() {
+        let with_field = GOOD.replace(
+            "field = \"date\"",
+            "field = \"date\"\n[response.released_at]\nfield = \"published_at\"",
+        );
+        let manifest = load(&with_field, false).unwrap();
+        assert_eq!(manifest.response.released_at.unwrap().field, "published_at");
+        let both = format!("{with_field}\n[release]\ndays_after_period = 1\nhour_utc = 20\n");
+        assert!(
+            load(&both, false).unwrap_err().contains(
+                &"release: use either [release] or [response.released_at], not both".into()
+            )
+        );
+        let empty = with_field.replace("field = \"published_at\"", "field = \" \"");
+        assert!(load(&empty, false).unwrap_err()[0].starts_with("response.released_at.field:"));
     }
 }

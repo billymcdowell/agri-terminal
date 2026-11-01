@@ -1,0 +1,14 @@
+{
+  "published_at": "2026-08-18T18:00:00Z",
+  "model_version": "sample-0.1.0",
+  "crops": [
+    "corn",
+    "soybeans"
+  ],
+  "training_years": [],
+  "features": [],
+  "metrics": {},
+  "limitations": [
+    "Sample output: every value is invented for testing the app and is not a forecast."
+  ]
+}

@@ -6,9 +6,9 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::{
     alerts::{AlertRecord, PriceAlert},
     core::{
-        CalendarEvent, MetricObservation, NewsItem, Observation, SeriesId, SeriesKind, SourceId,
-        SourceRecord, SourceStatus, StoredRows, StoredSeries, Unit, WeatherForecast,
-        WeatherSnapshot,
+        CalendarEvent, DocumentRecord, MetricObservation, NewsItem, Observation, SeriesId,
+        SeriesKind, SourceId, SourceRecord, SourceStatus, StoredRows, StoredSeries, Unit,
+        WeatherForecast, WeatherSnapshot,
     },
     sources::fixture::corn_daily_fixture,
 };
@@ -192,6 +192,21 @@ fn migrate(connection: &Connection) -> Result<(), String> {
             )
             .map_err(|error| format!("Create alerts schema: {error}"))?;
     }
+    if version < 11 {
+        connection
+            .execute_batch(
+                "BEGIN;
+                CREATE TABLE documents (
+                    dataset TEXT NOT NULL, doc_id TEXT NOT NULL, revision INTEGER NOT NULL,
+                    published_at TEXT NOT NULL, json TEXT NOT NULL,
+                    source_id TEXT NOT NULL, fetched_at TEXT NOT NULL,
+                    PRIMARY KEY (dataset, doc_id, revision)
+                );
+                PRAGMA user_version = 11;
+                COMMIT;",
+            )
+            .map_err(|error| format!("Create document schema: {error}"))?;
+    }
     Ok(())
 }
 
@@ -351,14 +366,94 @@ pub fn append_source_records(
 ) -> Result<usize, String> {
     let mut metrics = Vec::new();
     let mut prices = Vec::new();
+    let mut documents = Vec::new();
     for record in records {
         match record {
             SourceRecord::Price(value) => prices.push(value.clone()),
             SourceRecord::Metric(value) => metrics.push(value.clone()),
+            SourceRecord::Document(value) => documents.push(value.clone()),
         }
     }
     append_observations_as_revisions(connection, &prices)?;
+    append_document_revisions(connection, &documents)?;
     append_metric_revisions(connection, &metrics)
+}
+
+/// Adds a revision only when a document's content differs from its newest stored revision, so a
+/// refetch of the same publish changes nothing and a restated one keeps the original.
+fn append_document_revisions(
+    connection: &Connection,
+    documents: &[DocumentRecord],
+) -> Result<usize, String> {
+    let transaction = connection
+        .unchecked_transaction()
+        .map_err(|error| format!("Start document transaction: {error}"))?;
+    let mut inserted = 0;
+    {
+        let mut latest = transaction.prepare("SELECT revision, json FROM documents WHERE dataset = ?1 AND doc_id = ?2 ORDER BY revision DESC LIMIT 1").map_err(|error| format!("Prepare document revision lookup: {error}"))?;
+        let mut insert = transaction.prepare("INSERT INTO documents (dataset, doc_id, revision, published_at, json, source_id, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)").map_err(|error| format!("Prepare document insert: {error}"))?;
+        for document in documents {
+            let previous: Option<(i64, String)> = latest
+                .query_row(params![document.dataset, document.doc_id], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
+                })
+                .optional()
+                .map_err(|error| format!("Read document revision: {error}"))?;
+            // Compared as values, so key order in the stored text does not matter.
+            if previous.as_ref().is_some_and(|(_, json)| {
+                serde_json::from_str::<serde_json::Value>(json)
+                    .ok()
+                    .as_ref()
+                    == Some(&document.document)
+            }) {
+                continue;
+            }
+            let revision = previous.map_or(0, |(revision, _)| revision + 1);
+            insert
+                .execute(params![
+                    document.dataset,
+                    document.doc_id,
+                    revision,
+                    document.published_at.to_rfc3339(),
+                    document.document.to_string(),
+                    document.source_id.0,
+                    document.fetched_at.to_rfc3339()
+                ])
+                .map_err(|error| format!("Insert document revision: {error}"))?;
+            inserted += 1;
+        }
+    }
+    transaction
+        .commit()
+        .map_err(|error| format!("Commit document records: {error}"))?;
+    Ok(inserted)
+}
+
+/// Every stored revision of a document dataset, oldest publish first.
+pub fn query_document_revisions(
+    connection: &Connection,
+    dataset: &str,
+) -> Result<Vec<DocumentRecord>, String> {
+    let mut statement = connection
+        .prepare("SELECT dataset, doc_id, revision, published_at, json, source_id, fetched_at FROM documents WHERE dataset = ?1 ORDER BY published_at, doc_id, revision")
+        .map_err(|error| format!("Prepare document query: {error}"))?;
+    statement
+        .query_map([dataset], |row| {
+            let json: String = row.get(4)?;
+            Ok(DocumentRecord {
+                dataset: row.get(0)?,
+                doc_id: row.get(1)?,
+                revision: row.get(2)?,
+                published_at: parse_time(3, &row.get::<_, String>(3)?)?,
+                document: serde_json::from_str(&json)
+                    .map_err(|error| conversion_error(4, error))?,
+                source_id: SourceId(row.get(5)?),
+                fetched_at: parse_time(6, &row.get::<_, String>(6)?)?,
+            })
+        })
+        .map_err(|error| format!("Query documents: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Read document row: {error}"))
 }
 
 fn append_metric_revisions(
@@ -614,6 +709,10 @@ pub fn query_stored_rows(connection: &Connection, series_id: &str) -> Result<Sto
     if !prices.is_empty() {
         return Ok(StoredRows::Price(prices));
     }
+    let documents = query_document_revisions(connection, series_id)?;
+    if !documents.is_empty() {
+        return Ok(StoredRows::Document(documents));
+    }
     Ok(StoredRows::Metric(query_metric_revisions(
         connection, series_id,
     )?))
@@ -628,6 +727,10 @@ pub fn list_stored_series(connection: &Connection) -> Result<Vec<StoredSeries>, 
              UNION ALL
              SELECT series_id, source_id, 'metric', COUNT(*), MIN(period), MAX(period), MAX(fetched_at)
              FROM metric_observations GROUP BY series_id, source_id
+             UNION ALL
+             SELECT dataset, source_id, 'document', COUNT(*), MIN(substr(published_at, 1, 10)),
+                    MAX(substr(published_at, 1, 10)), MAX(fetched_at)
+             FROM documents GROUP BY dataset, source_id
              ORDER BY 2, 1",
         )
         .map_err(|error| format!("Prepare stored series list: {error}"))?;
@@ -636,10 +739,10 @@ pub fn list_stored_series(connection: &Connection) -> Result<Vec<StoredSeries>, 
             Ok(StoredSeries {
                 series_id: SeriesId(row.get(0)?),
                 source_id: SourceId(row.get(1)?),
-                kind: if row.get::<_, String>(2)? == "price" {
-                    SeriesKind::Price
-                } else {
-                    SeriesKind::Metric
+                kind: match row.get::<_, String>(2)?.as_str() {
+                    "price" => SeriesKind::Price,
+                    "metric" => SeriesKind::Metric,
+                    _ => SeriesKind::Document,
                 },
                 rows: row.get(3)?,
                 first_period: parse_period(4, &row.get::<_, String>(4)?)?,
@@ -796,6 +899,18 @@ pub fn register_sources(connection: &Connection) -> Result<(), String> {
         ("us-drought-monitor", "U.S. Drought Monitor", 604_800),
     ] {
         register_source(connection, id, name, cadence, true)?;
+    }
+    // The crop nowcast reads invented sample output until its pipeline publishes real data, so it
+    // starts switched off. Switching it on stays the user's choice when it goes live.
+    for (id, name) in [
+        ("crop-nowcast-yield", "Crop nowcast · yield (sample)"),
+        ("crop-nowcast-acreage", "Crop nowcast · acreage (sample)"),
+        (
+            crate::sources::nowcast::SOURCE_ID,
+            crate::sources::nowcast::SOURCE_NAME,
+        ),
+    ] {
+        register_source(connection, id, name, 604_800, false)?;
     }
     Ok(())
 }
@@ -1401,6 +1516,91 @@ mod tests {
                 .unwrap()
                 .contains(&"cftc-cot".to_string())
         );
+    }
+
+    #[test]
+    fn the_sample_crop_nowcast_sources_start_switched_off() {
+        let connection = test_db();
+        register_sources(&connection).unwrap();
+        let sources = list_sources(&connection).unwrap();
+        for id in [
+            "crop-nowcast-yield",
+            "crop-nowcast-acreage",
+            "crop-nowcast-brief",
+        ] {
+            let source = sources
+                .iter()
+                .find(|source| source.source_id.0 == id)
+                .unwrap();
+            assert!(!source.enabled && source.name.ends_with("(sample)"), "{id}");
+        }
+        let due = due_sources(&connection, Utc::now()).unwrap();
+        assert!(!due.iter().any(|id| id.starts_with("crop-nowcast")));
+    }
+
+    fn damage_event(id: &str, published: &str, acres: i64) -> DocumentRecord {
+        let published_at = DateTime::parse_from_rfc3339(published)
+            .unwrap()
+            .with_timezone(&Utc);
+        DocumentRecord {
+            dataset: "nowcast.damage_events".into(),
+            doc_id: id.into(),
+            published_at,
+            document: serde_json::json!({ "id": id, "published_at": published, "affected_acres_p50": acres }),
+            source_id: SourceId::from("crop-nowcast-brief"),
+            fetched_at: published_at,
+            revision: 0,
+        }
+    }
+
+    #[test]
+    fn documents_keep_every_changed_version_and_are_listed_with_the_series() {
+        let connection = test_db();
+        let hail = damage_event("hail", "2026-07-21T18:00:00Z", 80_000);
+        let wind = damage_event("wind", "2026-08-11T18:00:00Z", 320_000);
+        let restated = damage_event("wind", "2026-08-18T18:00:00Z", 290_000);
+        let records = |documents: &[&DocumentRecord]| -> Vec<SourceRecord> {
+            documents
+                .iter()
+                .map(|document| SourceRecord::Document((*document).clone()))
+                .collect()
+        };
+        append_source_records(&connection, &records(&[&hail, &wind])).unwrap();
+        // Fetching the same publish again adds nothing; a restated event adds a revision.
+        append_source_records(&connection, &records(&[&hail, &wind])).unwrap();
+        append_source_records(&connection, &records(&[&hail, &restated])).unwrap();
+
+        let StoredRows::Document(rows) =
+            query_stored_rows(&connection, "nowcast.damage_events").unwrap()
+        else {
+            panic!("a document dataset reads from the documents table");
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|row| (
+                    row.doc_id.as_str(),
+                    row.revision,
+                    row.document["affected_acres_p50"].as_i64().unwrap()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("hail", 0, 80_000),
+                ("wind", 0, 320_000),
+                ("wind", 1, 290_000)
+            ]
+        );
+        assert_eq!(
+            rows[2].published_at.to_rfc3339(),
+            "2026-08-18T18:00:00+00:00"
+        );
+
+        let listed = list_stored_series(&connection).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].series_id.0, "nowcast.damage_events");
+        assert_eq!(listed[0].kind, SeriesKind::Document);
+        assert_eq!(listed[0].rows, 3);
+        assert_eq!(listed[0].first_period.to_string(), "2026-07-21");
+        assert_eq!(listed[0].last_period.to_string(), "2026-08-18");
     }
 
     #[test]
