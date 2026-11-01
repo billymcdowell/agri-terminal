@@ -27,8 +27,9 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       "The large number is the latest closing price. The change beside it is against the previous day's close.",
       "Prices are U.S. dollars per bushel. Switch to dollars per metric tonne under SETTINGS.",
       "Arrows labelled with a number such as 2.4 SD mark unusually large one-day moves. Open MOVES to see what might have caused them.",
-      "SIMULATED means you are looking at made-up demonstration prices for corn. Add a Massive key under Data sources to load real ones.",
       "1W, 1M and ALL change how much history the chart shows.",
+      "The line under the chart says how current the prices are and which provider they come from. The price follows the contract nearest to expiry, so there can be a small jump when it rolls to the next one.",
+      "A banner above the chart means you are looking at made-up sample prices for corn, bundled so you can try the app. Add key opens Data sources, where a free Massive key loads real ones.",
     ],
   },
   cot: {
@@ -287,8 +288,6 @@ export const STATUS_LABELS: [string, string][] = [
   ["STALE", "No successful refresh for more than one and a half times the source's usual schedule (about 10 days for a weekly report), so the numbers may be out of date."],
   ["ERROR · CACHED OBSERVATIONS", "The last refresh failed, so you are seeing the most recent saved data. The reason follows the label."],
   ["WAITING · no data yet, or No cached data", "Nothing has been downloaded yet. Check whether the source needs a key under Data sources."],
-  ["SIMULATED, DEMO", "Made-up corn prices bundled so you can try the app. They are not market quotes."],
-  ["CBOT, LIVE", "Real daily prices from Massive for the Chicago Board of Trade contract."],
 ];
 
 export const GLOSSARY: [string, string][] = [

@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RiRefreshLine } from "@remixicon/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Empty,
   EmptyDescription,
@@ -123,14 +122,10 @@ export function MarketOverview({ commodity }: { commodity: string }) {
   const prior = allBars[allBars.length - 2];
   const delta = latest && prior ? latest.close - prior.close : 0;
   const deltaPercent = prior ? (delta / prior.close) * 100 : 0;
-  const fixtureSource = sources.data?.find(
-    (source) => source.sourceId === "fixture-corn",
-  );
   const priceSource = sources.data?.find(
     (source) => source.sourceId === PRICE_SOURCE,
   );
-  const status = priceStatus({ commodityName, latest, hasKey: !!keyStatus.data, priceSource, now });
-  const isDemo = status.origin === "demo";
+  const status = priceStatus({ latest, priceSource, now });
   // Without a key only the demonstration series can be reloaded; other commodities need a key first.
   const canRefresh = !!keyStatus.data || commodity === DEMO_COMMODITY;
 
@@ -175,260 +170,94 @@ export function MarketOverview({ commodity }: { commodity: string }) {
     }
   }
 
+  let chart;
+  if (series.isLoading) chart = <Skeleton className="h-full w-full rounded-md" />;
+  else if (series.isError) {
+    chart = (
+      <Empty className="h-full">
+        <EmptyHeader>
+          <EmptyTitle>Price data is unavailable</EmptyTitle>
+          <EmptyDescription>AgriTerminal could not reach its local database.</EmptyDescription>
+        </EmptyHeader>
+        <Button variant="outline" size="sm" onClick={() => void series.refetch()}>Retry</Button>
+      </Empty>
+    );
+  } else if (bars.length > 0) chart = <PriceChart bars={bars} markers={markers} />;
+  else {
+    chart = (
+      <Empty className="h-full">
+        <EmptyHeader>
+          <EmptyTitle>No {commodityName.toLowerCase()} prices yet</EmptyTitle>
+          <EmptyDescription>
+            {keyStatus.data
+              ? "Load daily bars from Massive into local storage."
+              : canRefresh
+                ? "Load the sample corn prices, or add a free Massive key to see real ones."
+                : "Add a free Massive key to load daily bars. Only corn has sample prices without a key."}
+          </EmptyDescription>
+        </EmptyHeader>
+        <Button variant="outline" size="sm" disabled={refreshing} onClick={canRefresh ? () => void refresh() : () => setSourcesOpen(true)}>
+          {canRefresh && <RiRefreshLine className={refreshing ? "animate-spin" : ""} />}
+          {keyStatus.data ? "Load prices" : canRefresh ? "Load sample prices" : "Add a Massive key"}
+        </Button>
+      </Empty>
+    );
+  }
+
   return (
-    <div className="terminal-shell">
-      <header className="terminal-topbar">
-        <div className="brand-lockup">
-          <div className="brand-mark">AT</div>
-          <div>
-            <span className="brand-name">AgriTerminal</span>
-            <span className="brand-meta">MARKET DESK</span>
-          </div>
+    <div className="workspace-panel market-panel">
+      <div className="market-head">
+        <div className="market-quote">
+          <h2 title={`${commodity} futures on the Chicago Board of Trade`}>{commodityName}</h2>
+          {series.isLoading ? (
+            <Skeleton className="h-6 w-40" />
+          ) : latest && (
+            <>
+              <span className="price-value">${latest.close.toFixed(2)}</span>
+              {prior && (
+                <span className="price-change" data-direction={delta >= 0 ? "up" : "down"}>
+                  {delta >= 0 ? "+" : ""}{delta.toFixed(2)} ({deltaPercent >= 0 ? "+" : ""}{deltaPercent.toFixed(2)}%)
+                </span>
+              )}
+              <span className="price-unit">{UNIT_LABELS[units]}</span>
+            </>
+          )}
         </div>
-        <div className="topbar-center">Grains &amp; oilseeds</div>
-        <div className="topbar-right">
-          <span>
-            <i className="connection-dot" />
-            LOCAL DATABASE
-          </span>
-          <span>DEMO WORKSPACE</span>
+        <div className="market-tools">
+          <div className="range-switcher" role="group" aria-label="Chart range">
+            {RANGES.map((item) => (
+              <Button
+                key={item}
+                size="xs"
+                variant="ghost"
+                className={`range-button ${range === item ? "selected" : ""}`}
+                aria-pressed={range === item}
+                onClick={() => setRange(item)}
+              >
+                {item}
+              </Button>
+            ))}
+          </div>
+          <AboutButton open={aboutOpen} onToggle={() => setAboutOpen((open) => !open)} />
         </div>
-      </header>
-
-      <div className="terminal-main">
-        <main className="workspace">
-          <div className="workspace-heading">
-            <div>
-              <div className="eyebrow">Workspace / Overview</div>
-              <h1 className="page-title">Market overview</h1>
-            </div>
-            <div className="workspace-actions">
-              <AboutButton size="sm" open={aboutOpen} onToggle={() => setAboutOpen((open) => !open)} />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={canRefresh ? refresh : () => setSourcesOpen(true)}
-                disabled={refreshing}
-              >
-                {canRefresh && <RiRefreshLine className={refreshing ? "animate-spin" : ""} />}
-                {keyStatus.data ? "Refresh prices" : canRefresh ? "Reload cached" : "Add price key"}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setSourcesOpen(true)}
-              >
-                Data sources
-              </Button>
-            </div>
-          </div>
-          {aboutOpen && <PanelAbout kind="market" />}
-
-          <div className="content-grid">
-            <Card className="terminal-card chart-card">
-              <CardHeader>
-                <div className="chart-card-head">
-                  <div>
-                    <div className="chart-instrument">
-                      <span className="instrument-symbol">{commodity} · {commodityName.toUpperCase()}</span>
-                      <Badge variant="outline">{status.badge}</Badge>
-                      <Badge variant="secondary">DAILY</Badge>
-                    </div>
-                    <div className="instrument-name">{status.description}</div>
-                  </div>
-                  <div className="chart-price">
-                    {series.isLoading ? (
-                      <Skeleton className="h-7 w-24" />
-                    ) : (
-                      <>
-                        <div className="price-value">
-                          {latest ? `$${latest.close.toFixed(2)}` : "—"}
-                        </div>
-                        <div className="price-change">
-                          {latest
-                            ? `${delta >= 0 ? "+" : ""}${delta.toFixed(2)} (${deltaPercent >= 0 ? "+" : ""}${deltaPercent.toFixed(2)}%)`
-                            : "Awaiting data"}
-                          <span className="ml-2 text-muted-foreground">
-                            {UNIT_LABELS[units].replace("/", " / ")}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="chart-meta-row">
-                  <span>
-                    {isDemo ? "OHLC · Daily sample" : "OHLC · Daily bars"}
-                  </span>
-                  <div className="range-switcher" aria-label="Chart range">
-                    {RANGES.map((item) => (
-                      <Button
-                        key={item}
-                        size="xs"
-                        variant="ghost"
-                        className={`range-button ${range === item ? "selected" : ""}`}
-                        aria-pressed={range === item}
-                        onClick={() => setRange(item)}
-                      >
-                        {item}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {series.isLoading ? (
-                  <Skeleton className="chart-container rounded-md" />
-                ) : series.isError ? (
-                  <Empty className="empty-chart">
-                    <EmptyHeader>
-                      <EmptyTitle>Price data is unavailable</EmptyTitle>
-                      <EmptyDescription>
-                        AgriTerminal could not reach its local database. Try
-                        refreshing the connection.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void series.refetch()}
-                    >
-                      Retry
-                    </Button>
-                  </Empty>
-                ) : bars.length > 0 ? (
-                  <div className="chart-container">
-                    <PriceChart bars={bars} markers={markers} />
-                  </div>
-                ) : (
-                  <Empty className="empty-chart">
-                    <EmptyHeader>
-                      <EmptyTitle>No {commodityName.toLowerCase()} prices yet</EmptyTitle>
-                      <EmptyDescription>
-                        {keyStatus.data
-                          ? "Use Refresh prices to load daily bars into local storage."
-                          : "Add a Massive key under Data sources to load daily bars. Only the corn demonstration series works without a key."}
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
-                )}
-                <div className="chart-footer">
-                  <span className="freshness">
-                    <i
-                      className={`freshness-dot ${status.freshness.status === "ok" ? "fresh" : "stale"}`}
-                    />
-                    {status.freshness.label}
-                    {latest ? ` · ${latest.sourceId}` : ""}
-                  </span>
-                  <span>{allBars.length} observations · cached locally</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <aside className="side-stack">
-              <Card className="terminal-card" size="sm">
-                <CardHeader>
-                  <CardTitle className="side-card-title">
-                    Market snapshot
-                  </CardTitle>
-                  <div className="side-card-subtitle">{status.snapshotNote}</div>
-                </CardHeader>
-                <CardContent>
-                  <div className="metric-label">Last close</div>
-                  <div className="metric-value">
-                    {latest ? `$${latest.close.toFixed(2)}` : "—"}
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      {UNIT_LABELS[units].slice(3)}
-                    </span>
-                  </div>
-                  <div className="metric-foot">
-                    {latest
-                      ? new Date(
-                          `${latest.period}T12:00:00Z`,
-                        ).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          timeZone: "UTC",
-                        })
-                      : "No observations"}
-                  </div>
-                  <div className="source-row">
-                    <div>
-                      <div className="source-name">
-                        {isDemo
-                          ? (fixtureSource?.name ?? "Corn price fixture")
-                          : (priceSource?.name ?? "Massive")}
-                      </div>
-                      <div className="source-detail">
-                        {isDemo
-                          ? "Synthetic sample data"
-                          : latest
-                            ? "Licensed provider · cached locally"
-                            : keyStatus.data
-                              ? "Key saved · no prices loaded yet"
-                              : "No API key saved"}
-                      </div>
-                    </div>
-                    <Badge variant="outline">{!latest ? "NO DATA" : isDemo ? "DEMO" : "LIVE"}</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="terminal-card" size="sm">
-                <CardHeader>
-                  <CardTitle className="side-card-title">
-                    Data integrity
-                  </CardTitle>
-                  <div className="side-card-subtitle">
-                    Every bar keeps its source, release time, fetch time and
-                    revision.
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="source-row !mt-0 !pt-0 !border-0">
-                    <div>
-                      <div className="source-name">SQLite cache</div>
-                      <div className="source-detail">Offline-first storage</div>
-                    </div>
-                    <Badge variant="secondary">READY</Badge>
-                  </div>
-                  <div className="source-row">
-                    <div>
-                      <div className="source-name">Price source</div>
-                      <div className="source-detail">
-                        {isDemo
-                          ? "Fixture · no API key required"
-                          : latest
-                            ? "Massive · daily bars"
-                            : "Massive · nothing loaded"}
-                      </div>
-                    </div>
-                    <Badge variant="outline">
-                      {isDemo ? "LOCAL" : latest ? "SYNCED" : "NOT LOADED"}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </aside>
-          </div>
-        </main>
       </div>
-
-      <footer className="statusbar">
-        <div className="status-left">
-          <span className="status-pill">
-            <i className="connection-dot" />
-            {status.statusBar}
+      {aboutOpen && <PanelAbout kind="market" />}
+      {status.origin === "demo" && (
+        <div className="market-banner" role="status">
+          <span>Showing sample corn prices, not market quotes. Add a free Massive key to see real prices.</span>
+          <Button size="xs" variant="outline" onClick={() => setSourcesOpen(true)}>Add key</Button>
+        </div>
+      )}
+      <div className="market-chart">{chart}</div>
+      {status.origin === "live" && (
+        <div className="market-footer">
+          <span role="status" data-status={status.freshness.status}>
+            <i className="freshness-dot" aria-hidden="true" />
+            {status.freshness.label} · {status.provider}
           </span>
-          <span>OFFLINE READY</span>
-          <span>OBSERVATIONS {allBars.length.toString().padStart(3, "0")}</span>
+          <Button size="xs" variant="ghost" onClick={() => setSourcesOpen(true)}>Data sources</Button>
         </div>
-        <div className="status-right">
-          <span>LOCAL · SQLITE</span>
-          <span>AG TERMINAL / 0.1</span>
-        </div>
-      </footer>
+      )}
 
       <Dialog open={sourcesOpen} onOpenChange={setSourcesOpen}>
         <DialogContent>
