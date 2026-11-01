@@ -64,14 +64,18 @@ function ForecastCard({ status, now }: { status: RiverStatus; now: number }) {
         {status.forecast.length === 0 ? <p className="metric-foot">{RIVER_TEXT.noForecast}</p> : (
           <>
             <Table>
-              <TableHeader><TableRow><TableHead>Day</TableHead><TableHead className="text-right">Lowest stage</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Day</TableHead><TableHead className="text-right">Low</TableHead><TableHead>Restriction</TableHead></TableRow></TableHeader>
               <TableBody>
-                {status.forecast.map((day) => (
-                  <TableRow key={day.date} data-below={day.low <= status.thresholds.restriction}>
-                    <TableCell>{day.date}</TableCell>
-                    <TableCell className="text-right">{formatFeet(day.low)}{day.low <= status.thresholds.restriction ? " · below restriction" : ""}</TableCell>
-                  </TableRow>
-                ))}
+                {status.forecast.map((day) => {
+                  const below = day.low <= status.thresholds.restriction;
+                  return (
+                    <TableRow key={day.date}>
+                      <TableCell>{day.date.slice(5)}</TableCell>
+                      <TableCell className="text-right">{formatFeet(day.low)}</TableCell>
+                      <TableCell className={below ? "river-warning" : undefined}>{below ? "below" : "above"}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             {status.restrictionForecastOn && <p className="metric-foot river-warning">Forecast to reach the restriction level by {status.restrictionForecastOn}.</p>}

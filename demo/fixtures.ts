@@ -1,6 +1,6 @@
 // Fictional data for the demo. Prices are a seeded random walk; nothing here is a market quote.
 import type {
-  AlertRecord, CalendarEvent, MetricPoint, NewsItem, PluginSummary, PriceBar, RiverPoint, RiverStatus, SourceStatus, StoredSeries, WeatherForecast,
+  AlertRecord, CalendarEvent, MetricPoint, NewsItem, PluginSummary, PriceBar, RiverAlertRecord, RiverPoint, RiverStatus, SourceStatus, StoredSeries, WeatherForecast,
 } from "../src/lib/ipc";
 
 const DAY = 86_400_000;
@@ -315,3 +315,12 @@ export function buildRiverMetrics(): Record<string, MetricPoint[]> {
   }
   return out;
 }
+
+export const RIVER_ALERTS: RiverAlertRecord[] = [
+  ["stlouis", "St. Louis, MO", "1.00", "-3.50"], ["memphis", "Memphis, TN", "-5.00", "-10.00"],
+].flatMap(([id, name, restriction, critical]) => [
+  { id: `river:${id}:below_restriction`, gaugeId: id, gaugeName: name, rule: "below_restriction" as const, description: `${name} stage at or below the ${restriction} ft restriction level`, enabled: true, state: 0 },
+  { id: `river:${id}:below_critical`, gaugeId: id, gaugeName: name, rule: "below_critical" as const, description: `${name} stage at or below the ${critical} ft critical level`, enabled: true, state: 0 },
+  { id: `river:${id}:forecast_restriction`, gaugeId: id, gaugeName: name, rule: "forecast_restriction" as const, description: `${name} forecast reaches the ${restriction} ft restriction level within 7 days`, enabled: true, state: id === "stlouis" ? 1 : 0 },
+  { id: `river:${id}:band_up`, gaugeId: id, gaugeName: name, rule: "band_up" as const, description: `${name} river constraint score moves up a band`, enabled: true, state: 1 },
+]);

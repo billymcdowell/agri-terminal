@@ -217,3 +217,455 @@ mod tests {
         );
     }
 }
+
+/// River alerts: built-in rules for every configured gauge rather than levels the user types, since
+/// the thresholds already live in `config/waterways.json`. Each fires once when its condition
+/// starts and re-arms when it ends; the band rule fires each time the score moves up a band.
+pub mod river {
+    use std::collections::HashMap;
+
+    use chrono::NaiveDate;
+    use serde::{Deserialize, Serialize};
+
+    use crate::analytics::river::RiverStatus;
+    use crate::sources::river::WaterwaysConfig;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum RiverRule {
+        BelowRestriction,
+        BelowCritical,
+        ForecastRestriction,
+        BandUp,
+    }
+
+    impl RiverRule {
+        pub const ALL: [RiverRule; 4] = [
+            RiverRule::BelowRestriction,
+            RiverRule::BelowCritical,
+            RiverRule::ForecastRestriction,
+            RiverRule::BandUp,
+        ];
+
+        fn slug(self) -> &'static str {
+            match self {
+                RiverRule::BelowRestriction => "below_restriction",
+                RiverRule::BelowCritical => "below_critical",
+                RiverRule::ForecastRestriction => "forecast_restriction",
+                RiverRule::BandUp => "band_up",
+            }
+        }
+    }
+
+    pub fn alert_id(gauge_id: &str, rule: RiverRule) -> String {
+        format!("river:{gauge_id}:{}", rule.slug())
+    }
+
+    /// A rule with its stored state. `state` is 1 while a condition holds, or the band reached
+    /// (0 normal, 1 elevated, 2 high) for the band rule.
+    #[derive(Clone, Debug, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct RiverAlertRecord {
+        pub id: String,
+        pub gauge_id: String,
+        pub gauge_name: String,
+        pub rule: RiverRule,
+        pub description: String,
+        pub enabled: bool,
+        pub state: i64,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct RiverAlertFired {
+        pub id: String,
+        pub gauge_id: String,
+        pub rule: RiverRule,
+        pub title: String,
+        pub body: String,
+        pub date: NaiveDate,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct RiverEvaluation {
+        pub id: String,
+        pub state: i64,
+        pub fired: Option<RiverAlertFired>,
+    }
+
+    /// Every rule for every configured gauge, with stored `(enabled, state)` where there is one.
+    /// A rule with nothing stored is on and armed.
+    pub fn rules(
+        config: &WaterwaysConfig,
+        stored: &HashMap<String, (bool, i64)>,
+    ) -> Vec<RiverAlertRecord> {
+        config
+            .gauges()
+            .flat_map(|(river, gauge)| {
+                let thresholds = gauge.thresholds;
+                RiverRule::ALL.into_iter().map(move |rule| {
+                    let id = alert_id(&gauge.id, rule);
+                    let (enabled, state) = stored.get(&id).copied().unwrap_or((true, 0));
+                    let description = match rule {
+                        RiverRule::BelowRestriction => format!(
+                            "{} stage at or below the {:.2} ft restriction level",
+                            gauge.name, thresholds.restriction
+                        ),
+                        RiverRule::BelowCritical => format!(
+                            "{} stage at or below the {:.2} ft critical level",
+                            gauge.name, thresholds.critical
+                        ),
+                        RiverRule::ForecastRestriction => format!(
+                            "{} forecast reaches the {:.2} ft restriction level within {} days",
+                            gauge.name, thresholds.restriction, river.forecast_days
+                        ),
+                        RiverRule::BandUp => {
+                            format!("{} river constraint score moves up a band", gauge.name)
+                        }
+                    };
+                    RiverAlertRecord {
+                        id,
+                        gauge_id: gauge.id.clone(),
+                        gauge_name: gauge.name.clone(),
+                        rule,
+                        description,
+                        enabled,
+                        state,
+                    }
+                })
+            })
+            .collect()
+    }
+
+    fn band_rank(band: &str) -> i64 {
+        match band {
+            "HIGH" => 2,
+            "ELEVATED" => 1,
+            _ => 0,
+        }
+    }
+
+    /// Whether a condition rule holds, or `None` when its input is missing, which leaves the
+    /// rule as it was rather than re-arming it.
+    fn holds(rule: RiverRule, status: &RiverStatus) -> Option<bool> {
+        let stage = status.stage.as_ref().map(|stage| stage.value);
+        match rule {
+            RiverRule::BelowRestriction => {
+                stage.map(|stage| stage <= status.thresholds.restriction)
+            }
+            RiverRule::BelowCritical => stage.map(|stage| stage <= status.thresholds.critical),
+            RiverRule::ForecastRestriction => status
+                .forecast_min
+                .map(|_| status.restriction_forecast_on.is_some()),
+            RiverRule::BandUp => None,
+        }
+    }
+
+    fn message(rule: RiverRule, status: &RiverStatus) -> (String, String) {
+        let stage = status.stage.as_ref().map_or(0.0, |stage| stage.value);
+        let gauge = &status.gauge_name;
+        match rule {
+            RiverRule::BelowRestriction => (
+                format!("{gauge} below the restriction level"),
+                format!(
+                    "Stage {stage:.2} ft is at or below {:.2} ft, where barges usually load lighter.",
+                    status.thresholds.restriction
+                ),
+            ),
+            RiverRule::BelowCritical => (
+                format!("{gauge} below the critical level"),
+                format!(
+                    "Stage {stage:.2} ft is at or below the {:.2} ft critical level.",
+                    status.thresholds.critical
+                ),
+            ),
+            RiverRule::ForecastRestriction => (
+                format!("{gauge} forecast to reach the restriction level"),
+                format!(
+                    "The latest NWS forecast reaches {:.2} ft by {}; the stage is {stage:.2} ft now.",
+                    status.thresholds.restriction,
+                    status
+                        .restriction_forecast_on
+                        .map_or_else(String::new, |day| day.to_string())
+                ),
+            ),
+            RiverRule::BandUp => {
+                let score = status.score.as_ref();
+                (
+                    format!(
+                        "{gauge} river constraint {}",
+                        score.map_or("", |score| score.band.as_str())
+                    ),
+                    format!(
+                        "The constraint score is {:.0} of 100. River effects tend to show in freight and basis more than futures.",
+                        score.map_or(0.0, |score| score.total)
+                    ),
+                )
+            }
+        }
+    }
+
+    /// Enabled rules whose stored state changes for the gauges' current status.
+    pub fn evaluate(
+        records: &[RiverAlertRecord],
+        statuses: &HashMap<String, RiverStatus>,
+    ) -> Vec<RiverEvaluation> {
+        records
+            .iter()
+            .filter(|record| record.enabled)
+            .filter_map(|record| {
+                let status = statuses.get(&record.gauge_id)?;
+                let date = status.as_of.date_naive();
+                let fire = |state: i64| {
+                    let (title, body) = message(record.rule, status);
+                    RiverEvaluation {
+                        id: record.id.clone(),
+                        state,
+                        fired: Some(RiverAlertFired {
+                            id: record.id.clone(),
+                            gauge_id: record.gauge_id.clone(),
+                            rule: record.rule,
+                            title,
+                            body,
+                            date,
+                        }),
+                    }
+                };
+                if record.rule == RiverRule::BandUp {
+                    let rank = band_rank(&status.score.as_ref()?.band);
+                    return match rank.cmp(&record.state) {
+                        std::cmp::Ordering::Greater => Some(fire(rank)),
+                        std::cmp::Ordering::Less => Some(RiverEvaluation {
+                            id: record.id.clone(),
+                            state: rank,
+                            fired: None,
+                        }),
+                        std::cmp::Ordering::Equal => None,
+                    };
+                }
+                match (holds(record.rule, status)?, record.state > 0) {
+                    (true, false) => Some(fire(1)),
+                    (false, true) => Some(RiverEvaluation {
+                        id: record.id.clone(),
+                        state: 0,
+                        fired: None,
+                    }),
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::analytics::river::{ConstraintScore, InputValue};
+        use crate::sources::river::{BUNDLED_WATERWAYS, parse_waterways};
+        use chrono::{DateTime, Utc};
+
+        fn config() -> WaterwaysConfig {
+            parse_waterways(BUNDLED_WATERWAYS).unwrap()
+        }
+
+        fn status(
+            stage: Option<f64>,
+            forecast_on: Option<&str>,
+            band: Option<&str>,
+        ) -> RiverStatus {
+            let at = DateTime::parse_from_rfc3339("2026-10-31T21:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc);
+            let (_, gauge) = config()
+                .gauges()
+                .find(|(_, gauge)| gauge.id == "stlouis")
+                .map(|(river, gauge)| (river.clone(), gauge.clone()))
+                .unwrap();
+            RiverStatus {
+                gauge_id: gauge.id.clone(),
+                gauge_name: gauge.name.clone(),
+                river_name: "Mississippi River".into(),
+                unit: "ft".into(),
+                thresholds: gauge.thresholds,
+                provisional: true,
+                as_of: at,
+                stage: stage.map(|value| InputValue {
+                    period: at.date_naive(),
+                    value,
+                    released_at: at,
+                    fetched_at: at,
+                    source_id: "usgs-river-stage".into(),
+                }),
+                stage_band: None,
+                forecast_issued_at: forecast_on.map(|_| at),
+                forecast_fetched_at: None,
+                forecast: Vec::new(),
+                forecast_min: forecast_on.map(|_| 0.5).or(Some(3.0)),
+                restriction_forecast_on: forecast_on
+                    .map(|day| NaiveDate::parse_from_str(day, "%Y-%m-%d").unwrap()),
+                barge_rate: None,
+                traffic: None,
+                score: band.map(|band| ConstraintScore {
+                    total: 55.0,
+                    band: band.into(),
+                    depth: None,
+                    forecast: None,
+                    traffic: None,
+                    partial: false,
+                }),
+            }
+        }
+
+        fn record(rule: RiverRule, state: i64, enabled: bool) -> RiverAlertRecord {
+            let mut record = rules(&config(), &HashMap::new())
+                .into_iter()
+                .find(|record| record.gauge_id == "stlouis" && record.rule == rule)
+                .unwrap();
+            record.state = state;
+            record.enabled = enabled;
+            record
+        }
+
+        fn run(record: RiverAlertRecord, status: RiverStatus) -> Vec<RiverEvaluation> {
+            evaluate(&[record], &HashMap::from([("stlouis".to_string(), status)]))
+        }
+
+        #[test]
+        fn every_gauge_gets_every_rule_armed_by_default() {
+            let all = rules(&config(), &HashMap::new());
+            assert_eq!(all.len(), 8);
+            assert!(all.iter().all(|record| record.enabled && record.state == 0));
+            assert_eq!(all[0].id, "river:stlouis:below_restriction");
+            assert!(all[0].description.contains("1.00 ft restriction level"));
+            let stored = HashMap::from([("river:memphis:band_up".to_string(), (false, 1))]);
+            let memphis = rules(&config(), &stored)
+                .into_iter()
+                .find(|record| record.id == "river:memphis:band_up")
+                .unwrap();
+            assert!(!memphis.enabled && memphis.state == 1);
+        }
+
+        #[test]
+        fn a_stage_crossing_fires_once_and_re_arms_when_the_river_rises() {
+            let fired = run(
+                record(RiverRule::BelowRestriction, 0, true),
+                status(Some(0.8), None, None),
+            );
+            assert_eq!(fired.len(), 1);
+            assert_eq!(fired[0].state, 1);
+            let alert = fired[0].fired.as_ref().unwrap();
+            assert_eq!(alert.title, "St. Louis, MO below the restriction level");
+            assert!(alert.body.contains("0.80 ft"));
+            // Still below: nothing new.
+            assert!(
+                run(
+                    record(RiverRule::BelowRestriction, 1, true),
+                    status(Some(0.5), None, None)
+                )
+                .is_empty()
+            );
+            // Back above: re-armed without a notification.
+            assert_eq!(
+                run(
+                    record(RiverRule::BelowRestriction, 1, true),
+                    status(Some(1.5), None, None)
+                ),
+                vec![RiverEvaluation {
+                    id: "river:stlouis:below_restriction".into(),
+                    state: 0,
+                    fired: None
+                }]
+            );
+            // A missing reading leaves the rule as it was.
+            assert!(
+                run(
+                    record(RiverRule::BelowRestriction, 1, true),
+                    status(None, None, None)
+                )
+                .is_empty()
+            );
+            // Paused rules do nothing.
+            assert!(
+                run(
+                    record(RiverRule::BelowCritical, 0, false),
+                    status(Some(-5.0), None, None)
+                )
+                .is_empty()
+            );
+        }
+
+        #[test]
+        fn the_forecast_rule_fires_when_the_forecast_reaches_the_restriction_level() {
+            let fired = run(
+                record(RiverRule::ForecastRestriction, 0, true),
+                status(Some(2.0), Some("2026-11-04"), None),
+            );
+            assert!(
+                fired[0]
+                    .fired
+                    .as_ref()
+                    .unwrap()
+                    .body
+                    .contains("by 2026-11-04")
+            );
+            // The forecast recovers: re-armed.
+            assert_eq!(
+                run(
+                    record(RiverRule::ForecastRestriction, 1, true),
+                    status(Some(2.0), None, None)
+                )[0]
+                .state,
+                0
+            );
+        }
+
+        #[test]
+        fn the_band_rule_fires_on_each_move_up_and_follows_moves_down_quietly() {
+            let up = run(
+                record(RiverRule::BandUp, 0, true),
+                status(Some(2.0), None, Some("ELEVATED")),
+            );
+            assert_eq!(up[0].state, 1);
+            assert!(up[0].fired.as_ref().unwrap().title.ends_with("ELEVATED"));
+            assert_eq!(
+                run(
+                    record(RiverRule::BandUp, 1, true),
+                    status(Some(2.0), None, Some("HIGH"))
+                )[0]
+                .state,
+                2
+            );
+            assert!(
+                run(
+                    record(RiverRule::BandUp, 2, true),
+                    status(Some(2.0), None, Some("HIGH"))
+                )
+                .is_empty()
+            );
+            let down = run(
+                record(RiverRule::BandUp, 2, true),
+                status(Some(2.0), None, Some("NORMAL")),
+            );
+            assert_eq!(
+                down,
+                vec![RiverEvaluation {
+                    id: "river:stlouis:band_up".into(),
+                    state: 0,
+                    fired: None
+                }]
+            );
+        }
+
+        #[test]
+        fn alert_wording_never_claims_cause() {
+            for rule in RiverRule::ALL {
+                let (title, body) =
+                    message(rule, &status(Some(0.8), Some("2026-11-04"), Some("HIGH")));
+                for text in [title, body] {
+                    for banned in crate::analytics::backtest::BANNED_PHRASES {
+                        assert!(!text.to_lowercase().contains(banned), "{text}");
+                    }
+                }
+            }
+        }
+    }
+}

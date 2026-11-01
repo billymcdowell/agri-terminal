@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
-import { listCalendarEvents, subscribeToAlerts, subscribeToDataUpdates } from "@/lib/ipc";
+import { listCalendarEvents, subscribeToAlerts, subscribeToDataUpdates, subscribeToRiverAlerts } from "@/lib/ipc";
 import { useUnits } from "@/lib/units";
 import { alertNotification } from "@/panels/alerts-panel";
 import { usePersistedValue } from "@/state/use-persisted-list";
@@ -84,6 +84,14 @@ export function useAlertNotifications() {
         sendNotification(alertNotification(alert, unitsRef.current));
       } catch { /* The web preview has no notifications. */ }
     }).then((stop) => { if (cancelled) stop(); else unlisten = stop; }).catch(() => undefined);
-    return () => { cancelled = true; unlisten?.(); };
+    let unlistenRiver: (() => void) | undefined;
+    subscribeToRiverAlerts(async (alert) => {
+      void queryClient.invalidateQueries({ queryKey: ["river-alerts"] });
+      try {
+        if (!(await isPermissionGranted()) && (await requestPermission()) !== "granted") return;
+        sendNotification({ title: alert.title, body: alert.body });
+      } catch { /* The web preview has no notifications. */ }
+    }).then((stop) => { if (cancelled) stop(); else unlistenRiver = stop; }).catch(() => undefined);
+    return () => { cancelled = true; unlisten?.(); unlistenRiver?.(); };
   }, [queryClient]);
 }

@@ -82,6 +82,8 @@ pub fn run() {
             commands::save_alert,
             commands::delete_alert,
             commands::set_alert_enabled,
+            commands::list_river_alerts,
+            commands::set_river_alert_enabled,
             commands::list_plugins,
             commands::preview_plugin,
             commands::install_plugin,

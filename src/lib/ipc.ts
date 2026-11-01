@@ -61,7 +61,7 @@ export function refreshSource(sourceId: string) {
 }
 
 export type PriceMove = { date: string; previousDate: string; logReturn: number; zScore: number };
-export type Driver = { kind: "scheduled_event" | "news"; title: string; url: string | null; source: string; at: string; label: string; score: number; reasons: string[] };
+export type Driver = { kind: "scheduled_event" | "news" | "river_event"; title: string; url: string | null; source: string; at: string; label: string; score: number; reasons: string[] };
 export type MoveExplanation = { move: PriceMove; label: string; drivers: Driver[] };
 export type StressPoint = { date: string; close: number; condition: number | null; conditionLow: number | null; conditionHigh: number | null; drought: number | null };
 export type BacktestReport = { total: number; detected: number; topMatch: number; missedDates: string[]; topMatchRate: number | null };
@@ -105,6 +105,16 @@ export function deleteAlert(id: string) { return invoke<void>("delete_alert", { 
 export function setAlertEnabled(id: string, enabled: boolean) { return invoke<void>("set_alert_enabled", { id, enabled }); }
 export function subscribeToAlerts(callback: (alert: AlertFired) => void) {
   return listen<AlertFired>("alert-fired", (event) => callback(event.payload));
+}
+
+export type RiverRule = "below_restriction" | "below_critical" | "forecast_restriction" | "band_up";
+/** A built-in river alert. `state` is 1 while its condition holds, or the band reached (0 normal, 1 elevated, 2 high) for band_up. */
+export type RiverAlertRecord = { id: string; gaugeId: string; gaugeName: string; rule: RiverRule; description: string; enabled: boolean; state: number };
+export type RiverAlertFired = { id: string; gaugeId: string; rule: RiverRule; title: string; body: string; date: string };
+export function listRiverAlerts() { return invoke<RiverAlertRecord[]>("list_river_alerts"); }
+export function setRiverAlertEnabled(id: string, enabled: boolean) { return invoke<void>("set_river_alert_enabled", { id, enabled }); }
+export function subscribeToRiverAlerts(callback: (alert: RiverAlertFired) => void) {
+  return listen<RiverAlertFired>("river-alert-fired", (event) => callback(event.payload));
 }
 
 export function getDataDirectory() { return invoke<string>("get_data_directory"); }

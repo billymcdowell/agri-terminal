@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { deleteAlert, listAlerts, saveAlert, setAlertEnabled, type AlertFired, type PriceAlert } from "@/lib/ipc";
+import { deleteAlert, listAlerts, listRiverAlerts, saveAlert, setAlertEnabled, setRiverAlertEnabled, type AlertFired, type PriceAlert, type RiverAlertRecord } from "@/lib/ipc";
 import { COMMODITIES } from "@/lib/regions";
 import { fromDisplayPrice, toDisplayPrice, UNIT_LABELS, useUnits, type UnitSystem } from "@/lib/units";
 import type { PanelComponentProps } from "@/workspace/types";
@@ -23,6 +23,15 @@ export function alertNotification(fired: AlertFired, units: UnitSystem = "bushel
   return { title: describeAlert(fired, units), body: `Latest close ${close} ${UNIT_LABELS[units]} on ${fired.date}.` };
 }
 
+const BAND_NAMES = ["NORMAL", "ELEVATED", "HIGH"];
+
+/** The badge for a river alert: paused, armed, triggered, or the band the score has reached. */
+export function riverAlertStatus(alert: Pick<RiverAlertRecord, "rule" | "enabled" | "state">) {
+  if (!alert.enabled) return "PAUSED";
+  if (alert.rule === "band_up") return alert.state > 0 ? `AT ${BAND_NAMES[alert.state] ?? "HIGH"}` : "ARMED";
+  return alert.state > 0 ? "TRIGGERED" : "ARMED";
+}
+
 /** Parses the threshold field; returns null for anything that is not a positive price. */
 export function parseThreshold(text: string): number | null {
   const value = Number(text);
@@ -33,11 +42,12 @@ export function AlertsPanel({ api, params }: PanelComponentProps) {
   const queryClient = useQueryClient();
   const units = useUnits();
   const alerts = useQuery({ queryKey: ["alerts"], queryFn: listAlerts });
+  const riverAlerts = useQuery({ queryKey: ["river-alerts"], queryFn: listRiverAlerts });
   const [symbol, setSymbol] = useState("ZC");
   const [direction, setDirection] = useState<PriceAlert["direction"]>("above");
   const [threshold, setThreshold] = useState("");
   const [error, setError] = useState("");
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["alerts"] });
+  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ["alerts"] }), queryClient.invalidateQueries({ queryKey: ["river-alerts"] })]);
   const run = (action: () => Promise<unknown>) => action().then(() => { setError(""); return refresh(); }).catch((failure) => setError(String(failure)));
 
   const price = parseThreshold(threshold);
@@ -89,6 +99,26 @@ export function AlertsPanel({ api, params }: PanelComponentProps) {
             ))}
           </ul>
           <p className="panel-freshness">Notifications use your system settings. Alerts use daily closes, so they cannot fire between data updates.</p>
+        </CardContent>
+      </Card>
+      <Card className="terminal-card">
+        <CardHeader><CardTitle className="side-card-title">River alerts</CardTitle></CardHeader>
+        <CardContent>
+          {riverAlerts.isError && <p className="panel-freshness" data-status="error">{String(riverAlerts.error)}</p>}
+          <ul className="driver-list">
+            {riverAlerts.data?.map((alert) => (
+              <li key={alert.id} className="driver-row">
+                <div className="driver-head">
+                  <Badge variant={alert.enabled && alert.state > 0 ? "secondary" : "outline"}>{riverAlertStatus(alert)}</Badge>
+                  <span>{alert.description}</span>
+                </div>
+                <div className="driver-actions">
+                  <Button size="xs" variant="ghost" onClick={() => void run(() => setRiverAlertEnabled(alert.id, !alert.enabled))}>{alert.enabled ? "Pause" : "Resume"}</Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="panel-freshness">Built in for every river gauge, using the levels in the waterways settings. Each fires once when its condition starts and re-arms when it ends; the score alert fires each time the score moves up a band. Checked after every river data update.</p>
         </CardContent>
       </Card>
     </div>

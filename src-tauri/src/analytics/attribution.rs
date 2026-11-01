@@ -1,11 +1,12 @@
 //! Ranks possible drivers for a flagged price move. Wording is deliberately probabilistic:
 //! these are possible drivers, never proven causes.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
 
 use super::alignment::market_close;
 use super::moves::PriceMove;
+use super::river::RiverEvent;
 use crate::core::{CalendarEvent, NewsItem};
 
 pub const LABEL_LIKELY: &str = "Likely driver";
@@ -17,11 +18,17 @@ pub const LABEL_NONE: &str = "No clear driver found";
 const NEWS_THRESHOLD: f64 = 0.55;
 /// A single story at or above this score, with no close competitor, is a "possible driver".
 const DOMINANT_SCORE: f64 = 0.7;
+/// River changes this many days before the close of a move are candidates.
+const RIVER_WINDOW_DAYS: i64 = 5;
+/// River drivers score below every news candidate shown and every scheduled report, so a release
+/// landing at the time of the move always ranks above them.
+const RIVER_MAX_SCORE: f64 = 0.5;
+const MAX_RIVER_DRIVERS: usize = 2;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Driver {
-    /// `scheduled_event` or `news`.
+    /// `scheduled_event`, `news` or `river_event`.
     pub kind: String,
     pub title: String,
     pub url: Option<String>,
@@ -218,14 +225,53 @@ pub fn news_drivers(price_move: &PriceMove, symbol: &str, news: &[NewsItem]) -> 
     scored
 }
 
+/// Stage three: river threshold crossings, band changes and barge-rate jumps in the days before the
+/// close of the move. River conditions move freight and basis more than futures, so these are
+/// always low confidence and capped below every other kind of candidate.
+pub fn river_drivers(price_move: &PriceMove, events: &[RiverEvent]) -> Vec<Driver> {
+    let close = market_close(price_move.date);
+    let from = close - Duration::days(RIVER_WINDOW_DAYS);
+    let mut drivers: Vec<Driver> = events
+        .iter()
+        .filter(|event| event.at > from && event.at <= close)
+        .map(|event| {
+            let days_before = (close - event.at).num_days();
+            let timing = if days_before <= 2 { 1.0 } else { 0.7 };
+            Driver {
+                kind: "river_event".into(),
+                title: event.title.clone(),
+                url: None,
+                source: format!("River conditions · {}", event.gauge_name),
+                at: event.at,
+                label: LABEL_LOW_CONFIDENCE.into(),
+                score: RIVER_MAX_SCORE * event.weight.clamp(0.0, 1.0) * timing,
+                reasons: vec![
+                    if days_before == 0 {
+                        "Timing: known by the close of the move.".to_string()
+                    } else {
+                        format!("Timing: known {days_before} day(s) before the close of the move.")
+                    },
+                    event.reason.clone(),
+                    "River conditions show up more in barge freight and basis than in futures, so this is weak evidence for a futures move.".into(),
+                ],
+            }
+        })
+        .collect();
+    drivers.sort_by(|a, b| b.score.total_cmp(&a.score));
+    drivers.truncate(MAX_RIVER_DRIVERS);
+    drivers
+}
+
 pub fn explain(
     price_move: &PriceMove,
     symbol: &str,
     events: &[CalendarEvent],
     news: &[NewsItem],
+    river: &[RiverEvent],
 ) -> MoveExplanation {
     let mut drivers = scheduled_event_drivers(price_move, symbol, events);
     drivers.extend(news_drivers(price_move, symbol, news));
+    drivers.extend(river_drivers(price_move, river));
     drivers.sort_by(|a, b| b.score.total_cmp(&a.score));
     let label = drivers
         .first()
@@ -387,7 +433,7 @@ mod tests {
 
     #[test]
     fn no_candidates_means_no_clear_driver() {
-        let explanation = explain(&up_move(), "ZC", &[], &[]);
+        let explanation = explain(&up_move(), "ZC", &[], &[], &[]);
         assert_eq!(explanation.label, LABEL_NONE);
         assert!(explanation.drivers.is_empty());
     }
@@ -400,10 +446,76 @@ mod tests {
             "reuters.com",
             "2026-10-16T14:00:00Z",
         )];
-        let explanation = explain(&up_move(), "ZC", &events, &news);
+        let explanation = explain(&up_move(), "ZC", &events, &news, &[]);
         assert_eq!(explanation.label, LABEL_LIKELY);
         assert_eq!(explanation.drivers[0].kind, "scheduled_event");
         assert_eq!(explanation.drivers.len(), 2);
+    }
+
+    fn river_event(title: &str, when: &str, weight: f64) -> RiverEvent {
+        RiverEvent {
+            at: at(when),
+            gauge_name: "St. Louis, MO".into(),
+            title: title.into(),
+            reason: "River: the St. Louis, MO stage read 0.80 ft.".into(),
+            weight,
+        }
+    }
+
+    #[test]
+    fn a_river_event_alone_is_a_low_confidence_driver_with_reasons() {
+        let river = [
+            river_event(
+                "St. Louis, MO stage fell below the restriction level",
+                "2026-10-14T20:00:00Z",
+                0.8,
+            ),
+            // Outside the five-day window.
+            river_event("Old crossing", "2026-10-08T20:00:00Z", 1.0),
+            // After the close of the move.
+            river_event("Later crossing", "2026-10-17T20:00:00Z", 1.0),
+        ];
+        let explanation = explain(&up_move(), "ZC", &[], &[], &river);
+        assert_eq!(explanation.label, LABEL_LOW_CONFIDENCE);
+        assert_eq!(explanation.drivers.len(), 1);
+        let driver = &explanation.drivers[0];
+        assert_eq!(driver.kind, "river_event");
+        assert!(driver.reasons[0].contains("2 day(s) before"));
+        assert!(driver.reasons[2].contains("weak evidence"));
+        assert!(driver.score <= RIVER_MAX_SCORE);
+    }
+
+    #[test]
+    fn river_events_never_crowd_out_a_scheduled_report_or_a_shown_headline() {
+        let river = [
+            river_event("Crossing", "2026-10-16T20:00:00Z", 1.0),
+            river_event("Band change", "2026-10-16T20:00:00Z", 0.8),
+            river_event("Freight jump", "2026-10-15T20:00:00Z", 0.8),
+        ];
+        let events = [event("CFTC COT", "COT", "2026-10-16T19:30:00Z", None)];
+        let news = [story(
+            "Corn prices rise",
+            "unknown.example",
+            "2026-10-16T14:00:00Z",
+        )];
+        let explanation = explain(&up_move(), "ZC", &events, &news, &river);
+        assert_eq!(explanation.label, LABEL_LIKELY);
+        let kinds: Vec<&str> = explanation
+            .drivers
+            .iter()
+            .map(|driver| driver.kind.as_str())
+            .collect();
+        assert_eq!(
+            kinds,
+            vec!["scheduled_event", "news", "river_event", "river_event"]
+        );
+        for driver in &explanation.drivers {
+            for text in driver.reasons.iter().chain([&driver.label]) {
+                for banned in crate::analytics::backtest::BANNED_PHRASES {
+                    assert!(!text.to_lowercase().contains(banned), "{text}");
+                }
+            }
+        }
     }
 
     #[test]
@@ -414,7 +526,7 @@ mod tests {
             "reuters.com",
             "2026-10-16T14:00:00Z",
         )];
-        let explanation = explain(&up_move(), "ZC", &events, &news);
+        let explanation = explain(&up_move(), "ZC", &events, &news, &[]);
         // Headlines are quoted from sources, so only labels and reasons are checked.
         for driver in &explanation.drivers {
             for text in driver.reasons.iter().chain([&driver.label]) {

@@ -192,6 +192,67 @@ fn migrate(connection: &Connection) -> Result<(), String> {
             )
             .map_err(|error| format!("Create alerts schema: {error}"))?;
     }
+    if version < 11 {
+        // River alert rules come from config/waterways.json; only their switch and state are stored.
+        connection
+            .execute_batch(
+                "BEGIN;
+                CREATE TABLE river_alerts (
+                    id TEXT PRIMARY KEY,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    state INTEGER NOT NULL DEFAULT 0
+                );
+                PRAGMA user_version = 11;
+                COMMIT;",
+            )
+            .map_err(|error| format!("Create river alerts schema: {error}"))?;
+    }
+    Ok(())
+}
+
+/// Stored `(enabled, state)` for each river alert rule that has been switched or evaluated.
+pub fn river_alert_states(
+    connection: &Connection,
+) -> Result<std::collections::HashMap<String, (bool, i64)>, String> {
+    let mut statement = connection
+        .prepare("SELECT id, enabled, state FROM river_alerts")
+        .map_err(|error| format!("Prepare river alert list: {error}"))?;
+    statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                (row.get::<_, bool>(1)?, row.get::<_, i64>(2)?),
+            ))
+        })
+        .map_err(|error| format!("Query river alerts: {error}"))?
+        .collect::<Result<_, _>>()
+        .map_err(|error| format!("Read river alert: {error}"))
+}
+
+/// Switching a river alert on or off re-arms it, like a price alert.
+pub fn set_river_alert_enabled(
+    connection: &Connection,
+    id: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    connection
+        .execute(
+            "INSERT INTO river_alerts (id, enabled, state) VALUES (?1, ?2, 0)
+             ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled, state = 0",
+            params![id, enabled],
+        )
+        .map_err(|error| format!("Update river alert: {error}"))?;
+    Ok(())
+}
+
+pub fn set_river_alert_state(connection: &Connection, id: &str, state: i64) -> Result<(), String> {
+    connection
+        .execute(
+            "INSERT INTO river_alerts (id, state) VALUES (?1, ?2)
+             ON CONFLICT(id) DO UPDATE SET state = excluded.state",
+            params![id, state],
+        )
+        .map_err(|error| format!("Update river alert state: {error}"))?;
     Ok(())
 }
 
@@ -1642,6 +1703,23 @@ mod tests {
         append_observations_as_revisions(&connection, &[corrected]).unwrap();
         let prices = query_price_revisions(&connection, "price.ZC.close").unwrap();
         assert_eq!(prices[1].released_at, at("2026-10-28T09:00:00Z"));
+    }
+
+    #[test]
+    fn river_alert_switches_and_states_are_stored() {
+        let connection = test_db();
+        assert!(river_alert_states(&connection).unwrap().is_empty());
+        set_river_alert_state(&connection, "river:stlouis:band_up", 2).unwrap();
+        set_river_alert_enabled(&connection, "river:memphis:below_critical", false).unwrap();
+        let states = river_alert_states(&connection).unwrap();
+        assert_eq!(states["river:stlouis:band_up"], (true, 2));
+        assert_eq!(states["river:memphis:below_critical"], (false, 0));
+        // Resuming re-arms.
+        set_river_alert_enabled(&connection, "river:stlouis:band_up", true).unwrap();
+        assert_eq!(
+            river_alert_states(&connection).unwrap()["river:stlouis:band_up"],
+            (true, 0)
+        );
     }
 
     #[test]

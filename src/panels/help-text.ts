@@ -159,16 +159,18 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       ["Likely driver", "A government report with a fixed release time came out between the previous close and this one."],
       ["Possible driver", "A report whose date is only an expected window, or one headline that clearly stands out from the rest."],
       ["Possible driver, low confidence", "Headlines that match on timing and wording only."],
-      ["No clear driver found", "Nothing in the cached calendar or news lines up with the move."],
+      ["River event", "The river crossed a restriction or critical level, the river constraint score changed band, or barge freight jumped in the days before the move. River conditions show up more in freight, basis and spreads than in futures, so these are always low confidence."],
+      ["No clear driver found", "Nothing in the cached calendar, news or river data lines up with the move."],
     ],
   },
   alerts: {
     usage: "ALERTS",
-    oneLine: "A notification when a closing price crosses a level you choose.",
-    summary: "Notifications when a daily closing price crosses a level you set, for example corn closing at or above $4.50 a bushel.",
+    oneLine: "A notification when a closing price crosses a level you choose, or the river runs low.",
+    summary: "Notifications when a daily closing price crosses a level you set, for example corn closing at or above $4.50 a bushel, and built-in river alerts for each Mississippi gauge.",
     howToRead: [
       "Alerts are checked after each price update against the daily close, so they cannot fire during the trading day.",
       "An alert fires once per crossing, then re-arms after the price moves back across the level.",
+      "River alerts fire when a gauge falls to its restriction or critical level, when the forecast reaches the restriction level within the forecast window, and each time the river constraint score moves up a band. Pause any you do not want.",
     ],
     terms: [
       ["ARMED", "Waiting for the close to cross your level."],

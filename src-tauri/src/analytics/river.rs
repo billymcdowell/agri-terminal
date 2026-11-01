@@ -580,6 +580,128 @@ pub fn river_timeline(
     points
 }
 
+/// A week-on-week change in the barge rate at least this large is offered as a river event.
+pub const BARGE_JUMP_PERCENT: f64 = 15.0;
+
+/// A change in river conditions that the move explainer can offer as a possible driver.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RiverEvent {
+    /// The close of the day the change was first public.
+    pub at: DateTime<Utc>,
+    pub gauge_name: String,
+    pub title: String,
+    pub reason: String,
+    /// Strength of the event, 0 to 1, before timing is taken into account.
+    pub weight: f64,
+}
+
+fn band_rank(band: &str) -> u8 {
+    match band {
+        "HIGH" => 2,
+        "ELEVATED" => 1,
+        _ => 0,
+    }
+}
+
+/// Threshold crossings, band changes and barge-rate jumps, found by comparing each day of the
+/// timeline with the last day that had a value. A day with a missing input is skipped rather than
+/// read as a change, and band changes count only between scores with every input.
+pub fn river_events(
+    gauge: &Gauge,
+    barge_location: Option<&str>,
+    points: &[RiverPoint],
+) -> Vec<RiverEvent> {
+    let thresholds = gauge.thresholds;
+    let mut events = Vec::new();
+    let mut last_stage: Option<f64> = None;
+    let mut last_band: Option<&str> = None;
+    let mut last_rate: Option<f64> = None;
+    for point in points {
+        let at = market_close(point.date);
+        let mut push = |title: String, reason: String, weight: f64| {
+            events.push(RiverEvent {
+                at,
+                gauge_name: gauge.name.clone(),
+                title,
+                reason,
+                weight,
+            });
+        };
+        if let Some(stage) = point.stage {
+            if let Some(before) = last_stage {
+                for (level, name, weight) in [
+                    (thresholds.critical, "critical", 1.0),
+                    (thresholds.restriction, "restriction", 0.8),
+                ] {
+                    if before > level && stage <= level {
+                        push(
+                            format!("{} stage fell below the {name} level", gauge.name),
+                            format!(
+                                "River: the {} stage read {stage:.2} ft on {}, at or below the {level:.2} ft {name} level, after {before:.2} ft.",
+                                gauge.name, point.date
+                            ),
+                            weight,
+                        );
+                    } else if before <= level && stage > level {
+                        push(
+                            format!("{} stage rose above the {name} level", gauge.name),
+                            format!(
+                                "River: the {} stage read {stage:.2} ft on {}, back above the {level:.2} ft {name} level, after {before:.2} ft.",
+                                gauge.name, point.date
+                            ),
+                            weight * 0.6,
+                        );
+                    }
+                }
+            }
+            last_stage = Some(stage);
+        }
+        if let (Some(band), false) = (point.band.as_deref(), point.partial) {
+            if let Some(before) = last_band.filter(|before| *before != band) {
+                let up = band_rank(band) > band_rank(before);
+                push(
+                    format!(
+                        "{} river constraint score moved {} to {band}",
+                        gauge.name,
+                        if up { "up" } else { "down" }
+                    ),
+                    format!(
+                        "River: the constraint score at {} moved from {before} to {band} ({:.0} of 100) on {}.",
+                        gauge.name,
+                        point.score.unwrap_or_default(),
+                        point.date
+                    ),
+                    if up { 0.8 } else { 0.5 },
+                );
+            }
+            last_band = Some(band);
+        }
+        if let Some(rate) = point.barge_rate {
+            if let Some(before) = last_rate.filter(|before| *before > 0.0 && *before != rate) {
+                let change = (rate / before - 1.0) * 100.0;
+                if change.abs() >= BARGE_JUMP_PERCENT {
+                    let location = barge_location.unwrap_or(&gauge.name);
+                    push(
+                        format!(
+                            "Barge freight at {location} {} {:.0}% in a week",
+                            if change > 0.0 { "rose" } else { "fell" },
+                            change.abs()
+                        ),
+                        format!(
+                            "Freight: the downbound barge rate at {location} went from {before:.0}% to {rate:.0}% of tariff in the release seen on {}.",
+                            point.date
+                        ),
+                        0.8,
+                    );
+                }
+            }
+            last_rate = Some(rate);
+        }
+    }
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -715,7 +837,94 @@ mod tests {
                 "{}: {scored} days scored, {full} with every component",
                 gauge.id
             );
+            let location = gauge.barge_location.as_ref().and_then(|id| {
+                river
+                    .barge_locations
+                    .iter()
+                    .find(|location| &location.id == id)
+                    .map(|location| location.name.as_str())
+            });
+            let events = river_events(gauge, location, &timeline);
+            for year in 2021..=2026 {
+                let in_year = |event: &&RiverEvent| {
+                    event
+                        .at
+                        .date_naive()
+                        .to_string()
+                        .starts_with(&year.to_string())
+                };
+                let crossings = events
+                    .iter()
+                    .filter(in_year)
+                    .filter(|event| event.title.contains("fell below"))
+                    .count();
+                println!(
+                    "{} {year}: {} river events, {crossings} downward crossings",
+                    gauge.id,
+                    events.iter().filter(in_year).count()
+                );
+            }
+            assert!(events.iter().any(|event| {
+                event.title.contains("fell below the restriction level")
+                    && ["2022", "2023"]
+                        .iter()
+                        .any(|year| event.at.date_naive().to_string().starts_with(year))
+            }));
         }
+    }
+
+    fn point(date: &str, stage: Option<f64>, band: Option<&str>, rate: Option<f64>) -> RiverPoint {
+        RiverPoint {
+            date: day(date),
+            close: None,
+            stage,
+            stage_low: None,
+            stage_mean: None,
+            stage_high: None,
+            forecast_min: None,
+            barge_rate: rate,
+            score: band.map(|_| 50.0),
+            band: band.map(str::to_string),
+            partial: false,
+            basis_spread: None,
+        }
+    }
+
+    #[test]
+    fn river_events_find_crossings_band_changes_and_freight_jumps() {
+        let (_, gauge) = gauge_and_river();
+        let points = [
+            point("2026-10-01", Some(1.4), Some("NORMAL"), Some(500.0)),
+            // A missing reading is skipped, not read as a change.
+            point("2026-10-02", None, None, Some(500.0)),
+            point("2026-10-03", Some(0.8), Some("ELEVATED"), Some(500.0)),
+            point("2026-10-04", Some(0.9), Some("ELEVATED"), Some(590.0)),
+            point("2026-10-05", Some(1.3), Some("NORMAL"), Some(600.0)),
+        ];
+        let events = river_events(&gauge, Some("St. Louis"), &points);
+        let titles: Vec<&str> = events.iter().map(|event| event.title.as_str()).collect();
+        assert_eq!(
+            titles,
+            vec![
+                "St. Louis, MO stage fell below the restriction level",
+                "St. Louis, MO river constraint score moved up to ELEVATED",
+                "Barge freight at St. Louis rose 18% in a week",
+                "St. Louis, MO stage rose above the restriction level",
+                "St. Louis, MO river constraint score moved down to NORMAL",
+            ]
+        );
+        assert_eq!(events[0].at, at("2026-10-03T20:00:00Z"));
+        assert!(events[0].reason.contains("0.80 ft"));
+        assert!(events[3].weight < events[0].weight);
+        // A partial score's band is not compared.
+        let mut partial = points.clone();
+        partial[2].partial = true;
+        partial[3].partial = true;
+        assert!(
+            !river_events(&gauge, None, &partial)
+                .iter()
+                .any(|event| event.title.contains("moved up"))
+        );
     }
 
     #[test]
