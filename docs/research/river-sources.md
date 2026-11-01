@@ -85,6 +85,31 @@ USGS site `07032000` (Mississippi River at Memphis) publishes discharge (`00060`
 - **Licence concern for the interior side.** The interior elevator bids for Illinois, Iowa, Nebraska, Indiana, Ohio, Minnesota and others are labelled "GeoGrain Subscription", a commercial feed; only South Dakota comes from an AMS report (`SF_GR110`). The rows also carry exchange futures prices. USDA publishes them openly, but whether AgriTerminal may redistribute the GeoGrain-sourced series has not been confirmed. Until it is, use only the AMS-sourced Gulf side, and keep interior basis on the planned MARS connector.
 - The keyed MARS API was not checked in this spike (no key). `docs/research/phase4-provider-spikes.md` still applies.
 
+### Phase 6 decision: no basis spread yet
+
+The plan's Gulf minus interior spread needs a public interior basis for the river states, and none is available without more work:
+
+- **AgTransport's interior bids for the river states are commercial.** Illinois, Iowa, Indiana, Ohio, Minnesota and Nebraska elevator bids in `v85y-3hep` and the origin side of `an4w-mnp7` are labelled "GeoGrain Subscription". Rule 1 keeps proprietary price data out, so they are not used. The only AMS-sourced interior series there is South Dakota (`SF_GR110`), which ships mostly by rail and is not a river origin.
+- **The public alternative is the USDA AMS Market News (MARS) API**, whose state grain reports (for example Iowa and Illinois) carry cash bids and basis. It needs a personal key, and the AgriTerminal connector for it is not built. Its grain-row JSON fields have not been checked against a keyed response.
+- **The Gulf side is ready when the interior side is.** The Louisiana Gulf rows in `v85y-3hep` come from AMS report `JO_GR850`, keyless, weekly from 2007.
+
+Until then the river timeline's basis slot stays empty and hidden, the panels say why, and barge freight is the price side. `estimate_sensitivity` takes any weekly price series, so the spread can use it as soon as it exists.
+
+### Sensitivity: changes on changes, not the methodology's formula
+
+`../waterway-index/docs/METHODOLOGY.md` estimates β as the slope of a price's change on the level of depth below the restriction level. Over the six stored years (2020–2026, weekly barge rates against the mean stage of each week), that gave nothing usable: St. Louis −5.0 percent of tariff per foot with R² 0.002, Cairo–Memphis −23.2 with R² 0.040. Rates jump as the river falls and then settle while it stays low, so the level of depth says little about the next week's change.
+
+Regressing the change in rate on the change in depth below restriction over the same span works, with a response that builds over several weeks:
+
+| Span | St. Louis β (R²) | Cairo–Memphis β (R²) |
+| --- | --- | --- |
+| 1 week | 20.8 (0.016) | 18.8 (0.011) |
+| 2 weeks | 43.8 (0.055) | 40.0 (0.038) |
+| 4 weeks | 89.3 (0.158) | 88.0 (0.126) |
+| 6 weeks | 109.7 (0.171) | 128.4 (0.230) |
+
+β is percent of tariff per foot deeper below the restriction level. AgriTerminal uses the two-week span, because that is how far the NWS forecast reaches, and applies it as β × (expected depth below restriction in the forecast's second week − depth below restriction over the last week). The intercept is left out, as drift unrelated to the river. Levels on levels fit better (R² 0.16 and 0.22) but mix in the autumn harvest freight peak, which falls when the river is usually lowest.
+
 ## Low-water thresholds (provisional)
 
 All in feet on each gauge's own datum, for `config/waterways.json`. They are starting values for Phase 7 calibration, not operational limits.

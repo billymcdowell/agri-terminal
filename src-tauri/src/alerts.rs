@@ -512,6 +512,7 @@ pub mod river {
                     traffic: None,
                     partial: false,
                 }),
+                pressure: None,
             }
         }
 

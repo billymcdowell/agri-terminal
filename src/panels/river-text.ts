@@ -25,7 +25,10 @@ export const RIVER_TEXT = {
   farmer: "When the river runs low, barges carry less and freight costs more, so elevators that ship by river often bid less against futures (local basis weakens). A high score is a reason to check your local bids, not a price forecast.",
   timelineIntro: "Stage, forecast, barge freight and the constraint score, each as it was known at that day's close.",
   timelineNoData: "No river stage is stored yet.",
-  basisNote: "Gulf versus interior basis needs a public interior basis source, which is not connected yet.",
+  basisNote: "Gulf versus interior basis is not shown: public interior bids for the river states need the USDA AMS Market News connector, which is not built yet, so barge freight stands in as the price side.",
+  pressureHeading: "Freight pressure, next 14 days",
+  noPressure: "Needs a current forecast reaching two weeks ahead and enough past low-water weeks to measure how freight reacted.",
+  pressureCaveat: "A rough average from past weeks, not a forecast of freight. Freight also moves with harvest demand and other traffic, and the fit shows how little of its movement river depth has explained.",
 } as const;
 
 export const BAND_LABELS: Record<RiverBand, string> = { NORMAL: "Normal", ELEVATED: "Elevated", HIGH: "High" };
@@ -54,6 +57,12 @@ export function stagePosition(status: Pick<RiverStatus, "stage" | "thresholds">)
   if (stage <= restriction) return `${formatFeet(stage - critical)} above the critical level, below the restriction level (${formatFeet(restriction)}).`;
   if (stage < normal) return `${formatFeet(stage - restriction)} above the restriction level (${formatFeet(restriction)}), below normal (${formatFeet(normal)}).`;
   return `At or above normal (${formatFeet(normal)}).`;
+}
+
+/** "+43.8% of tariff per ft over 2 weeks · fit R² 0.06 from 308 two-week pairs". */
+export function describeSensitivity(sensitivity: { beta: number; rSquared: number; pairs: number; horizonWeeks: number }) {
+  const sign = sensitivity.beta >= 0 ? "+" : "−";
+  return `${sign}${Math.abs(sensitivity.beta).toFixed(1)}% of tariff per ft deeper below the restriction level over ${sensitivity.horizonWeeks} weeks · fit R² ${sensitivity.rSquared.toFixed(2)} from ${sensitivity.pairs} pairs of weeks`;
 }
 
 /** The weighted points each component adds, for the breakdown line. */

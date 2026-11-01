@@ -282,6 +282,14 @@ export function buildRiverStatus(id: string): RiverStatus {
     bargeRate: { latest: input(barge.i, barge.v, 66), previous: input(previous.i, previous.v, 66), changePercent: (barge.v / previous.v - 1) * 100, dollarsPerTon: (barge.v * g.benchmark) / 10_000, location: g.location },
     traffic: { week: day(r.days[tons.i]), tons: tons.v, averageTons: average, changePercent: (tons.v / average - 1) * 100, locks: id === "memphis" ? ["MS Locks 27", "OH Olmsted"] : ["MS Locks 27"], releasedAt: iso(r.days[tons.i] + 5 * DAY + 18 * 3600_000) },
     score: { total, band: total >= 70 ? "HIGH" : total >= 40 ? "ELEVATED" : "NORMAL", partial: false, depth: weight(c.depth, 0.5), forecast: weight(c.forecast, 0.3), traffic: weight(c.traffic, 0.2) },
+    pressure: (() => {
+      const currentDepth = Math.max(0, g.restriction - r.stage[n]);
+      const lows = forecast.slice(-4).map((f) => f.low);
+      const expectedDepth = Math.max(0, g.restriction - lows.reduce((a, v) => a + v, 0) / lows.length);
+      const sensitivity = { beta: 42, intercept: 0.5, rSquared: 0.05, pairs: 150, depthChangePairs: 40, horizonWeeks: 2 };
+      const change = sensitivity.beta * (expectedDepth - currentDepth);
+      return { currentDepth, expectedDepth, change, dollarsPerTon: (change * g.benchmark) / 10_000, sensitivity };
+    })(),
   };
 }
 

@@ -247,6 +247,111 @@ fn traffic_inputs(totals: &[(NaiveDate, f64)], day: NaiveDate) -> Option<(NaiveD
     Some((latest_week, latest, average))
 }
 
+/// The sensitivity is estimated over the same span the forecast covers: two weeks.
+pub const SENSITIVITY_HORIZON_WEEKS: i64 = 2;
+/// Fewer pairs than this, or fewer that saw the depth change, give no estimate.
+const MIN_SENSITIVITY_PAIRS: usize = 52;
+const MIN_DEPTH_CHANGES: usize = 8;
+/// A week's stage needs at least this many daily readings to count.
+const MIN_DAYS_PER_WEEK: usize = 4;
+
+/// How much a weekly price (the barge rate, or a basis spread once one exists) has moved per foot
+/// of change in depth below the restriction level, over `horizon_weeks`.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Sensitivity {
+    /// Change in the price per foot deeper below the restriction level.
+    pub beta: f64,
+    pub intercept: f64,
+    pub r_squared: f64,
+    pub pairs: usize,
+    /// Pairs in which the depth below the restriction level changed at all.
+    pub depth_change_pairs: usize,
+    pub horizon_weeks: i64,
+}
+
+/// Depth below the restriction level, in feet: 0 at or above it.
+pub fn depth_below(level: f64, restriction: f64) -> f64 {
+    (restriction - level).max(0.0)
+}
+
+/// Mean stage over the seven days ending `day`, if enough of them have a reading.
+fn week_mean(stage: &BTreeMap<NaiveDate, f64>, day: NaiveDate) -> Option<f64> {
+    let values: Vec<f64> = stage
+        .range(day - Duration::days(6)..=day)
+        .map(|(_, value)| *value)
+        .collect();
+    (values.len() >= MIN_DAYS_PER_WEEK).then(|| values.iter().sum::<f64>() / values.len() as f64)
+}
+
+/// Ordinary least squares slope of the price's change over `horizon_weeks` on the change in depth
+/// below the restriction level over the same weeks, with each week's depth taken from its mean
+/// stage. Changes, not levels, because freight also rises every autumn with harvest demand, which
+/// is when the river is usually lowest.
+pub fn estimate_sensitivity(
+    weekly_price: &BTreeMap<NaiveDate, f64>,
+    stage: &BTreeMap<NaiveDate, f64>,
+    restriction: f64,
+    horizon_weeks: i64,
+) -> Option<Sensitivity> {
+    let mut pairs = Vec::new();
+    for (week, price) in weekly_price {
+        let later = *week + Duration::days(7 * horizon_weeks);
+        let (Some(later_price), Some(before), Some(after)) = (
+            weekly_price.get(&later),
+            week_mean(stage, *week),
+            week_mean(stage, later),
+        ) else {
+            continue;
+        };
+        pairs.push((
+            depth_below(after, restriction) - depth_below(before, restriction),
+            later_price - price,
+        ));
+    }
+    let depth_change_pairs = pairs.iter().filter(|(x, _)| x.abs() > 1e-9).count();
+    if pairs.len() < MIN_SENSITIVITY_PAIRS || depth_change_pairs < MIN_DEPTH_CHANGES {
+        return None;
+    }
+    let n = pairs.len() as f64;
+    let mean_x = pairs.iter().map(|(x, _)| x).sum::<f64>() / n;
+    let mean_y = pairs.iter().map(|(_, y)| y).sum::<f64>() / n;
+    let sxx: f64 = pairs.iter().map(|(x, _)| (x - mean_x).powi(2)).sum();
+    let syy: f64 = pairs.iter().map(|(_, y)| (y - mean_y).powi(2)).sum();
+    let sxy: f64 = pairs.iter().map(|(x, y)| (x - mean_x) * (y - mean_y)).sum();
+    if sxx <= 0.0 {
+        return None;
+    }
+    let beta = sxy / sxx;
+    Some(Sensitivity {
+        beta,
+        intercept: mean_y - beta * mean_x,
+        r_squared: if syy > 0.0 {
+            sxy * sxy / (sxx * syy)
+        } else {
+            0.0
+        },
+        pairs: pairs.len(),
+        depth_change_pairs,
+        horizon_weeks,
+    })
+}
+
+/// The barge-rate change the sensitivity implies if the river follows the forecast for the next
+/// two weeks. The intercept is left out: it is drift that has nothing to do with the river.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpectedPressure {
+    /// Depth below the restriction level over the last seven days, in feet.
+    pub current_depth: f64,
+    /// Depth below the restriction level expected in the second week of the forecast.
+    pub expected_depth: f64,
+    /// Implied change in the barge rate, in percent of tariff.
+    pub change: f64,
+    pub dollars_per_ton: Option<f64>,
+    pub sensitivity: Sensitivity,
+}
+
 /// Every revision of the series a gauge's score needs.
 pub struct GaugeSeries<'a> {
     pub stage: &'a [MetricObservation],
@@ -331,6 +436,8 @@ pub struct RiverStatus {
     pub barge_rate: Option<BargeRateStatus>,
     pub traffic: Option<TrafficStatus>,
     pub score: Option<ConstraintScore>,
+    /// Expected barge-rate pressure over the next two weeks, from the forecast and past sensitivity.
+    pub pressure: Option<ExpectedPressure>,
 }
 
 /// The newest revision of each period, in period order, for seasonal comparisons.
@@ -467,6 +574,15 @@ pub fn river_status(
             traffic: traffic_values.map(|(_, tons, average)| (tons, average)),
         },
     );
+    let pressure = expected_pressure(
+        gauge,
+        location,
+        stage_sweep.advance(as_of),
+        known_barge,
+        known_forecast,
+        low.is_some(),
+        day,
+    );
     RiverStatus {
         gauge_id: gauge.id.clone(),
         gauge_name: gauge.name.clone(),
@@ -485,7 +601,54 @@ pub fn river_status(
         barge_rate,
         traffic,
         score,
+        pressure,
     }
+}
+
+/// The sensitivity from what was known, applied to the current depth and the forecast's second
+/// week. Needs a current forecast reaching that far.
+fn expected_pressure(
+    gauge: &Gauge,
+    location: Option<&crate::sources::river::BargeLocation>,
+    known_stage: &BTreeMap<NaiveDate, &MetricObservation>,
+    known_barge: &BTreeMap<NaiveDate, &MetricObservation>,
+    known_forecast: &BTreeMap<NaiveDate, &MetricObservation>,
+    forecast_current: bool,
+    day: NaiveDate,
+) -> Option<ExpectedPressure> {
+    if !forecast_current {
+        return None;
+    }
+    let restriction = gauge.thresholds.restriction;
+    let stage: BTreeMap<NaiveDate, f64> = known_stage
+        .iter()
+        .map(|(period, row)| (*period, row.value))
+        .collect();
+    let rates: BTreeMap<NaiveDate, f64> = known_barge
+        .iter()
+        .map(|(period, row)| (*period, row.value))
+        .collect();
+    let sensitivity = estimate_sensitivity(&rates, &stage, restriction, SENSITIVITY_HORIZON_WEEKS)?;
+    let current_depth = depth_below(week_mean(&stage, day)?, restriction);
+    let second_week: Vec<f64> = known_forecast
+        .range(day + Duration::days(8)..=day + Duration::days(14))
+        .map(|(_, row)| row.value)
+        .collect();
+    if second_week.len() < MIN_DAYS_PER_WEEK {
+        return None;
+    }
+    let expected_depth = depth_below(
+        second_week.iter().sum::<f64>() / second_week.len() as f64,
+        restriction,
+    );
+    let change = sensitivity.beta * (expected_depth - current_depth);
+    Some(ExpectedPressure {
+        current_depth,
+        expected_depth,
+        change,
+        dollars_per_ton: location.map(|location| location.dollars_per_ton(change)),
+        sensitivity,
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -505,7 +668,9 @@ pub struct RiverPoint {
     pub score: Option<f64>,
     pub band: Option<String>,
     pub partial: bool,
-    /// Gulf minus interior basis, once a public interior basis source exists.
+    /// Gulf minus interior basis. Always empty for now: the public interior basis for the river
+    /// states needs the keyed USDA AMS Market News connector, which is not built (see
+    /// docs/research/river-sources.md).
     pub basis_spread: Option<f64>,
 }
 
@@ -864,6 +1029,19 @@ mod tests {
                     events.iter().filter(in_year).count()
                 );
             }
+            println!(
+                "{}: sensitivity {:?}, pressure change {:?}",
+                gauge.id,
+                status
+                    .pressure
+                    .as_ref()
+                    .map(|pressure| &pressure.sensitivity),
+                status.pressure.as_ref().map(|pressure| (
+                    pressure.current_depth,
+                    pressure.expected_depth,
+                    pressure.change
+                )),
+            );
             assert!(events.iter().any(|event| {
                 event.title.contains("fell below the restriction level")
                     && ["2022", "2023"]
@@ -925,6 +1103,100 @@ mod tests {
                 .iter()
                 .any(|event| event.title.contains("moved up"))
         );
+    }
+
+    /// Daily stage over `weeks` weeks ending on Tuesdays from 2024-01-02, and a weekly price set
+    /// by `price` from that week's depth below a 1.0 ft restriction level.
+    fn synthetic_history(
+        weeks: i64,
+        price: impl Fn(f64, i64) -> f64,
+    ) -> (BTreeMap<NaiveDate, f64>, BTreeMap<NaiveDate, f64>) {
+        let start = day("2024-01-02");
+        let mut stage = BTreeMap::new();
+        let mut prices = BTreeMap::new();
+        for week in 0..weeks {
+            // A slow seasonal swing between 6 ft and -3 ft, constant within each week.
+            let level = 1.5 + 4.5 * ((week as f64) * std::f64::consts::TAU / 52.0).cos();
+            let tuesday = start + Duration::days(7 * week);
+            for offset in 0..7 {
+                stage.insert(tuesday - Duration::days(offset), level);
+            }
+            prices.insert(tuesday, price(depth_below(level, 1.0), week));
+        }
+        (prices, stage)
+    }
+
+    #[test]
+    fn the_sensitivity_recovers_a_known_slope() {
+        // 400 percent of tariff plus 60 per foot below the restriction level.
+        let (prices, stage) = synthetic_history(156, |depth, _| 400.0 + 60.0 * depth);
+        let sensitivity = estimate_sensitivity(&prices, &stage, 1.0, 2).unwrap();
+        assert!((sensitivity.beta - 60.0).abs() < 1e-9, "{sensitivity:?}");
+        assert!((sensitivity.r_squared - 1.0).abs() < 1e-9);
+        assert_eq!(sensitivity.pairs, 154);
+        assert!(sensitivity.depth_change_pairs >= MIN_DEPTH_CHANGES);
+        // Noise lowers the fit, not the slope's sign.
+        let (noisy, stage) = synthetic_history(156, |depth, week| {
+            400.0 + 60.0 * depth + if week % 3 == 0 { 40.0 } else { -20.0 }
+        });
+        let fitted = estimate_sensitivity(&noisy, &stage, 1.0, 2).unwrap();
+        assert!(fitted.beta > 40.0 && fitted.r_squared < 1.0, "{fitted:?}");
+    }
+
+    #[test]
+    fn too_little_history_gives_no_sensitivity() {
+        let (prices, stage) = synthetic_history(40, |depth, _| 400.0 + 60.0 * depth);
+        assert_eq!(estimate_sensitivity(&prices, &stage, 1.0, 2), None);
+        // A river that never reaches the restriction level says nothing about the slope.
+        let (prices, stage) = synthetic_history(156, |depth, _| 400.0 + 60.0 * depth);
+        assert_eq!(estimate_sensitivity(&prices, &stage, -10.0, 2), None);
+    }
+
+    #[test]
+    fn expected_pressure_applies_the_slope_to_the_forecast() {
+        let (river, gauge) = gauge_and_river();
+        let (prices, stage_history) = synthetic_history(156, |depth, _| 400.0 + 60.0 * depth);
+        let last = *stage_history.keys().last().unwrap();
+        let released = |period: NaiveDate| format!("{period}T16:00:00Z");
+        let stage: Vec<MetricObservation> = stage_history
+            .iter()
+            .map(|(period, value)| row("s", &period.to_string(), &released(*period), *value))
+            .collect();
+        let barge: Vec<MetricObservation> = prices
+            .iter()
+            .map(|(period, value)| row("b", &period.to_string(), &released(*period), *value))
+            .collect();
+        // Forecast issued on the last day: the river falls to 0.0 ft in the second week.
+        let issued = format!("{last}T16:00:00Z");
+        let forecast: Vec<MetricObservation> = (1..=14)
+            .map(|ahead| {
+                let target = last + Duration::days(ahead);
+                row(
+                    "f",
+                    &target.to_string(),
+                    &issued,
+                    if ahead > 7 { 0.0 } else { 0.5 },
+                )
+            })
+            .collect();
+        let series = GaugeSeries {
+            stage: &stage,
+            forecast: &forecast,
+            barge_rate: &barge,
+            locks: vec![&[]],
+        };
+        let as_of = market_close(last);
+        let status = river_status(&river, &gauge, &BANDS, &series, as_of);
+        let pressure = status.pressure.unwrap();
+        let current = depth_below(stage_history[&last], 1.0);
+        assert!((pressure.expected_depth - 1.0).abs() < 1e-9);
+        assert!((pressure.current_depth - current).abs() < 1e-9);
+        assert!((pressure.change - 60.0 * (1.0 - current)).abs() < 1e-6);
+        // St. Louis quotes are on a $3.99 benchmark.
+        assert!((pressure.dollars_per_ton.unwrap() - pressure.change * 0.0399).abs() < 1e-9);
+        // Without a current forecast there is no pressure.
+        let stale = river_status(&river, &gauge, &BANDS, &series, as_of + Duration::days(5));
+        assert!(stale.pressure.is_none());
     }
 
     #[test]

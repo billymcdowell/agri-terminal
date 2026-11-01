@@ -74,12 +74,16 @@ export type ScoreComponent = { value: number; weight: number; points: number };
 export type RiverBand = "NORMAL" | "ELEVATED" | "HIGH";
 export type ConstraintScore = { total: number; band: RiverBand; depth: ScoreComponent | null; forecast: ScoreComponent | null; traffic: ScoreComponent | null; partial: boolean };
 export type BargeRateStatus = { latest: RiverInput; dollarsPerTon: number | null; previous: RiverInput | null; changePercent: number | null; location: string };
+/** How far the barge rate moved per foot of change in depth below the restriction level, over `horizonWeeks`. */
+export type Sensitivity = { beta: number; intercept: number; rSquared: number; pairs: number; depthChangePairs: number; horizonWeeks: number };
+/** The barge-rate change implied if the river follows the forecast for two weeks, in percent of tariff. */
+export type ExpectedPressure = { currentDepth: number; expectedDepth: number; change: number; dollarsPerTon: number | null; sensitivity: Sensitivity };
 export type TrafficStatus = { week: string; tons: number; averageTons: number; changePercent: number; locks: string[]; releasedAt: string };
 export type RiverStatus = {
   gaugeId: string; gaugeName: string; riverName: string; unit: string; thresholds: RiverThresholds; provisional: boolean; asOf: string;
   stage: RiverInput | null; stageBand: SeasonalBand | null;
   forecastIssuedAt: string | null; forecastFetchedAt: string | null; forecast: { date: string; low: number }[]; forecastMin: number | null; restrictionForecastOn: string | null;
-  bargeRate: BargeRateStatus | null; traffic: TrafficStatus | null; score: ConstraintScore | null;
+  bargeRate: BargeRateStatus | null; traffic: TrafficStatus | null; score: ConstraintScore | null; pressure: ExpectedPressure | null;
 };
 /** One day of the river timeline, as known at that day's close. `bargeRate` is percent of the 1976 tariff. */
 export type RiverPoint = {

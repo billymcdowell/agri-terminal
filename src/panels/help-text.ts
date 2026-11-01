@@ -124,6 +124,8 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       "The restriction level is roughly where barges start loading lighter; the critical level is where restrictions become severe. These starting values are provisional.",
       "Barge freight is quoted as a percent of a 1976 benchmark tariff for that stretch of river. The dollar figure converts it to dollars per short ton.",
       "River effects usually show up more in freight, basis and spreads than in futures prices, so treat the score as a possible pressure, not a price call.",
+      "Freight pressure, next 14 days, applies how far the barge rate has moved in the past per foot of change in depth below the restriction level to the forecast's second week. The fit (R²) says how much of freight's movement river depth has explained, which is usually little: treat it as a rough guide.",
+      "Gulf versus interior basis is not shown yet. Public interior bids for the river states need the USDA AMS Market News connector, which is not built, so barge freight stands in as the price side.",
       "Each part shows when it was published and fetched. Barge rates and lock tonnage come out on Thursdays in the USDA Grain Transportation Report.",
     ],
     terms: [

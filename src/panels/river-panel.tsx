@@ -8,7 +8,7 @@ import { findGauge, GAUGES } from "@/lib/waterways";
 import { useRiverUpdates } from "@/state/use-series";
 import type { PanelComponentProps } from "@/workspace/types";
 import { PanelHeader } from "./panel-header";
-import { BAND_LABELS, componentBreakdown, formatFeet, formatPercentChange, formatTons, RIVER_TEXT, stagePosition } from "./river-text";
+import { BAND_LABELS, componentBreakdown, describeSensitivity, formatFeet, formatPercentChange, formatTons, RIVER_TEXT, stagePosition } from "./river-text";
 
 /** "Released 29 Oct · fetched 3h old · usda-agtransport", so every input shows how current it is. */
 export function inputFreshness(input: Pick<RiverInput, "releasedAt" | "fetchedAt" | "sourceId">, now: number) {
@@ -110,6 +110,29 @@ function FreightCard({ status, now }: { status: RiverStatus; now: number }) {
   );
 }
 
+function PressureCard({ status }: { status: RiverStatus }) {
+  const pressure = status.pressure;
+  const sign = (value: number) => (value > 0 ? "+" : value < 0 ? "−" : "");
+  return (
+    <Card className="terminal-card">
+      <CardHeader><CardTitle className="side-card-title">{RIVER_TEXT.pressureHeading}</CardTitle></CardHeader>
+      <CardContent>
+        {!pressure ? <p className="metric-foot">{RIVER_TEXT.noPressure}</p> : (
+          <>
+            <div className="metric-value">{sign(pressure.change)}{Math.abs(pressure.change).toFixed(0)}% of tariff</div>
+            <p className="metric-foot">
+              {pressure.dollarsPerTon !== null ? `About ${sign(pressure.dollarsPerTon)}$${Math.abs(pressure.dollarsPerTon).toFixed(2)} per short ton · ` : ""}
+              depth below restriction {formatFeet(pressure.currentDepth)} over the last week, {formatFeet(pressure.expectedDepth)} expected in the forecast's second week
+            </p>
+            <p className="metric-foot">{describeSensitivity(pressure.sensitivity)}</p>
+          </>
+        )}
+        <p className="metric-foot">{RIVER_TEXT.pressureCaveat}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function TrafficCard({ status }: { status: RiverStatus }) {
   const traffic = status.traffic;
   return (
@@ -150,6 +173,7 @@ export function RiverPanel({ api, params }: PanelComponentProps) {
             <StageCard status={data} now={now} />
             <ForecastCard status={data} now={now} />
             <FreightCard status={data} now={now} />
+            <PressureCard status={data} />
             <TrafficCard status={data} />
           </div>
           <p className="panel-freshness">{params.audience === "farmer" ? RIVER_TEXT.farmer : RIVER_TEXT.trader}</p>
