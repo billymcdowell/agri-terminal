@@ -7,6 +7,12 @@ on:
   pull_request:
   workflow_call:
 
+# A branch with an open pull request gets both a push and a pull_request run.
+# Both share this group, so only the newest run for a branch keeps going.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   frontend:
     name: Frontend checks
