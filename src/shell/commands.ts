@@ -1,15 +1,14 @@
 import { parseCommand } from "@/command-bar/grammar";
 import { COMMODITIES, findRegion } from "@/lib/regions";
 import { findGauge, GAUGES } from "@/lib/waterways";
-import { getTemplate } from "./templates";
-import type { PanelParams } from "./types";
+
+/** The section a command goes to, and the state or gauge it names. */
+export type CommandTarget = { kind: string; region?: string; gauge?: string };
 
 export type CommandPlan =
-  | { type: "workspace"; name: string }
-  | { type: "template"; id: string }
   | { type: "settings" }
-  /** Open the panel, or bring forward an existing one of the same kind, and switch to the crop it names. */
-  | { type: "open"; params: PanelParams; crop?: string }
+  /** Go to the page with this section, switching to the crop, state or gauge the command names. */
+  | { type: "open"; params: CommandTarget; crop?: string }
   | { type: "error"; message: string };
 
 export function planCommand(input: string): CommandPlan {
@@ -17,8 +16,6 @@ export function planCommand(input: string): CommandPlan {
   if (!command) return { type: "error", message: `Unrecognized command: ${input.trim() || "(empty)"}. Type HELP to see every command.` };
   const symbolCheck = (symbol: string) => (COMMODITIES.includes(symbol) ? undefined : `Unknown commodity ${symbol}. Try ${COMMODITIES.join(", ")}.`);
   switch (command.kind) {
-    case "workspace":
-      return { type: "workspace", name: command.name };
     case "commodity":
     case "cot": {
       const message = symbolCheck(command.symbol);
@@ -33,8 +30,6 @@ export function planCommand(input: string): CommandPlan {
       return { type: "open", params: { kind: "crop-condition" } };
     case "wasde":
       return { type: "open", params: { kind: "wasde" } };
-    case "template":
-      return getTemplate(command.id) ? { type: "template", id: command.id } : { type: "error", message: `Unknown template ${command.id}. Try farmer, trader, analyst or student.` };
     case "stress":
       return { type: "open", params: { kind: "crop-stress" } };
     case "river":

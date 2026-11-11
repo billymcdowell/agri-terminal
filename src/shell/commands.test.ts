@@ -36,11 +36,8 @@ describe("planCommand", () => {
     expect(planCommand("help")).toEqual({ type: "open", params: { kind: "help" } });
     expect(planCommand("nonsense")).toMatchObject({ type: "error", message: expect.stringContaining("Type HELP") });
   });
-  it("loads known templates and rejects unknown ones", () => {
-    expect(planCommand("TEMPLATE trader")).toEqual({ type: "template", id: "trader" });
-    expect(planCommand("TEMPLATE pirate")).toMatchObject({ type: "error" });
-  });
-  it("switches workspaces by name", () => {
-    expect(planCommand("WS Morning desk")).toEqual({ type: "workspace", name: "Morning desk" });
+  it("no longer knows templates or workspaces, which fixed pages replaced", () => {
+    expect(planCommand("TEMPLATE trader")).toMatchObject({ type: "error" });
+    expect(planCommand("WS Morning desk")).toMatchObject({ type: "error" });
   });
 });

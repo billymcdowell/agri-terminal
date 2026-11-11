@@ -162,19 +162,6 @@ button {
   font-size: 9px;
   margin-top: 5px;
 }
-/* Settings: one screen for display preferences, every data source and key, and exports. */
-.settings-dialog {
-  width: calc(100vw - 48px);
-  max-width: 1040px;
-  height: calc(100vh - 48px);
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0;
-  padding: 0;
-}
-.settings-header {
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid rgba(var(--line-rgb), 0.12);
-}
 .settings-tabs {
   min-height: 0;
   gap: 0;
@@ -293,52 +280,15 @@ button {
   overflow-wrap: anywhere;
 }
 
-.workspace-shell { height: 100vh; display: grid; grid-template-rows: 58px minmax(0, 1fr); background: var(--tone-0c100d); }
-.workspace-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid rgba(var(--line-rgb),.14); background: var(--tone-101411); }
-.workspace-title { display: flex; align-items: center; gap: 2px; }
-/* The input's size attribute fits it to the name, so the workspace menu sits right beside it. */
-.workspace-name-input { height: 25px; width: auto; max-width: 260px; padding: 2px 0; border: 0; background: transparent; color: var(--tone-e3e8df); font-size: 12px; }
-.workspace-menu { min-width: 240px; }
-.workspace-name-form { display: grid; gap: 16px; }
-.workspace-name-field { display: grid; gap: 6px; }
-.workspace-menu-error { margin: 0; color: var(--tone-d77b68); font-size: 12px; }
-.workspace-save-error { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tone-d77b68); font-size: 11px; }
-.workspace-toolbar-actions { display: flex; align-items: center; gap: 8px; }
 .crop-switcher { display: flex; gap: 2px; padding: 2px; border: 1px solid rgba(var(--line-rgb),.14); border-radius: 6px; }
 .crop-switcher button { height: 26px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent; color: var(--tone-899388); font: inherit; font-size: 12px; cursor: pointer; }
 .crop-switcher button:hover { color: var(--tone-c1d0b3); }
 .crop-switcher button[aria-pressed="true"] { color: var(--tone-c1d0b3); background: rgba(var(--accent-rgb), 0.13); }
 .crop-switcher button:focus-visible { outline: 2px solid rgba(var(--accent-rgb), .6); outline-offset: 1px; }
-.workspace-toolbar kbd { margin-left: 5px; color: var(--tone-899388); font-size: 10px; }
-.dockview-host { min-width: 0; min-height: 0; }
-.dockview-theme-abyss {
-  /* Dockview's built-in abyss theme is dark blue; every colour is replaced by the terminal palette so both themes match. */
-  color-scheme: inherit;
-  --dv-background-color: var(--tone-0c100d);
-  --dv-group-view-background-color: var(--tone-0c100d);
-  --dv-tabs-and-actions-container-background-color: var(--tone-101411);
-  --dv-activegroup-visiblepanel-tab-background-color: var(--tone-171d18);
-  --dv-activegroup-hiddenpanel-tab-background-color: var(--tone-101411);
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--tone-101411);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--tone-101411);
-  --dv-tab-divider-color: rgba(var(--line-rgb), .15);
-  --dv-activegroup-visiblepanel-tab-color: var(--tone-dce4d7);
-  --dv-activegroup-hiddenpanel-tab-color: var(--tone-899388);
-  --dv-inactivegroup-visiblepanel-tab-color: var(--tone-899388);
-  --dv-inactivegroup-hiddenpanel-tab-color: var(--tone-899388);
-  --dv-separator-border: rgba(var(--line-rgb), .15);
-  --dv-paneview-header-border-color: rgba(var(--line-rgb), .15);
-  --dv-paneview-active-outline-color: var(--tone-88ac75);
-  --dv-tabs-container-scrollbar-color: var(--tone-677268);
-}
-/* Dockview clips its content area, so panels taller than their group scroll here. */
-.workspace-panel-container { height: 100%; overflow: auto; }
-.workspace-panel { height: 100%; padding: 18px; color: var(--tone-dce4d7); background: var(--tone-0c100d); }
+.workspace-panel { height: 100%; padding: 18px; border: 1px solid rgba(var(--line-rgb),.12); border-radius: 8px; color: var(--tone-dce4d7); background: var(--tone-0c100d); }
 .workspace-panel-heading { display:flex; align-items:center; justify-content:space-between; padding-bottom:14px; border-bottom:1px solid rgba(var(--line-rgb),.12); }
 .workspace-panel-heading h2 { margin:5px 0 0; font:600 18px "Instrument Sans Variable",sans-serif; }
 .workspace-panel > p { margin-top:24px; color:var(--tone-879187); font-size:11px; }
-.commodity-input { width:80px; }
-.link-control { display:flex; align-items:center; gap:8px; margin-top:18px; color:var(--tone-9ba69a); font-size:10px; }
 .panel-freshness { color:var(--tone-879187); font-size:10px; margin:12px 0 0; }
 .weather-map { width:100%; height:300px; border:1px solid var(--tone-343a34); border-radius:8px; overflow:hidden; margin-bottom:12px; background:var(--tone-1b211d); }
 .weather-map .maplibregl-ctrl-attrib { font-size:9px; }
@@ -375,7 +325,6 @@ button {
 .driver-row details { color: var(--tone-9ba69a); font-size: 11px; }
 .driver-row details ul { margin: 6px 0 0 16px; }
 .driver-actions { display: flex; gap: 4px; }
-.panel-settings { padding: 12px 0; border-bottom: 1px solid rgba(var(--line-rgb),.12); }
 .schema-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
 .schema-field { display: grid; gap: 4px; font-size: 11px; color: var(--tone-9ba69a); }
 .schema-check { display: flex; align-items: center; gap: 6px; }
@@ -383,12 +332,9 @@ button {
 .onboarding-group { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; font-size: 12px; }
 .onboarding-group legend { margin-bottom: 6px; font-size: 11px; color: var(--tone-9ba69a); letter-spacing: .06em; text-transform: uppercase; }
 .onboarding-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
-.onboarding-role { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--tone-343a34); border-radius: 8px; cursor: pointer; }
-.onboarding-role[data-selected="true"] { border-color: var(--tone-88ac75); }
-.onboarding-role small { display: block; color: var(--tone-879187); font-size: 11px; }
 
 /* Accessibility: a visible keyboard focus ring on every control, and no motion for users who opt out. */
-.workspace-shell :focus-visible { outline: 2px solid var(--tone-a8c393); outline-offset: 2px; }
+.app-shell :focus-visible { outline: 2px solid var(--tone-a8c393); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
@@ -438,3 +384,31 @@ button {
 .panel-guide > p { margin: 0; }
 .panel-guide h3 { margin: 12px 0 6px; color: var(--tone-9ba69a); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .panel-guide ul { margin: 0; padding-left: 16px; list-style: disc; display: grid; gap: 4px; }
+
+/* One window: a sidebar of fixed pages, a top bar with the crop switcher, and the page. */
+.app-shell { height: 100vh; display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); background: var(--tone-0c100d); }
+.app-sidebar { display: flex; flex-direction: column; gap: 4px; padding: 16px 10px; border-right: 1px solid rgba(var(--line-rgb),.14); background: var(--tone-101411); }
+.app-brand { padding: 4px 10px 16px; color: var(--tone-e3e8df); font: 600 15px "Instrument Sans Variable", sans-serif; }
+.app-nav { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.app-nav-utility { margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(var(--line-rgb),.12); }
+.app-nav-link { display: flex; width: 100%; align-items: center; justify-content: space-between; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--tone-9ba69a); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.app-nav-link:hover { color: var(--tone-dce4d7); background: rgba(var(--accent-rgb), .06); }
+.app-nav-link[aria-current="page"] { color: var(--tone-e3e8df); background: rgba(var(--accent-rgb), .14); }
+.app-nav-link kbd { color: var(--tone-899388); font-size: 10px; }
+.app-main { display: grid; grid-template-rows: 52px minmax(0, 1fr); min-width: 0; }
+.app-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid rgba(var(--line-rgb),.14); background: var(--tone-101411); }
+.app-topbar kbd { margin-left: 5px; color: var(--tone-899388); font-size: 10px; }
+.app-page { min-height: 0; overflow: auto; padding: 20px 24px 32px; }
+.page-heading { margin-bottom: 16px; }
+.page-heading h1 { margin: 0; color: var(--tone-e3e8df); font: 600 20px "Instrument Sans Variable", sans-serif; }
+.page-heading p { margin: 4px 0 0; color: var(--tone-879187); font-size: 12px; }
+.page-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.page-section { min-width: 0; }
+.page-wide { grid-column: 1 / -1; }
+.page-section > .workspace-panel { height: auto; }
+.page-chart { height: 460px; }
+.page-chart > .workspace-panel { height: 100%; }
+.settings-page { height: 100%; border: 1px solid rgba(var(--line-rgb),.12); border-radius: 8px; }
+@media (max-width: 1100px) {
+  .page-grid { grid-template-columns: minmax(0, 1fr); }
+}

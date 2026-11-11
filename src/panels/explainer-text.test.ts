@@ -5,8 +5,8 @@ const BANNED = ["caused by", "because of", "due to", "driven by", "resulted in",
 
 describe("move explainer wording", () => {
   it("never asserts cause", () => {
-    const { heading, restore, ...plain } = EXPLAINER_TEXT;
-    const strings = [...Object.values(plain), heading("ZC"), restore(3)];
+    const { heading, restore, sensitivity, ...plain } = EXPLAINER_TEXT;
+    const strings = [...Object.values(plain), heading("ZC"), restore(3), sensitivity(2)];
     for (const text of strings) for (const phrase of BANNED) expect(text.toLowerCase()).not.toContain(phrase);
   });
 });

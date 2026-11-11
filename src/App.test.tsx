@@ -21,7 +21,7 @@ const ipc = vi.hoisted(() => ({
 vi.mock("@/lib/ipc", () => ipc);
 // The canvas chart needs a browser layout engine; these tests cover what surrounds it.
 vi.mock("@/panels/price-chart", () => ({ PriceChart: () => <div data-testid="price-chart" /> }));
-vi.mock("@/workspace/shell", () => ({ WorkspaceShell: () => null }));
+vi.mock("@/shell/app-shell", () => ({ AppShell: () => null }));
 
 import { MarketOverview } from "./App";
 

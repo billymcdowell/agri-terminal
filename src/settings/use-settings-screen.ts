@@ -1,20 +1,17 @@
 import { create } from "zustand";
+import { useNavigation } from "@/shell/navigation";
 
 export type SettingsSection = "general" | "sources" | "data";
 
 type SettingsScreen = {
-  open: boolean;
   section: SettingsSection;
-  /** Opens Settings at a section; panels use this to send the user to a key or a source. */
+  /** Goes to the Settings page at a section; sections use this to send the user to a key or a source. */
   show: (section?: SettingsSection) => void;
   setSection: (section: SettingsSection) => void;
-  close: () => void;
 };
 
 export const useSettingsScreen = create<SettingsScreen>((set) => ({
-  open: false,
   section: "general",
-  show: (section = "general") => set({ open: true, section }),
+  show: (section = "general") => { set({ section }); useNavigation.getState().go("settings"); },
   setSection: (section) => set({ section }),
-  close: () => set({ open: false }),
 }));

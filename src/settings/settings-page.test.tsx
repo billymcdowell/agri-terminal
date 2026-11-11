@@ -13,7 +13,8 @@ vi.mock("@/lib/ipc", () => ipc);
 vi.mock("@tauri-apps/plugin-opener", () => ({ revealItemInDir: vi.fn() }));
 
 import { applyTheme } from "@/lib/theme";
-import { GeneralSettings, SettingsDialog } from "./settings-dialog";
+import { useNavigation } from "@/shell/navigation";
+import { GeneralSettings, SettingsPage } from "./settings-page";
 import { useSettingsScreen } from "./use-settings-screen";
 
 function renderWithClient(node: React.ReactNode) {
@@ -22,7 +23,7 @@ function renderWithClient(node: React.ReactNode) {
 }
 
 describe("GeneralSettings", () => {
-  afterEach(() => { cleanup(); vi.clearAllMocks(); localStorage.clear(); applyTheme("dark"); useSettingsScreen.setState({ open: false, section: "general" }); });
+  afterEach(() => { cleanup(); vi.clearAllMocks(); localStorage.clear(); applyTheme("dark"); useSettingsScreen.setState({ section: "general" }); useNavigation.setState({ page: "market" }); });
 
   it("switches the whole app between dark and light", () => {
     renderWithClient(<GeneralSettings />);
@@ -41,21 +42,23 @@ describe("GeneralSettings", () => {
     await waitFor(() => expect((screen.getByLabelText("Price units") as HTMLSelectElement).value).toBe("metric"));
   });
 
-  it("closes Settings and clears the profile so first-time setup runs again", async () => {
+  it("leaves Settings and clears the profile so first-time setup runs again", async () => {
     useSettingsScreen.getState().show();
+    expect(useNavigation.getState().page).toBe("settings");
     renderWithClient(<GeneralSettings />);
     fireEvent.click(screen.getByRole("button", { name: "Run first-time setup again" }));
-    expect(useSettingsScreen.getState().open).toBe(false);
+    expect(useNavigation.getState().page).toBe("market");
     await waitFor(() => expect(ipc.setSetting).toHaveBeenCalledWith("profile", "null"));
   });
 });
 
-describe("SettingsDialog", () => {
-  afterEach(() => { cleanup(); useSettingsScreen.setState({ open: false, section: "general" }); });
+describe("SettingsPage", () => {
+  afterEach(() => { cleanup(); useSettingsScreen.setState({ section: "general" }); useNavigation.setState({ page: "market" }); });
 
-  it("opens at the section a panel asks for", async () => {
+  it("opens at the section a page asks for", async () => {
     useSettingsScreen.getState().show("sources");
-    renderWithClient(<SettingsDialog />);
+    expect(useNavigation.getState().page).toBe("settings");
+    renderWithClient(<SettingsPage />);
     expect((await screen.findByRole("tab", { name: "Data sources" })).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText(/Where AgriTerminal gets its data/)).toBeTruthy();
   });

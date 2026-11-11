@@ -11,15 +11,20 @@ import { Onboarding } from "./onboarding";
 describe("Onboarding", () => {
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-  it("completes with the chosen role, crops and state without needing any key", async () => {
+  it("completes with the chosen crops and state without needing any key", async () => {
     const onComplete = vi.fn();
     render(<Onboarding open onComplete={onComplete} onSkip={() => undefined} />);
-    fireEvent.click(screen.getByLabelText(/Trader/));
     fireEvent.click(screen.getByLabelText("Soybeans"));
     fireEvent.change(screen.getByLabelText("Home state"), { target: { value: "ne" } });
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    await waitFor(() => expect(onComplete).toHaveBeenCalledWith({ role: "trader", commodities: ["ZC", "ZS"], region: "ne" }));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith({ commodities: ["ZC", "ZS"], region: "ne" }));
     expect(ipc.saveSecret).not.toHaveBeenCalled();
+  });
+
+  it("asks only for crops, a home state and optional keys", () => {
+    render(<Onboarding open onComplete={() => undefined} onSkip={() => undefined} />);
+    expect(screen.queryByText("I am a")).toBeNull();
+    expect(screen.getByLabelText("Home state")).toBeTruthy();
   });
 
   it("requires at least one crop", () => {
@@ -45,7 +50,7 @@ describe("Onboarding", () => {
     // Trying again retries only the key that failed.
     ipc.saveSecret.mockResolvedValue(undefined);
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await waitFor(() => expect(onComplete).toHaveBeenCalledWith({ role: "farmer", commodities: ["ZC"], region: "ia" }));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith({ commodities: ["ZC"], region: "ia" }));
     expect(ipc.saveSecret.mock.calls.map(([id]) => id)).toEqual(["usda-nass", "massive", "massive"]);
   });
 
@@ -56,7 +61,7 @@ describe("Onboarding", () => {
     fireEvent.change(screen.getByLabelText("Massive key"), { target: { value: "ms-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     fireEvent.click(await screen.findByRole("button", { name: "Continue without it" }));
-    expect(onComplete).toHaveBeenCalledWith({ role: "farmer", commodities: ["ZC"], region: "ia" });
+    expect(onComplete).toHaveBeenCalledWith({ commodities: ["ZC"], region: "ia" });
   });
 
   it("offers a way to skip", () => {

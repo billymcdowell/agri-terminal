@@ -8,8 +8,7 @@ import { usePalette } from "@/lib/theme";
 import { toDisplayPrice, UNIT_LABELS, useUnits, type UnitSystem } from "@/lib/units";
 import { findGauge, GAUGES } from "@/lib/waterways";
 import { useRiverUpdates } from "@/state/use-series";
-import type { PanelComponentProps } from "@/workspace/types";
-import { useCrop } from "@/workspace/crop";
+import { useCrop } from "@/shell/crop";
 import { PanelHeader } from "./panel-header";
 import { RIVER_TEXT } from "./river-text";
 
@@ -28,9 +27,9 @@ export function toTimelineRows(points: RiverPoint[], range: TimelineRange, commo
     }));
 }
 
-export function RiverTimelinePanel({ api, params }: PanelComponentProps) {
+export function RiverTimelinePanel({ gauge: gaugeId }: { gauge?: string }) {
   const commodity = useCrop((state) => state.crop);
-  const gauge = findGauge(params.gauge) ?? GAUGES[0];
+  const gauge = findGauge(gaugeId) ?? GAUGES[0];
   useRiverUpdates();
   const palette = usePalette();
   const units = useUnits();
@@ -44,7 +43,7 @@ export function RiverTimelinePanel({ api, params }: PanelComponentProps) {
   const axis = { fill: palette.muted, fontSize: 10 };
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow={RIVER_TEXT.timelineEyebrow} title={RIVER_TEXT.timelineTitle(gauge.name, commodity)} api={api} params={params} />
+      <PanelHeader eyebrow={RIVER_TEXT.timelineEyebrow} title={RIVER_TEXT.timelineTitle(gauge.name, commodity)} kind="river-timeline" />
       <Card className="terminal-card">
         <CardHeader>
           <CardTitle className="side-card-title">{RIVER_TEXT.timelineIntro}</CardTitle>

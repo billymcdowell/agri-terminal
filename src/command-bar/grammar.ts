@@ -13,9 +13,7 @@ export type Command =
   | { kind: "moves" }
   | { kind: "alerts" }
   | { kind: "settings" }
-  | { kind: "help" }
-  | { kind: "template"; id: string }
-  | { kind: "workspace"; name: string };
+  | { kind: "help" };
 
 const commodity = /^[A-Z]{2,3}$/;
 export function parseCommand(input: string): Command | null {
@@ -24,7 +22,6 @@ export function parseCommand(input: string): Command | null {
   const head = parts[0].toUpperCase();
   // Anything after HELP is ignored, so "help cot" still reaches the guide.
   if (head === "HELP" || (head === "?" && parts.length === 1)) return { kind: "help" };
-  if (head === "WS" && parts.length > 1) return { kind: "workspace", name: parts.slice(1).join(" ") };
   if (head === "WASDE" && parts.length === 1) return { kind: "wasde" };
   if (head === "CALENDAR" && parts.length === 1) return { kind: "calendar" };
   if (head === "NEWS" && parts.length === 1) return { kind: "news" };
@@ -35,7 +32,6 @@ export function parseCommand(input: string): Command | null {
     const gauge = (timeline ? rest.slice(1) : rest).join(" ").toUpperCase() || undefined;
     return timeline ? { kind: "riverTimeline", gauge } : { kind: "river", gauge };
   }
-  if (head === "TEMPLATE" && parts.length === 2) return { kind: "template", id: parts[1].toLowerCase() };
   if (head === "SETTINGS" && parts.length === 1) return { kind: "settings" };
   if (head === "ALERTS" && parts.length === 1) return { kind: "alerts" };
   if (head === "MOVES" && parts.length === 1) return { kind: "moves" };

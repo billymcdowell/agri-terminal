@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatAge } from "@/lib/freshness";
 import { getWeatherForCommodity, refreshWeather } from "@/lib/ipc";
-import type { PanelComponentProps } from "@/workspace/types";
-import { useCrop } from "@/workspace/crop";
+import { useCrop } from "@/shell/crop";
 import { PanelHeader } from "./panel-header";
 import { nextForecastsBySource } from "./weather";
 import { WeatherMap } from "./weather-map";
@@ -13,7 +12,7 @@ import { WeatherMap } from "./weather-map";
 const REFRESH_MS = 30 * 60_000;
 
 /** Reads the local forecast cache and refreshes it in the background, so the panel works offline. */
-export function WeatherPanel({ api, params }: PanelComponentProps) {
+export function WeatherPanel() {
   const commodity = useCrop((state) => state.crop);
   const queryClient = useQueryClient();
   const snapshot = useQuery({ queryKey: ["weather", commodity], queryFn: () => getWeatherForCommodity(commodity) });
@@ -36,7 +35,7 @@ export function WeatherPanel({ api, params }: PanelComponentProps) {
 
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow="CROP REGION WEATHER" title={`${commodity} forecast`} api={api} params={params} />
+      <PanelHeader eyebrow="CROP REGION WEATHER" title={`${commodity} forecast`} kind="weather" />
       <WeatherMap locations={mapPoints} />
       <Card className="terminal-card">
         <CardHeader><CardTitle className="side-card-title">Next forecast period by region</CardTitle></CardHeader>

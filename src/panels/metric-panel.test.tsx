@@ -15,7 +15,7 @@ vi.mock("@/lib/ipc", () => ({
   subscribeToDataUpdates: () => Promise.resolve(() => undefined),
 }));
 
-import { MetricPanel } from "./metric-panel";
+import { MetricPanel, type MetricPanelKind } from "./metric-panel";
 
 const point = (period: string, value: number, fetchedAt: string): MetricPoint => ({
   seriesId: "cot.ZC.managed_money_net", period, releasedAt: fetchedAt, value, unit: "contracts", sourceId: "cftc-cot", fetchedAt, revision: 0,
@@ -25,12 +25,11 @@ const source = (patch: Partial<SourceStatus>): SourceStatus => ({
   isDemo: false, lastAttempt: null, nextExpected: null, enabled: true, cadenceSeconds: 604_800, ...patch,
 });
 
-function renderPanel(kind = "cot") {
+function renderPanel(kind: MetricPanelKind = "cot") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const api = { setTitle: vi.fn(), updateParameters: vi.fn() };
   return render(
     <QueryClientProvider client={client}>
-      <MetricPanel api={api} params={{ kind }} />
+      <MetricPanel kind={kind} />
     </QueryClientProvider>,
   );
 }

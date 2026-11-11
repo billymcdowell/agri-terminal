@@ -10,8 +10,7 @@ import { deleteAlert, listAlerts, listRiverAlerts, saveAlert, setAlertEnabled, s
 import { COMMODITIES } from "@/lib/regions";
 import { fromDisplayPrice, toDisplayPrice, UNIT_LABELS, useUnits, type UnitSystem } from "@/lib/units";
 import { usePersistedValue } from "@/state/use-persisted-list";
-import { DEFAULT_LEAD_HOURS, LEAD_HOUR_OPTIONS } from "@/workspace/release-alerts";
-import type { PanelComponentProps } from "@/workspace/types";
+import { DEFAULT_LEAD_HOURS, LEAD_HOUR_OPTIONS } from "@/shell/release-alerts";
 import { PanelHeader } from "./panel-header";
 
 const leadLabel = (hours: number) => (hours === 0 ? "Off" : `${hours} hour${hours === 1 ? "" : "s"} before`);
@@ -61,7 +60,7 @@ export function parseThreshold(text: string): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-export function AlertsPanel({ api, params }: PanelComponentProps) {
+export function AlertsPanel() {
   const queryClient = useQueryClient();
   const units = useUnits();
   const alerts = useQuery({ queryKey: ["alerts"], queryFn: listAlerts });
@@ -76,7 +75,7 @@ export function AlertsPanel({ api, params }: PanelComponentProps) {
   const price = parseThreshold(threshold);
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow="PRICE ALERTS" title="Alerts" api={api} params={params} />
+      <PanelHeader eyebrow="PRICE ALERTS" title="Alerts" kind="alerts" />
       <Card className="terminal-card">
         <CardHeader><CardTitle className="side-card-title">New alert on the latest daily close</CardTitle></CardHeader>
         <CardContent>

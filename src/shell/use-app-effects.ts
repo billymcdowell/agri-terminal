@@ -6,6 +6,7 @@ import { useUnits } from "@/lib/units";
 import { alertNotification } from "@/panels/alerts-panel";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { useCrop } from "./crop";
+import { isPageId, useNavigation } from "./navigation";
 import { DEFAULT_LEAD_HOURS, describeLead, dueAlerts } from "./release-alerts";
 
 const SENT_PREFIX = "report-alert:";
@@ -53,16 +54,28 @@ export function useReleaseAlerts() {
   }, [leadHours]);
 }
 
-/** Restores the crop on launch and saves it as it changes. */
+/** Restores the crop on launch and saves it as it changes. A crop picked before the saved one loads wins. */
 export function useCropPersistence() {
   const [saved, save, ready] = usePersistedValue<string | null>("crop", null);
-  const hydrated = useRef(false);
+  const settled = useRef(false);
   useEffect(() => {
-    if (!ready || hydrated.current) return;
-    hydrated.current = true;
+    if (!ready || settled.current) return;
+    settled.current = true;
     if (saved) useCrop.getState().setCrop(saved);
   }, [ready, saved]);
-  useEffect(() => useCrop.subscribe((state) => { if (hydrated.current) save(state.crop); }), [save]);
+  useEffect(() => useCrop.subscribe((state) => { settled.current = true; save(state.crop); }), [save]);
+}
+
+/** Reopens the app on the last page and saves the page as it changes. A page picked before the saved one loads wins. */
+export function usePagePersistence() {
+  const [saved, save, ready] = usePersistedValue<string | null>("page", null);
+  const settled = useRef(false);
+  useEffect(() => {
+    if (!ready || settled.current) return;
+    settled.current = true;
+    if (isPageId(saved)) useNavigation.getState().go(saved);
+  }, [ready, saved]);
+  useEffect(() => useNavigation.subscribe((state) => { settled.current = true; save(state.page); }), [save]);
 }
 
 /** Shows a system notification whenever the backend reports that a price alert fired. */

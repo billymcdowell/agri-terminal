@@ -16,7 +16,7 @@ export type PanelGuide = {
   terms?: [string, string][];
 };
 
-/** Keyed by panel type. Every registered panel needs an entry; a test checks this. */
+/** Keyed by section, as in SECTIONS in shell/navigation.ts. Every section needs an entry; a test checks this. */
 export const PANEL_GUIDES: Record<string, PanelGuide> = {
   market: {
     usage: "ZC, ZS or ZW",
@@ -93,7 +93,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       "Each row is the percent of the state at that level or worse, so the numbers shrink as you go down: D2 includes D3 and D4.",
       "D0 is not drought yet, only abnormally dry. D1 and above is drought.",
       "Drought spreading across growing states in summer can cut yields and support prices.",
-      "Change the state with the panel settings button.",
+      "Pick the state with the picker beside the Drought Monitor heading on the Crop & weather page.",
     ],
     terms: [
       ["D0 · Abnormally dry", "Going into or coming out of drought: short-term dryness slowing planting or growth."],
@@ -117,10 +117,11 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
   river: {
     usage: "RIVER, RIVER MISS, RIVER ST LOUIS or RIVER MEMPHIS",
     oneLine: "Whether low water on the Mississippi is restricting barges, and what freight is doing.",
-    summary: "A 0 to 100 river constraint score for a Mississippi gauge, with the river level, the National Weather Service forecast, the weekly USDA barge freight rate and grain moving through the locks. When the river runs low, barges must load lighter, so freight costs rise and the gap between Gulf and inland grain prices tends to widen. Pick the gauge in the panel settings.",
+    summary: "A 0 to 100 river constraint score for a Mississippi gauge, with the river level, the National Weather Service forecast, the weekly USDA barge freight rate and grain moving through the locks. When the river runs low, barges must load lighter, so freight costs rise and the gap between Gulf and inland grain prices tends to widen. Pick the gauge with the picker at the top of the River page.",
     howToRead: [
       "The score combines how far the river is below its normal level (depth, 60%) and how low the forecast goes over the next 7 days (forecast, 40%). 0 to 39 is Normal, 40 to 69 Elevated, 70 and above High.",
       "Lock tonnage is shown for context but not scored: it follows the harvest calendar more than the river, rising every September lull and falling at harvest even at record low water.",
+      "For traders: low water tends to show up first in barge freight and in the gap between Gulf and interior basis, more than in futures. Treat a high score as a possible pressure on spreads, not a price call.",
       "PARTIAL means one part was missing or out of date, so the score was worked out from the other with its weight scaled up.",
       "River stage is the gauge reading in feet. It can be below zero: the zero is a fixed reference point, not the river bed. The five-year range is the same time of year in the previous five years.",
       "The restriction level is roughly where barges start loading lighter; the critical level is where restrictions become severe. They come from National Weather Service, Corps and extension sources and were checked against 2020 to 2026.",
@@ -155,9 +156,8 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     oneLine: "Days the price moved unusually far, and news or reports that might explain why.",
     summary: "Days when the price moved much further than usual, each listed with scheduled reports and headlines that might explain it. Drivers are matched by timing, subject and direction; they are leads to check, not proof of cause.",
     howToRead: [
-      "A day is flagged when its price change is larger than the chosen number of standard deviations (SD) of the previous 20 days' changes. A 2 SD move is roughly twice as big as a typical recent day, and happens about one day in twenty.",
+      "A day is flagged when its price change is larger than two standard deviations (SD) of the previous 20 days' changes, the same rule as the arrows on the price chart. A 2 SD move is roughly twice as big as a typical recent day, and happens about one day in twenty.",
       "The heading shows the date, the direction (▲ up, ▼ down), the percentage change and how many SD it was.",
-      "Lower the sensitivity in the panel settings to see more, smaller moves; raise it to see only the biggest.",
       "Pin the drivers you agree with, dismiss the ones you do not, and add your own notes. All three are saved.",
     ],
     terms: [
@@ -225,21 +225,20 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     usage: "HELP or ?",
     oneLine: "This guide: every command, what each panel shows, and a glossary.",
     summary: "Every command, what each panel shows and how to read it, what the status labels mean, and a glossary of market terms.",
-    howToRead: ["Type in the search box to find a term or panel."],
+    howToRead: ["Type in the search box to find a term or section."],
   },
 };
 
 export const START_HERE = [
   "AgriTerminal puts U.S. grain market information side by side: prices, trader positioning, crop health, drought, weather, river conditions, supply and demand, news and report dates. Everything is saved on your computer, so it works offline.",
-  "Press / to open the command bar, then type a command such as ZC for corn prices, or pick one from the list. Press ? any time to come back to this guide.",
-  "Click the ⓘ button at the top of any panel for a plain-language explanation of what it shows.",
-  "Every panel shows the crop chosen with Corn, Soybeans and Wheat at the top. Typing ZC, ZS or ZW in the command bar switches it too.",
-  "Drag a panel's tab to rearrange the layout. It saves automatically; use the menu beside the workspace name to keep several layouts.",
-  "Some data needs a key, added in Settings › Data sources (the Settings button at the top). Free without any key: demonstration corn prices, CFTC positioning, drought, weather, river conditions and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
+  "Five pages in the sidebar each answer one question: Market, Crop & weather, Supply & demand, River and Alerts. Press 1 to 5 to jump to them. The app reopens where you left it.",
+  "Every page shows the crop chosen with Corn, Soybeans and Wheat at the top.",
+  "Click the ⓘ button beside any section heading for a plain-language explanation of what it shows. Press ? any time to come back to this guide.",
+  "Press / to open the command bar and type a command such as ZS COT to go straight to a section.",
+  "Some data needs a key, added in Settings › Data sources (Settings is at the bottom of the sidebar). Free without any key: demonstration corn prices, CFTC positioning, drought, weather, river conditions and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
 ];
 
 export const OTHER_COMMANDS: { usage: string; meaning: string }[] = [
-  { usage: "WS name", meaning: "Switch to the workspace with that name, or start a new one with that name." },
   { usage: "SETTINGS", meaning: "Open Settings: theme and units, every data source and its key, plugins, exports and the stored data viewer." },
   { usage: "HELP or ?", meaning: "Open this guide." },
 ];
@@ -248,12 +247,10 @@ export const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: "/", action: "Open the command bar" },
   { keys: "?", action: "Open this guide" },
   { keys: "Enter", action: "Run the typed command, or the highlighted one in the list" },
-  { keys: "Alt+→ / Alt+←", action: "Move to the next or previous panel" },
-  { keys: "Alt+P", action: "Pop the active panel out into its own window" },
-  { keys: "Alt+W", action: "Close the active panel" },
+  { keys: "1 – 5", action: "Go to Market, Crop & weather, Supply & demand, River or Alerts" },
 ];
 
-export const SHORTCUT_NOTE = "On a Mac, Alt is the ⌥ Option key.";
+export const SHORTCUT_NOTE = "Shortcuts work whenever you are not typing in a field.";
 
 /** The freshness and origin labels panels show beneath their data. */
 export const STATUS_LABELS: [string, string][] = [
@@ -293,10 +290,8 @@ export const GLOSSARY: [string, string][] = [
   ["Speculator", "A trader with no physical grain who aims to profit from price changes."],
   ["Stage", "The height of a river at a gauge, in feet above a fixed zero point. Low readings mean shallower water for barges."],
   ["Standard deviation (SD)", "How much prices usually move day to day. A 2 SD day moved about twice as far as a typical recent day."],
-  ["Template", "A ready-made layout for a role: Farmer, Trader, Analyst or Student."],
   ["USDA", "United States Department of Agriculture, the source of most crop statistics in this app."],
   ["WASDE", "World Agricultural Supply and Demand Estimates: USDA's monthly forecast of supply and use, usually around the 10th at noon Eastern. Markets often move sharply on it."],
-  ["Workspace", "A saved layout of panels. Keep several and switch with WS name or the menu beside the workspace name."],
   ["ZC, ZS, ZW", "Exchange symbols for corn, soybean and wheat (soft red winter) futures at CBOT."],
 ];
 

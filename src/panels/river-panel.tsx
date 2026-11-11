@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,7 +6,6 @@ import { formatAge } from "@/lib/freshness";
 import { getRiverStatus, type RiverInput, type RiverStatus } from "@/lib/ipc";
 import { findGauge, GAUGES } from "@/lib/waterways";
 import { useRiverUpdates } from "@/state/use-series";
-import type { PanelComponentProps } from "@/workspace/types";
 import { PanelHeader } from "./panel-header";
 import { BAND_LABELS, componentBreakdown, describeSensitivity, formatFeet, formatPercentChange, formatTons, RIVER_TEXT, stagePosition } from "./river-text";
 
@@ -152,8 +151,8 @@ function TrafficCard({ status }: { status: RiverStatus }) {
   );
 }
 
-export function RiverPanel({ api, params }: PanelComponentProps) {
-  const gauge = findGauge(params.gauge) ?? GAUGES[0];
+export function RiverPanel({ gauge: gaugeId, controls }: { gauge?: string; controls?: ReactNode }) {
+  const gauge = findGauge(gaugeId) ?? GAUGES[0];
   useRiverUpdates();
   const status = useQuery({ queryKey: ["river-status", gauge.id], queryFn: () => getRiverStatus(gauge.id), staleTime: 60_000 });
   const [now, setNow] = useState(() => Date.now());
@@ -164,7 +163,7 @@ export function RiverPanel({ api, params }: PanelComponentProps) {
   const data = status.data;
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow={RIVER_TEXT.eyebrow} title={RIVER_TEXT.title(gauge.name)} api={api} params={params} />
+      <PanelHeader eyebrow={RIVER_TEXT.eyebrow} title={RIVER_TEXT.title(gauge.name)} kind="river" controls={controls} />
       {status.isError && <p className="panel-freshness" data-status="error" role="status">{String(status.error)}</p>}
       {status.isPending && <p className="panel-freshness" role="status">Loading…</p>}
       {data && (
@@ -177,7 +176,7 @@ export function RiverPanel({ api, params }: PanelComponentProps) {
             <PressureCard status={data} />
             <TrafficCard status={data} />
           </div>
-          <p className="panel-freshness">{params.audience === "farmer" ? RIVER_TEXT.farmer : RIVER_TEXT.trader}</p>
+          <p className="panel-freshness">{RIVER_TEXT.farmer}</p>
         </>
       )}
     </div>

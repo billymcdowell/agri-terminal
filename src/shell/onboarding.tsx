@@ -6,14 +6,14 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { saveSecret } from "@/lib/ipc";
 import { COMMODITIES, CROP_NAMES, REGIONS } from "@/lib/regions";
-import { TEMPLATES, type Profile, type Role } from "./templates";
 
+/** What first-run setup asks for. The first crop is the one the app opens on. */
+export type Profile = { commodities: string[]; region: string };
 
 type OnboardingProps = { open: boolean; onComplete: (profile: Profile) => void; onSkip: () => void };
 
 /** First-run setup. Keys are optional, so the app is useful the moment the user presses Start. */
 export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
-  const [role, setRole] = useState<Role>("farmer");
   const [commodities, setCommodities] = useState<string[]>(["ZC"]);
   const [region, setRegion] = useState("ia");
   const [keys, setKeys] = useState({ nass: "", fas: "", massive: "" });
@@ -22,7 +22,7 @@ export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
 
   const toggle = (symbol: string) => setCommodities((current) => (current.includes(symbol) ? current.filter((item) => item !== symbol) : [...current, symbol]));
 
-  const finish = () => onComplete({ role, commodities, region });
+  const finish = () => onComplete({ commodities, region });
 
   async function start() {
     setBusy(true);
@@ -55,18 +55,9 @@ export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
     <Dialog open={open} onOpenChange={(next) => { if (!next) onSkip(); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Set up your workspace</DialogTitle>
-          <DialogDescription>Three choices and you are in. Data keys are optional and can be added any time.</DialogDescription>
+          <DialogTitle>Set up AgriTerminal</DialogTitle>
+          <DialogDescription>Pick your crops and home state. Data keys are optional and can be added any time in Settings.</DialogDescription>
         </DialogHeader>
-        <fieldset className="onboarding-group">
-          <legend>I am a</legend>
-          {TEMPLATES.map((template) => (
-            <label key={template.id} className="onboarding-role" data-selected={role === template.id}>
-              <input type="radio" name="role" value={template.id} checked={role === template.id} onChange={() => setRole(template.id)} />
-              <span><strong>{template.name}</strong><small>{template.description}</small></span>
-            </label>
-          ))}
-        </fieldset>
         <fieldset className="onboarding-group onboarding-row">
           <legend>Crops I follow</legend>
           {COMMODITIES.map((symbol) => (

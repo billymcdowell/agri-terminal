@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { exportSeriesCsv, exportWorkspace, getDataDirectory, listSeries, listWorkspaces } from "@/lib/ipc";
+import { exportSeriesCsv, getDataDirectory, listSeries } from "@/lib/ipc";
 import { useTheme, type ThemeSetting } from "@/lib/theme";
 import { UNIT_LABELS, type UnitSystem } from "@/lib/units";
 import { usePersistedValue } from "@/state/use-persisted-list";
+import { useNavigation } from "@/shell/navigation";
 import { DataSources } from "./data-sources";
 import { RawDataViewer } from "./raw-data-viewer";
 import { useSettingsScreen, type SettingsSection } from "./use-settings-screen";
@@ -26,7 +26,6 @@ export function GeneralSettings() {
   const setTheme = useTheme((state) => state.setSetting);
   const [units, setUnits] = usePersistedValue<UnitSystem>("units", "bushel");
   const [, setProfile] = usePersistedValue<unknown>("profile", null);
-  const close = useSettingsScreen((state) => state.close);
   return (
     <>
       <section className="settings-group">
@@ -49,8 +48,8 @@ export function GeneralSettings() {
       </section>
       <section className="settings-group">
         <h3>Setup</h3>
-        <div><Button size="sm" variant="outline" onClick={() => { close(); setProfile(null); }}>Run first-time setup again</Button></div>
-        <p className="settings-note">Choose a role, crops and home state again, and load a starting layout. This replaces the current layout.</p>
+        <div><Button size="sm" variant="outline" onClick={() => { useNavigation.getState().go("market"); setProfile(null); }}>Run first-time setup again</Button></div>
+        <p className="settings-note">Choose your crops and home state again, and add data keys.</p>
       </section>
     </>
   );
@@ -59,9 +58,7 @@ export function GeneralSettings() {
 export function DataAndExport() {
   const directory = useQuery({ queryKey: ["data-directory"], queryFn: getDataDirectory });
   const series = useQuery({ queryKey: ["series-list"], queryFn: listSeries });
-  const workspaces = useQuery({ queryKey: ["workspace-list"], queryFn: listWorkspaces });
   const [seriesId, setSeriesId] = useState("");
-  const [workspaceId, setWorkspaceId] = useState("");
   const [exported, setExported] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -70,7 +67,6 @@ export function DataAndExport() {
     action().then(setExported).catch((failure) => { setExported(null); setError(String(failure)); });
   };
   const selectedSeries = seriesId || series.data?.[0] || "";
-  const selectedWorkspace = workspaceId || workspaces.data?.[0]?.[0] || "";
 
   return (
     <>
@@ -91,15 +87,6 @@ export function DataAndExport() {
           </div>
           <Button size="sm" disabled={!selectedSeries} onClick={() => run(() => exportSeriesCsv(selectedSeries))}>Export series as CSV</Button>
         </div>
-        <div className="schema-form">
-          <div className="schema-field">
-            <Label htmlFor="export-workspace">Workspace</Label>
-            <NativeSelect size="sm" id="export-workspace" value={selectedWorkspace} onChange={(event) => setWorkspaceId(event.currentTarget.value)}>
-              {workspaces.data?.map(([id, name]) => <NativeSelectOption key={id} value={id}>{name}</NativeSelectOption>)}
-            </NativeSelect>
-          </div>
-          <Button size="sm" disabled={!selectedWorkspace} onClick={() => run(() => exportWorkspace(selectedWorkspace))}>Export workspace</Button>
-        </div>
         <p className="settings-note">A series export includes every stored revision with its source, release time and fetch time. Files are written to the data folder.</p>
         {exported && (
           <p role="status" className="source-success">
@@ -117,25 +104,19 @@ export function DataAndExport() {
   );
 }
 
-/** One screen for display preferences, every data source and key, and exports. */
-export function SettingsDialog() {
-  const { open, section, setSection, close } = useSettingsScreen();
+/** One page for display preferences, every data source and key, and exports. */
+export function SettingsPage() {
+  const { section, setSection } = useSettingsScreen();
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
-      <DialogContent className="settings-dialog">
-        <DialogHeader className="settings-header">
-          <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Display, data sources and keys, and exports.</DialogDescription>
-        </DialogHeader>
-        <Tabs orientation="vertical" value={section} onValueChange={(value) => setSection(value as SettingsSection)} className="settings-tabs">
-          <TabsList variant="line" className="settings-nav">
-            {SECTIONS.map(({ id, label }) => <TabsTrigger key={id} value={id}>{label}</TabsTrigger>)}
-          </TabsList>
-          <TabsContent value="general" className="settings-body"><GeneralSettings /></TabsContent>
-          <TabsContent value="sources" className="settings-body"><DataSources /></TabsContent>
-          <TabsContent value="data" className="settings-body"><DataAndExport /></TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+    <div className="settings-page">
+      <Tabs orientation="vertical" value={section} onValueChange={(value) => setSection(value as SettingsSection)} className="settings-tabs">
+        <TabsList variant="line" className="settings-nav">
+          {SECTIONS.map(({ id, label }) => <TabsTrigger key={id} value={id}>{label}</TabsTrigger>)}
+        </TabsList>
+        <TabsContent value="general" className="settings-body"><GeneralSettings /></TabsContent>
+        <TabsContent value="sources" className="settings-body"><DataSources /></TabsContent>
+        <TabsContent value="data" className="settings-body"><DataAndExport /></TabsContent>
+      </Tabs>
+    </div>
   );
 }

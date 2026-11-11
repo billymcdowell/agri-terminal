@@ -2,14 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listCalendarEvents } from "@/lib/ipc";
-import type { PanelComponentProps } from "@/workspace/types";
 import { PanelHeader } from "./panel-header";
 
-export function CalendarPanel({ api, params }: PanelComponentProps) {
+export function CalendarPanel() {
   const calendar = useQuery({ queryKey: ["report-calendar"], queryFn: listCalendarEvents });
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow="RELEASE SCHEDULE" title="Report calendar" api={api} params={params} />
+      <PanelHeader eyebrow="RELEASE SCHEDULE" title="Report calendar" kind="calendar" />
       <Card className="terminal-card">
         <CardContent>
           <Table>

@@ -240,40 +240,6 @@ pub async fn test_connection(app: AppHandle, source_id: String) -> Result<(), St
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command(async)]
-pub fn list_workspaces(state: State<'_, DbState>) -> Result<Vec<(String, String, String)>, String> {
-    let connection = state
-        .0
-        .lock()
-        .map_err(|_| "Database lock is unavailable".to_string())?;
-    store::list_workspaces(&connection)
-}
-
-#[tauri::command(async)]
-pub fn save_workspace(
-    state: State<'_, DbState>,
-    id: String,
-    name: String,
-    json: String,
-) -> Result<(), String> {
-    serde_json::from_str::<serde_json::Value>(&json)
-        .map_err(|error| format!("Invalid workspace JSON: {error}"))?;
-    let connection = state
-        .0
-        .lock()
-        .map_err(|_| "Database lock is unavailable".to_string())?;
-    store::save_workspace(&connection, &id, &name, &json)
-}
-
-#[tauri::command(async)]
-pub fn delete_workspace(state: State<'_, DbState>, id: String) -> Result<(), String> {
-    let connection = state
-        .0
-        .lock()
-        .map_err(|_| "Database lock is unavailable".to_string())?;
-    store::delete_workspace(&connection, &id)
-}
-
 #[tauri::command]
 pub async fn refresh_source(app: AppHandle, source_id: String) -> Result<(), String> {
     let source = resolve_source(&app, &source_id)?;
@@ -843,24 +809,6 @@ pub fn export_series_csv(app: AppHandle, series_id: String) -> Result<String, St
         &data_directory(&app)?.join("exports"),
         &format!("{series_id}.csv"),
         &csv,
-    )?;
-    Ok(path.display().to_string())
-}
-
-/// Writes a saved workspace's layout JSON to `exports/workspace-<id>.json`.
-#[tauri::command(async)]
-pub fn export_workspace(app: AppHandle, id: String) -> Result<String, String> {
-    let json = with_connection(&app, |connection| {
-        store::list_workspaces(connection)?
-            .into_iter()
-            .find(|(saved_id, _, _)| *saved_id == id)
-            .map(|(_, _, json)| json)
-            .ok_or_else(|| format!("No saved workspace {id}"))
-    })?;
-    let path = crate::export::write_export(
-        &data_directory(&app)?.join("exports"),
-        &format!("workspace-{id}.json"),
-        &json,
     )?;
     Ok(path.display().to_string())
 }

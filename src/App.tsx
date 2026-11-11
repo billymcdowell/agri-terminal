@@ -17,7 +17,7 @@ import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
 import { priceStatus } from "@/panels/price-status";
 import { useSettingsScreen } from "@/settings/use-settings-screen";
 import { useSeries, useSources } from "@/state/use-series";
-import { WorkspaceShell } from "@/workspace/shell";
+import { AppShell } from "@/shell/app-shell";
 
 /** The only commodity with a demonstration series, so the only one that has prices without a key. */
 const DEMO_COMMODITY = "ZC";
@@ -207,5 +207,5 @@ export function MarketOverview({ commodity }: { commodity: string }) {
 }
 
 export default function App() {
-  return <WorkspaceShell MarketOverview={MarketOverview} />;
+  return <AppShell Market={MarketOverview} />;
 }

@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cropStressTimeline, type StressPoint } from "@/lib/ipc";
 import { usePalette } from "@/lib/theme";
 import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
-import type { PanelComponentProps } from "@/workspace/types";
-import { useCrop } from "@/workspace/crop";
+import { useCrop } from "@/shell/crop";
 import { PanelHeader } from "./panel-header";
 
 /** Recharts range areas take a [low, high] pair; gaps are null so the band disappears off-season. */
@@ -16,7 +15,7 @@ export function toChartRows(points: StressPoint[]) {
   }));
 }
 
-export function CropStressPanel({ api, params }: PanelComponentProps) {
+export function CropStressPanel() {
   const commodity = useCrop((state) => state.crop);
   const palette = usePalette();
   const timeline = useQuery({ queryKey: ["crop-stress", commodity], queryFn: () => cropStressTimeline(commodity) });
@@ -25,7 +24,7 @@ export function CropStressPanel({ api, params }: PanelComponentProps) {
   const hasCondition = rows.some((row) => row.condition !== null);
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow="COMBINED VIEW" title={`Crop stress timeline · ${commodity}`} api={api} params={params} />
+      <PanelHeader eyebrow="COMBINED VIEW" title={`Crop stress timeline · ${commodity}`} kind="crop-stress" />
       <Card className="terminal-card">
         <CardHeader><CardTitle className="side-card-title">Price, crop condition and drought on one timeline</CardTitle></CardHeader>
         <CardContent>
