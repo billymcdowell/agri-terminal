@@ -149,6 +149,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       "The bottom chart shows the constraint score (left, 0 to 100) and the barge rate in percent of tariff (right).",
       "Every value appears only from the day it was published, so the chart shows what was known at the time. A barge rate published on Thursday is not on Wednesday.",
       "1Y, 3Y and ALL change how much history is shown. The futures close is for the crop chosen at the top.",
+      "Gulf versus interior basis is not shown yet: public interior bids for the river states need the USDA AMS Market News connector, which is not built, so barge freight stands in as the price side.",
     ],
   },
   moves: {
@@ -157,8 +158,8 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     summary: "Days when the price moved much further than usual, each listed with scheduled reports and headlines that might explain it. Drivers are matched by timing, subject and direction; they are leads to check, not proof of cause.",
     howToRead: [
       "A day is flagged when its price change is larger than two standard deviations (SD) of the previous 20 days' changes, the same rule as the arrows on the price chart. A 2 SD move is roughly twice as big as a typical recent day, and happens about one day in twenty.",
-      "The heading shows the date, the direction (▲ up, ▼ down), the percentage change and how many SD it was.",
-      "Pin the drivers you agree with, dismiss the ones you do not, and add your own notes. All three are saved.",
+      "Big moves on the Market page lists the five newest, each with the date, the direction (▲ up, ▼ down), the percentage change, how many SD it was, and its leading possible driver.",
+      "Click a move, or its arrow on the price chart, to open every possible driver beside the page. Dismiss the ones you do not agree with and add your own note; both are saved.",
     ],
     terms: [
       ["Likely driver", "A government report with a fixed release time came out between the previous close and this one."],
@@ -175,7 +176,8 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     howToRead: [
       "Alerts are checked after each price update against the daily close, so they cannot fire during the trading day.",
       "An alert fires once per crossing, then re-arms after the price moves back across the level.",
-      "Report reminders, at the bottom, notify you before each scheduled report in the report calendar. Choose how early, or turn them off.",
+      "Report reminders notify you before each scheduled report in Next reports. Choose how early, or turn them off.",
+      "Notifications use your system settings.",
       "River alerts fire when a gauge falls to its restriction or critical level, when the forecast reaches the restriction level within the forecast window, and each time the river constraint score moves up a band. Pause any you do not want.",
       "So a river hovering at a level does not notify again and again, a level alert re-arms only once the river is a foot back above it, and the score must pass a band's cut-off by 5 points to count as moving up. In 2020 to 2026 that meant about 18 alerts a year at St. Louis and 11 at Memphis, mostly in the low-water autumns.",
     ],
@@ -190,7 +192,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     oneLine: "When the next government reports are due. Prices often jump when they come out.",
     summary: "When the next scheduled government reports are expected, in your local time. Markets often move sharply as these come out, so traders plan around them. Choose how early to be reminded under Report reminders in ALERTS.",
     howToRead: [
-      "Contracts lists the commodities each report covers.",
+      "Next reports on the Market page lists the five soonest, with the crops each covers after its time. Show all lists every report, including recent ones.",
       "Times come from a schedule kept in the app, and some are expected windows. Check the agency's own calendar before relying on one.",
     ],
     terms: [
@@ -209,7 +211,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       "Each state appears once per provider, so you can compare the two forecasts.",
       "Temperature is in °C, rain (Precip) in millimetres, and wind in km/h. Valid is the time the forecast is for.",
       "Heat and dry weather matter most in July and August, when corn pollinates and soybeans fill their pods. For winter wheat, spring and early summer matter most.",
-      "Change the crop with the selector at the top right to see different states.",
+      "Change the crop with Corn, Soybeans and Wheat at the top to see different states.",
     ],
   },
   news: {
@@ -217,8 +219,8 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     oneLine: "Recent headlines about the crop.",
     summary: "Recent headlines that mention the crop, from GDELT (a global news index) and USDA NASS news feeds. Only headlines and links are shown; click one to read the article at its source.",
     howToRead: [
-      "Headlines refresh every 30 minutes while the panel is open, and stay available offline.",
-      "MOVES uses these headlines to suggest possible drivers of big price moves.",
+      "Headlines refresh every 30 minutes while the Market page is open, and stay available offline. Show all lists every cached headline.",
+      "Big moves uses these headlines to suggest possible drivers of big price moves.",
     ],
   },
   help: {
@@ -233,7 +235,7 @@ export const START_HERE = [
   "AgriTerminal puts U.S. grain market information side by side: prices, trader positioning, crop health, drought, weather, river conditions, supply and demand, news and report dates. Everything is saved on your computer, so it works offline.",
   "Five pages in the sidebar each answer one question: Market, Crop & weather, Supply & demand, River and Alerts. Press 1 to 5 to jump to them. The app reopens where you left it.",
   "Every page shows the crop chosen with Corn, Soybeans and Wheat at the top.",
-  "Click the ⓘ button beside any section heading for a plain-language explanation of what it shows. Press ? any time to come back to this guide.",
+  "Each section says in one line what it shows. Its More in Help link opens the full explanation here. Press ? any time to come back to this guide.",
   "Press / to open the command bar and type a command such as ZS COT to go straight to a section.",
   "Some data needs a key, added in Settings › Data sources (Settings is at the bottom of the sidebar). Free without any key: demonstration corn prices, CFTC positioning, drought, weather, river conditions and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
 ];

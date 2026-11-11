@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatAge } from "@/lib/freshness";
 import { getWeatherForCommodity, refreshWeather } from "@/lib/ipc";
@@ -10,6 +11,8 @@ import { nextForecastsBySource } from "./weather";
 import { WeatherMap } from "./weather-map";
 
 const REFRESH_MS = 30 * 60_000;
+/** States listed before the full table. */
+const LISTED = 5;
 
 /** Reads the local forecast cache and refreshes it in the background, so the panel works offline. */
 export function WeatherPanel() {
@@ -32,15 +35,38 @@ export function WeatherPanel() {
   const upcoming = useMemo(() => nextForecastsBySource(forecasts ?? [], Date.now()), [forecasts]);
   const mapPoints = useMemo(() => upcoming.filter((point) => point.provider === "Open-Meteo"), [upcoming]);
   const fetchedAt = snapshot.data?.fetchedAt;
+  // One row per state (Open-Meteo, or NWS where Open-Meteo has none); both providers and the map on request.
+  const byRegion = useMemo(() => {
+    const rows = new Map<string, (typeof upcoming)[number]>();
+    for (const point of upcoming) if (!rows.has(point.regionId) || point.provider === "Open-Meteo") rows.set(point.regionId, point);
+    return [...rows.values()];
+  }, [upcoming]);
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow="CROP REGION WEATHER" title={`${commodity} forecast`} kind="weather" />
-      <WeatherMap locations={mapPoints} />
+      <PanelHeader title={`${commodity} forecast`} kind="weather" />
+      {expanded && <WeatherMap locations={mapPoints} />}
       <Card className="terminal-card">
-        <CardHeader><CardTitle className="side-card-title">Next forecast period by region</CardTitle></CardHeader>
         <CardContent>
-          <Table>
+          {!expanded && (
+            <Table>
+              <TableHeader>
+                <TableRow><TableHead>State</TableHead><TableHead>Temp</TableHead><TableHead>Precip</TableHead><TableHead>Wind</TableHead></TableRow>
+              </TableHeader>
+              <TableBody>
+                {byRegion.slice(0, LISTED).map((point) => (
+                  <TableRow key={point.regionId}>
+                    <TableCell>{point.regionName}</TableCell>
+                    <TableCell>{point.temperatureC?.toFixed(1) ?? "—"} °C</TableCell>
+                    <TableCell>{point.precipitationMm?.toFixed(1) ?? "—"} mm</TableCell>
+                    <TableCell>{point.windKph?.toFixed(0) ?? "—"} km/h</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {expanded && <Table>
             <TableHeader>
               <TableRow><TableHead>Region</TableHead><TableHead>Provider</TableHead><TableHead>Valid</TableHead><TableHead>Temp</TableHead><TableHead>Precip</TableHead><TableHead>Wind</TableHead></TableRow>
             </TableHeader>
@@ -56,7 +82,12 @@ export function WeatherPanel() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </Table>}
+          {upcoming.length > 0 && (
+            <Button size="xs" variant="ghost" className="show-all" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+              {expanded ? "Show fewer" : `All ${byRegion.length} states, both providers, map`}
+            </Button>
+          )}
           <p className="panel-freshness" data-status={refreshError ? "error" : fetchedAt ? "ok" : "empty"}>
             {fetchedAt ? `${refreshError ? "ERROR · CACHED FORECAST" : "OK"} · ${formatAge(fetchedAt, Date.now())}` : refreshError ? "ERROR · no cached forecast" : "WAITING · fetching first forecast"}
             {refreshError ? ` · ${refreshError}` : ""}

@@ -285,9 +285,9 @@ button {
 .crop-switcher button:hover { color: var(--tone-c1d0b3); }
 .crop-switcher button[aria-pressed="true"] { color: var(--tone-c1d0b3); background: rgba(var(--accent-rgb), 0.13); }
 .crop-switcher button:focus-visible { outline: 2px solid rgba(var(--accent-rgb), .6); outline-offset: 1px; }
-.workspace-panel { height: 100%; padding: 18px; border: 1px solid rgba(var(--line-rgb),.12); border-radius: 8px; color: var(--tone-dce4d7); background: var(--tone-0c100d); }
-.workspace-panel-heading { display:flex; align-items:center; justify-content:space-between; padding-bottom:14px; border-bottom:1px solid rgba(var(--line-rgb),.12); }
-.workspace-panel-heading h2 { margin:5px 0 0; font:600 18px "Instrument Sans Variable",sans-serif; }
+.workspace-panel { height: 100%; padding: 14px 16px; border: 1px solid rgba(var(--line-rgb),.12); border-radius: 8px; color: var(--tone-dce4d7); background: var(--tone-0c100d); }
+.workspace-panel-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-bottom:10px; border-bottom:1px solid rgba(var(--line-rgb),.12); }
+.workspace-panel-heading h2 { margin:0; font:600 15px "Instrument Sans Variable",sans-serif; }
 .workspace-panel > p { margin-top:24px; color:var(--tone-879187); font-size:11px; }
 .panel-freshness { color:var(--tone-879187); font-size:10px; margin:12px 0 0; }
 .weather-map { width:100%; height:300px; border:1px solid var(--tone-343a34); border-radius:8px; overflow:hidden; margin-bottom:12px; background:var(--tone-1b211d); }
@@ -398,17 +398,61 @@ button {
 .app-main { display: grid; grid-template-rows: 52px minmax(0, 1fr); min-width: 0; }
 .app-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid rgba(var(--line-rgb),.14); background: var(--tone-101411); }
 .app-topbar kbd { margin-left: 5px; color: var(--tone-899388); font-size: 10px; }
-.app-page { min-height: 0; overflow: auto; padding: 20px 24px 32px; }
-.page-heading { margin-bottom: 16px; }
+.app-page { min-height: 0; overflow: auto; padding: 18px 24px 20px; }
+.page-heading { margin-bottom: 14px; }
 .page-heading h1 { margin: 0; color: var(--tone-e3e8df); font: 600 20px "Instrument Sans Variable", sans-serif; }
 .page-heading p { margin: 4px 0 0; color: var(--tone-879187); font-size: 12px; }
 .page-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .page-section { min-width: 0; }
 .page-wide { grid-column: 1 / -1; }
 .page-section > .workspace-panel { height: auto; }
-.page-chart { height: 460px; }
+.page-chart { height: 366px; }
 .page-chart > .workspace-panel { height: 100%; }
 .settings-page { height: 100%; border: 1px solid rgba(var(--line-rgb),.12); border-radius: 8px; }
 @media (max-width: 1100px) {
   .page-grid { grid-template-columns: minmax(0, 1fr); }
 }
+/* A section's one-line description and its link into Help. */
+.section-titles { min-width: 0; }
+.section-subtitle { margin: 3px 0 0; color: var(--tone-879187); font-size: 11px; line-height: 1.4; }
+.section-help-link { padding: 0; border: 0; background: none; color: var(--tone-a8c393); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.section-help-link:hover { color: var(--tone-dce4d7); }
+.page-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Short lists on the Market page: big moves, next reports, headlines. */
+.compact-list { display: grid; margin: 8px 0 0; padding: 0; list-style: none; }
+.compact-list > li { border-bottom: 1px solid rgba(var(--line-rgb),.1); }
+.compact-row { display: grid; gap: 1px; width: 100%; padding: 7px 2px; border: 0; background: none; color: inherit; font: inherit; text-align: left; line-height: 1.35; }
+button.compact-row { cursor: pointer; border-radius: 4px; }
+button.compact-row:hover { background: rgba(var(--accent-rgb), .07); }
+.compact-main { overflow: hidden; color: var(--tone-dce4d7); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
+a.compact-main:hover { color: var(--tone-a8c393); text-decoration: underline; }
+.compact-main[data-direction="up"] { color: var(--tone-88ac75); }
+.compact-main[data-direction="down"] { color: var(--tone-d77b68); }
+.compact-meta { overflow: hidden; color: var(--tone-879187); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.show-all { margin-top: 4px; }
+.compact-list + .show-all + .panel-freshness, .compact-list + .panel-freshness { margin-top: 6px; }
+.move-drawer { width: min(520px, 100vw); max-width: 520px !important; overflow-y: auto; }
+.move-drawer-body { display: grid; gap: 12px; padding: 0 16px 24px; }
+@media (max-width: 1100px) {
+  .page-grid-3 { grid-template-columns: minmax(0, 1fr); }
+}
+/* Cards inside a page section drop their own frame and padding: the section is the frame. */
+.page-section [data-slot="card"] { --card-spacing: 0px; gap: 6px; margin-top: 10px; background: transparent; box-shadow: none; border-radius: 0; overflow: visible; }
+.page-section .stress-chart { height: 200px; }
+.page-section [data-slot="table-cell"], .page-section [data-slot="table-head"] { padding-top: 5px; padding-bottom: 5px; }
+.metric-label { display: block; white-space: normal; }
+.metric-when { display: block; color: var(--tone-879187); font-size: 10px; }
+/* River status: six cards in a row, each showing its headline number until details are asked for. */
+.page-section .river-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.page-section .river-grid [data-slot="card"] { --card-spacing: 10px; margin-top: 0; border: 1px solid rgba(var(--line-rgb),.12); border-radius: 6px; }
+.river-grid[data-details="false"] .river-detail { display: none; }
+.page-section .river-chart { height: 205px; }
+.page-section .river-chart-lower { height: 125px; }
+@media (max-width: 1300px) {
+  .page-section .river-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.section-body { margin-top: 12px; }
+.alert-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; line-height: 1.35; }
+.alert-text { flex: 1; min-width: 0; }
+/* In the fixed-height chart section the chart gives way, so the freshness line stays inside. */
+.page-chart .market-chart { min-height: 0; }

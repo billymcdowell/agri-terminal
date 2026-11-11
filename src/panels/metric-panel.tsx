@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { classifyFreshness } from "@/lib/freshness";
 import { findRegion } from "@/lib/regions";
@@ -13,11 +13,11 @@ import { balanceSheetRows, cotRows, cropConditionRows, droughtRows, type MetricR
 
 export type MetricPanelKind = "cot" | "crop-condition" | "wasde" | "drought";
 
-const DEFINITIONS: Record<MetricPanelKind, { eyebrow: string; title: (commodity: string, region: string) => string; sourceId: string; rows: (commodity: string, stateId: string) => MetricRow[] }> = {
-  cot: { eyebrow: "COT PANEL", title: (c) => `Commitments of Traders · ${c}`, sourceId: "cftc-cot", rows: (c) => cotRows(c) },
-  "crop-condition": { eyebrow: "CROP CONDITION PANEL", title: (c) => `Crop condition · ${c}`, sourceId: "usda-nass", rows: (c) => cropConditionRows(c) },
-  wasde: { eyebrow: "SUPPLY AND DEMAND PANEL", title: (c) => `Balance sheet · ${c}`, sourceId: "usda-fas", rows: (c) => balanceSheetRows(c) },
-  drought: { eyebrow: "DROUGHT PANEL", title: (_, region) => `Drought Monitor · ${region}`, sourceId: "us-drought-monitor", rows: (_, stateId) => droughtRows(stateId) },
+const DEFINITIONS: Record<MetricPanelKind, { title: (commodity: string, region: string) => string; sourceId: string; rows: (commodity: string, stateId: string) => MetricRow[] }> = {
+  cot: { title: (c) => `Commitments of Traders · ${c}`, sourceId: "cftc-cot", rows: (c) => cotRows(c) },
+  "crop-condition": { title: (c) => `Crop condition · ${c}`, sourceId: "usda-nass", rows: (c) => cropConditionRows(c) },
+  wasde: { title: (c) => `Balance sheet · ${c}`, sourceId: "usda-fas", rows: (c) => balanceSheetRows(c) },
+  drought: { title: (_, region) => `Drought Monitor · ${region}`, sourceId: "us-drought-monitor", rows: (_, stateId) => droughtRows(stateId) },
 };
 
 /** One table of the latest observation per series, with source-aware freshness beneath it. `region` is the state the Drought Monitor shows; the other kinds follow the crop. */
@@ -51,26 +51,24 @@ export function MetricPanel({ kind, region: regionId, controls }: { kind: Metric
 
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow={definition.eyebrow} title={definition.title(commodity, region.name)} kind={kind} controls={controls} />
+      <PanelHeader title={definition.title(commodity, region.name)} kind={kind} controls={controls} />
       <Card className="terminal-card">
-        <CardHeader><CardTitle className="side-card-title">Latest available observations</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Series</TableHead>
-                <TableHead>Period</TableHead>
-                <TableHead>Released</TableHead>
                 <TableHead className="text-right">Value</TableHead>
-                {kind === "cot" && <TableHead className="text-right">Historical percentile</TableHead>}
+                {kind === "cot" && <TableHead className="text-right">Percentile</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {lines.map((line) => (
                 <TableRow key={line.seriesId}>
-                  <TableCell>{line.label}</TableCell>
-                  <TableCell>{line.latest?.period ?? "—"}</TableCell>
-                  <TableCell>{line.latest ? new Date(line.latest.releasedAt).toLocaleDateString() : "—"}</TableCell>
+                  <TableCell>
+                    <span className="metric-label">{line.label}</span>
+                    {line.latest && <span className="metric-when">{line.latest.period} · released {new Date(line.latest.releasedAt).toLocaleDateString()}</span>}
+                  </TableCell>
                   <TableCell className="text-right">{line.latest ? `${line.latest.value.toLocaleString()} ${line.latest.unit}` : line.isError ? "Unavailable" : line.isLoading ? "Loading…" : "No cached data"}</TableCell>
                   {kind === "cot" && <TableCell className="text-right">{line.percentile === undefined ? "—" : `${line.percentile}th`}</TableCell>}
                 </TableRow>

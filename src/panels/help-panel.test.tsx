@@ -8,7 +8,7 @@ import { PANEL_GUIDES } from "./help-text";
 import { PanelHeader } from "./panel-header";
 
 describe("HelpPanel", () => {
-  afterEach(() => { cleanup(); useNavigation.setState({ page: "market" }); });
+  afterEach(() => { cleanup(); useNavigation.setState({ page: "market", helpTopic: null }); });
 
   it("has a guide for every section, and every section's command goes to its page", () => {
     for (const section of SECTIONS) {
@@ -43,20 +43,26 @@ describe("HelpPanel", () => {
   });
 });
 
-describe("PanelHeader About", () => {
-  afterEach(cleanup);
+describe("PanelHeader", () => {
+  afterEach(() => { cleanup(); useNavigation.setState({ page: "market", helpTopic: null }); });
 
-  it("shows the section's guide in place", () => {
-    render(<PanelHeader eyebrow="COT PANEL" title="Commitments of Traders · ZC" kind="cot" />);
-    expect(screen.queryByLabelText("About this panel", { selector: "section" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "About this panel" }));
-    const about = screen.getByLabelText("About this panel", { selector: "section" });
-    expect(within(about).getByText("Managed money")).toBeTruthy();
-    expect(within(about).getByText(/One contract is 5,000 bushels/)).toBeTruthy();
+  it("says in one line what the section shows, with no ⓘ toggle", () => {
+    render(<PanelHeader title="Commitments of Traders · ZC" kind="cot" />);
+    expect(screen.getByText(/Whether big groups of traders are betting on prices rising or falling/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "About this panel" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Panel settings" })).toBeNull();
   });
 
-  it("has no panel settings button", () => {
-    render(<PanelHeader eyebrow="DROUGHT PANEL" title="Drought Monitor · Iowa" kind="drought" />);
-    expect(screen.queryByRole("button", { name: "Panel settings" })).toBeNull();
+  it("links to the section's Help topic, which opens and expands it", () => {
+    render(<PanelHeader title="COT positioning" kind="cot" />);
+    fireEvent.click(screen.getByRole("button", { name: "More about COT positioning in Help" }));
+    expect(useNavigation.getState().page).toBe("help");
+    cleanup();
+    render(<HelpPanel />);
+    const topic = document.getElementById("help-cot") as HTMLDetailsElement;
+    expect(topic.open).toBe(true);
+    expect(within(topic).getByText("Managed money")).toBeTruthy();
+    expect((document.getElementById("help-wasde") as HTMLDetailsElement).open).toBe(false);
+    expect(useNavigation.getState().helpTopic).toBeNull();
   });
 });

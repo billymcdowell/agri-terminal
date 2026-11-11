@@ -134,7 +134,7 @@ Each page should fit one 1440×900 screen with its main chart visible; secondary
 | Move explainer sensitivity in standard deviations | Jargon | Fixed at 2 SD, or a *Fewer / More moves* toggle |
 | ALL-CAPS eyebrows and most footnotes | Noise | Sentence-case headings; caveats move to Help |
 
-Undecided, for Phase 5: whether to keep the Move explainer's *pin* and *notes*. *Dismiss* stays.
+Decided in Phase 5: *pin* goes (it only re-sorted drivers); *notes* and *dismiss* stay, in the drivers drawer.
 
 ## 4. Rules for this work
 

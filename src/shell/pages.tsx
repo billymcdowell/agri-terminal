@@ -1,13 +1,13 @@
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { REGIONS } from "@/lib/regions";
 import { GAUGES } from "@/lib/waterways";
-import { AlertsPanel } from "@/panels/alerts-panel";
+import { PriceAlertsSection, ReportReminders, RiverAlertsSection } from "@/panels/alerts-panel";
 import { CalendarPanel } from "@/panels/calendar-panel";
 import { CropStressPanel } from "@/panels/crop-stress-panel";
 import { HelpPanel } from "@/panels/help-panel";
 import { MetricPanel } from "@/panels/metric-panel";
-import { MoveExplainerPanel } from "@/panels/move-explainer-panel";
+import { BigMovesSection, MoveDriversDrawer } from "@/panels/move-explainer-panel";
 import { NewsPanel } from "@/panels/news-panel";
 import { RiverPanel } from "@/panels/river-panel";
 import { RiverTimelinePanel } from "@/panels/river-timeline-panel";
@@ -19,7 +19,7 @@ import type { PageId } from "./navigation";
 import type { Profile } from "./onboarding";
 
 /** The price chart. App supplies it because it owns the price source setup. */
-export type MarketComponent = ComponentType<{ commodity: string }>;
+export type MarketComponent = ComponentType<{ commodity: string; onSelectMove?: (date: string) => void }>;
 
 /** The state the Drought Monitor shows: the one picked on the page, else the home state from setup. */
 export function useDroughtRegion() {
@@ -35,12 +35,16 @@ export function useRiverGauge() {
 
 function MarketPage({ Market }: { Market: MarketComponent }) {
   const crop = useCrop((state) => state.crop);
+  // The flagged move whose possible drivers are open in the drawer.
+  const [move, setMove] = useState<string | null>(null);
+  useEffect(() => setMove(null), [crop]);
   return (
-    <div className="page-grid">
-      <section className="page-section page-wide page-chart"><Market commodity={crop} /></section>
-      <section className="page-section"><MoveExplainerPanel /></section>
+    <div className="page-grid page-grid-3">
+      <section className="page-section page-wide page-chart"><Market commodity={crop} onSelectMove={setMove} /></section>
+      <section className="page-section"><BigMovesSection onSelect={setMove} /></section>
+      <section className="page-section"><CalendarPanel /></section>
       <section className="page-section"><NewsPanel /></section>
-      <section className="page-section page-wide"><CalendarPanel /></section>
+      <MoveDriversDrawer date={move} onClose={() => setMove(null)} />
     </div>
   );
 }
@@ -53,11 +57,11 @@ function CropPage() {
     </NativeSelect>
   );
   return (
-    <div className="page-grid">
+    <div className="page-grid page-grid-3">
       <section className="page-section page-wide"><CropStressPanel /></section>
       <section className="page-section"><MetricPanel kind="crop-condition" /></section>
       <section className="page-section"><MetricPanel kind="drought" region={region} controls={picker} /></section>
-      <section className="page-section page-wide"><WeatherPanel /></section>
+      <section className="page-section"><WeatherPanel /></section>
     </div>
   );
 }
@@ -65,8 +69,8 @@ function CropPage() {
 function SupplyPage() {
   return (
     <div className="page-grid">
-      <section className="page-section page-wide"><MetricPanel kind="wasde" /></section>
-      <section className="page-section page-wide"><MetricPanel kind="cot" /></section>
+      <section className="page-section"><MetricPanel kind="wasde" /></section>
+      <section className="page-section"><MetricPanel kind="cot" /></section>
     </div>
   );
 }
@@ -93,7 +97,13 @@ export function PageBody({ page, Market }: { page: PageId; Market: MarketCompone
     case "crop": return <CropPage />;
     case "supply": return <SupplyPage />;
     case "river": return <RiverPage />;
-    case "alerts": return <div className="page-grid"><section className="page-section page-wide"><AlertsPanel /></section></div>;
+    case "alerts": return (
+      <div className="page-grid page-grid-3">
+        <section className="page-section"><PriceAlertsSection /></section>
+        <section className="page-section"><ReportReminders /></section>
+        <section className="page-section"><RiverAlertsSection /></section>
+      </div>
+    );
     case "settings": return <SettingsPage />;
     case "help": return <div className="page-grid"><section className="page-section page-wide"><HelpPanel /></section></div>;
   }

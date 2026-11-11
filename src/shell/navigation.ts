@@ -44,8 +44,20 @@ export function pageOf(kind: string): PageId {
   return SECTIONS.find((section) => section.kind === kind)?.page ?? "market";
 }
 
+type Navigation = {
+  page: PageId;
+  /** The section Help opens at, such as "cot", set by a section's "More in Help" link. */
+  helpTopic: string | null;
+  go: (page: PageId) => void;
+  openHelp: (topic: string) => void;
+  clearHelpTopic: () => void;
+};
+
 /** The page on screen. The app reopens on the last one. */
-export const useNavigation = create<{ page: PageId; go: (page: PageId) => void }>((set) => ({
+export const useNavigation = create<Navigation>((set) => ({
   page: "market",
+  helpTopic: null,
   go: (page) => set({ page }),
+  openHelp: (topic) => set({ page: "help", helpTopic: topic }),
+  clearHelpTopic: () => set({ helpTopic: null }),
 }));

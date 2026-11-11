@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,6 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { PAGES, SECTIONS, useNavigation, type Section } from "@/shell/navigation";
 import { GLOSSARY, guideTexts, matchesQuery, OTHER_COMMANDS, PANEL_GUIDES, SHORTCUT_NOTE, SHORTCUTS, START_HERE, STATUS_LABELS } from "./help-text";
 import { PanelGuide } from "./panel-guide";
-import { PanelHeader } from "./panel-header";
 
 const pageLabel = (section: Section) => PAGES.find((page) => page.id === section.page)?.label ?? section.page;
 
@@ -14,6 +13,16 @@ const pageLabel = (section: Section) => PAGES.find((page) => page.id === section
 export function HelpPanel() {
   const [query, setQuery] = useState("");
   const go = useNavigation((state) => state.go);
+  const helpTopic = useNavigation((state) => state.helpTopic);
+  // The section a "More in Help" link asked for: opened and scrolled to.
+  const [focused, setFocused] = useState<string | null>(null);
+  useEffect(() => {
+    if (!helpTopic) return;
+    setQuery("");
+    setFocused(helpTopic);
+    useNavigation.getState().clearHelpTopic();
+    requestAnimationFrame(() => document.getElementById(`help-${helpTopic}`)?.scrollIntoView?.({ block: "start" }));
+  }, [helpTopic]);
   const searching = query.trim() !== "";
   const panels = SECTIONS.map((section) => ({ ...section, type: section.kind }))
     .filter((panel) => PANEL_GUIDES[panel.type] && matchesQuery(query, ...guideTexts(panel.title, PANEL_GUIDES[panel.type])));
@@ -25,7 +34,6 @@ export function HelpPanel() {
 
   return (
     <div className="workspace-panel help-panel">
-      <PanelHeader eyebrow="HELP" title="Guide to AgriTerminal" kind="help" />
       <Input className="help-search" type="search" aria-label="Search help" placeholder="Search help, such as ending stocks or COT" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
       {nothing && <p className="panel-freshness">Nothing in the guide matches “{query.trim()}”.</p>}
 
@@ -88,7 +96,7 @@ export function HelpPanel() {
           <CardHeader><CardTitle className="side-card-title">Reading each section</CardTitle></CardHeader>
           <CardContent>
             {panels.map((panel) => (
-              <details key={panel.type} className="help-details" open={searching}>
+              <details key={panel.type} id={`help-${panel.type}`} className="help-details" open={searching || focused === panel.type}>
                 <summary><strong>{panel.title}</strong> · {PANEL_GUIDES[panel.type].oneLine}</summary>
                 <PanelGuide kind={panel.type} />
               </details>

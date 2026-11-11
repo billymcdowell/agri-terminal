@@ -5,8 +5,6 @@ import type { ConstraintScore, RiverBand, RiverStatus } from "@/lib/ipc";
  * proven causes of a price move, so nothing here asserts cause; a test checks this.
  */
 export const RIVER_TEXT = {
-  eyebrow: "RIVER PANEL",
-  timelineEyebrow: "COMBINED VIEW",
   title: (gauge: string) => `River status · ${gauge}`,
   timelineTitle: (gauge: string, commodity: string) => `River timeline · ${gauge} · ${commodity}`,
   scoreHeading: "Constraint score",
@@ -25,9 +23,7 @@ export const RIVER_TEXT = {
   noTraffic: "No current lock tonnage.",
   trader: "Low water tends to show up first in barge freight and in the gap between Gulf and interior basis, more than in futures. Treat a high score as a possible pressure on spreads, not a price call.",
   farmer: "When the river runs low, barges carry less and freight costs more, so elevators that ship by river often bid less against futures (local basis weakens). A high score is a reason to check your local bids, not a price forecast.",
-  timelineIntro: "Stage, forecast, barge freight and the constraint score, each as it was known at that day's close.",
   timelineNoData: "No river stage is stored yet.",
-  basisNote: "Gulf versus interior basis is not shown: public interior bids for the river states need the USDA AMS Market News connector, which is not built yet, so barge freight stands in as the price side.",
   pressureHeading: "Freight pressure, next 14 days",
   noPressure: "Needs a current forecast reaching two weeks ahead and enough past low-water weeks to measure how freight reacted.",
   pressureCaveat: "A rough average from past weeks, not a forecast of freight. Freight also moves with harvest demand and other traffic, and the fit shows how little of its movement river depth has explained.",

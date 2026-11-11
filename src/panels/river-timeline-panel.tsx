@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { getRiverStatus, getRiverTimeline, type RiverPoint } from "@/lib/ipc";
 import { usePalette } from "@/lib/theme";
 import { toDisplayPrice, UNIT_LABELS, useUnits, type UnitSystem } from "@/lib/units";
@@ -43,16 +43,18 @@ export function RiverTimelinePanel({ gauge: gaugeId }: { gauge?: string }) {
   const axis = { fill: palette.muted, fontSize: 10 };
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow={RIVER_TEXT.timelineEyebrow} title={RIVER_TEXT.timelineTitle(gauge.name, commodity)} kind="river-timeline" />
-      <Card className="terminal-card">
-        <CardHeader>
-          <CardTitle className="side-card-title">{RIVER_TEXT.timelineIntro}</CardTitle>
+      <PanelHeader
+        title={RIVER_TEXT.timelineTitle(gauge.name, commodity)}
+        kind="river-timeline"
+        controls={(
           <div className="river-range" role="group" aria-label="Timeline range">
             {(Object.keys(RANGE_DAYS) as TimelineRange[]).map((option) => (
               <Button key={option} size="xs" variant={option === range ? "secondary" : "ghost"} aria-pressed={option === range} onClick={() => setRange(option)}>{option}</Button>
             ))}
           </div>
-        </CardHeader>
+        )}
+      />
+      <Card className="terminal-card">
         <CardContent>
           <div className="river-chart" role="img" aria-label={`Stage at ${gauge.name} against its five-year range, the lowest forecast stage, thresholds and the ${commodity} close`}>
             <ResponsiveContainer width="100%" height="100%">
@@ -88,7 +90,7 @@ export function RiverTimelinePanel({ gauge: gaugeId }: { gauge?: string }) {
             </ResponsiveContainer>
           </div>
           <p className="panel-freshness">
-            {timeline.isError ? String(timeline.error) : rows.length === 0 ? RIVER_TEXT.timelineNoData : `Each value appears only from the day it was published. Gaps mean no current reading. ${hasBasis ? "" : RIVER_TEXT.basisNote}`}
+            {timeline.isError ? String(timeline.error) : rows.length === 0 ? RIVER_TEXT.timelineNoData : "Each value appears only from the day it was published. Gaps mean no current reading."}
           </p>
         </CardContent>
       </Card>

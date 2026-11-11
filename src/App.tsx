@@ -9,9 +9,10 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AboutButton, PanelAbout } from "@/panels/panel-guide";
+import { SectionSubtitle } from "@/panels/panel-header";
 import { PriceChart, type MoveMarker } from "@/panels/price-chart";
-import { explainMoves, getSecretStatus, refreshSource } from "@/lib/ipc";
+import { getSecretStatus, refreshSource } from "@/lib/ipc";
+import { useMoves } from "@/panels/move-explainer-panel";
 import { CROP_NAMES } from "@/lib/regions";
 import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
 import { priceStatus } from "@/panels/price-status";
@@ -25,13 +26,13 @@ const DEMO_COMMODITY = "ZC";
 const PRICE_SOURCE = "massive";
 const RANGES = ["1W", "1M", "ALL"] as const;
 
-export function MarketOverview({ commodity }: { commodity: string }) {
+/** The price chart. `onSelectMove` opens a flagged day's possible drivers. */
+export function MarketOverview({ commodity, onSelectMove }: { commodity: string; onSelectMove?: (date: string) => void }) {
   const commodityName = CROP_NAMES[commodity] ?? commodity;
   const seriesId = `price.${commodity}.close`;
   const [range, setRange] = useState<(typeof RANGES)[number]>("ALL");
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [aboutOpen, setAboutOpen] = useState(false);
   const [refreshError, setRefreshError] = useState("");
   const showSources = () => useSettingsScreen.getState().show("sources");
   const queryClient = useQueryClient();
@@ -43,10 +44,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
     staleTime: 60_000,
   });
 
-  const moves = useQuery({
-    queryKey: ["moves", commodity, 2],
-    queryFn: () => explainMoves(commodity, 2),
-  });
+  const moves = useMoves(commodity);
   const markers = useMemo<MoveMarker[]>(
     () =>
       (moves.data ?? []).map((item) => ({
@@ -125,7 +123,7 @@ export function MarketOverview({ commodity }: { commodity: string }) {
         <Button variant="outline" size="sm" onClick={() => void series.refetch()}>Retry</Button>
       </Empty>
     );
-  } else if (bars.length > 0) chart = <PriceChart bars={bars} markers={markers} />;
+  } else if (bars.length > 0) chart = <PriceChart bars={bars} markers={markers} onMarkerClick={onSelectMove} />;
   else {
     chart = (
       <Empty className="h-full">
@@ -182,10 +180,9 @@ export function MarketOverview({ commodity }: { commodity: string }) {
               </Button>
             ))}
           </div>
-          <AboutButton open={aboutOpen} onToggle={() => setAboutOpen((open) => !open)} />
         </div>
       </div>
-      {aboutOpen && <PanelAbout kind="market" />}
+      <SectionSubtitle kind="market" title="Price chart" />
       {status.origin === "demo" && (
         <div className="market-banner" role="status">
           <span>Showing sample corn prices, not market quotes. Add a free Massive key to see real prices.</span>

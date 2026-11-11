@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cropStressTimeline, type StressPoint } from "@/lib/ipc";
 import { usePalette } from "@/lib/theme";
 import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
@@ -24,9 +24,8 @@ export function CropStressPanel() {
   const hasCondition = rows.some((row) => row.condition !== null);
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow="COMBINED VIEW" title={`Crop stress timeline · ${commodity}`} kind="crop-stress" />
+      <PanelHeader title={`Crop stress timeline · ${commodity}`} kind="crop-stress" />
       <Card className="terminal-card">
-        <CardHeader><CardTitle className="side-card-title">Price, crop condition and drought on one timeline</CardTitle></CardHeader>
         <CardContent>
           <div className="stress-chart" role="img" aria-label={`Price, good-to-excellent crop condition against its five-year range, and drought area for ${commodity}`}>
             <ResponsiveContainer width="100%" height="100%">
