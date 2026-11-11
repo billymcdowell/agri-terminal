@@ -6,40 +6,27 @@ const priceSource = { lastOk: "2026-10-25T06:00:00Z", state: "ok", cadenceSecond
 
 describe("priceStatus", () => {
   it("does not describe a commodity with no prices as market data", () => {
-    const status = priceStatus({ commodityName: "Soybeans", hasKey: false, now });
-    expect(status.origin).toBe("none");
-    expect(status.badge).toBe("NO DATA");
-    expect(status.description).toBe("Soybeans futures · no prices loaded");
-    expect(status.snapshotNote).toContain("Add a Massive key");
-    expect(status.statusBar).toBe("NO MARKET DATA");
+    expect(priceStatus({ now })).toEqual({ origin: "none" });
   });
-  it("points to Load prices once a key is saved", () => {
-    expect(priceStatus({ commodityName: "Wheat", hasKey: true, now }).snapshotNote).toContain("Load prices");
+  it("labels the fixture as demonstration data, even with a price source configured", () => {
+    expect(priceStatus({ latest: { sourceId: "fixture-corn", fetchedAt: "2026-10-23T19:00:00Z" }, priceSource, now })).toEqual({ origin: "demo" });
   });
-  it("labels the fixture as simulated and stale", () => {
-    const status = priceStatus({ commodityName: "Corn", latest: { sourceId: "fixture-corn", fetchedAt: "2026-10-23T19:00:00Z" }, hasKey: false, now });
-    expect(status.badge).toBe("SIMULATED");
-    expect(status.freshness.status).toBe("stale");
-    expect(status.statusBar).toBe("STALE DEMO DATA");
-  });
-  it("names the commodity being shown", () => {
-    const status = priceStatus({ commodityName: "Soybeans", latest: { sourceId: "massive", fetchedAt: "2026-10-24T22:00:00Z" }, hasKey: true, priceSource, now });
-    expect(status.snapshotNote).toBe("Latest available soybeans futures daily bar from Massive.");
+  it("names the provider of market data", () => {
+    const status = priceStatus({ latest: { sourceId: "massive", fetchedAt: "2026-10-24T22:00:00Z" }, priceSource, now });
+    expect(status).toMatchObject({ origin: "live", provider: "Massive" });
   });
   it("still treats bars stored by the retired Databento source as market data", () => {
-    const status = priceStatus({ commodityName: "Corn", latest: { sourceId: "databento", fetchedAt: "2026-10-24T22:00:00Z" }, hasKey: false, priceSource, now });
-    expect(status.origin).toBe("live");
-    expect(status.snapshotNote).toBe("Latest available corn futures daily bar from Databento.");
+    const status = priceStatus({ latest: { sourceId: "databento", fetchedAt: "2026-10-24T22:00:00Z" }, priceSource, now });
+    expect(status).toMatchObject({ origin: "live", provider: "Databento" });
   });
   it("stays current over a weekend while the daily refresh keeps succeeding", () => {
     // Sunday: Friday's bar was first fetched two days ago, but this morning's refresh succeeded.
-    const status = priceStatus({ commodityName: "Corn", latest: { sourceId: "massive", fetchedAt: "2026-10-23T22:00:00Z" }, hasKey: true, priceSource, now });
-    expect(status.freshness.status).toBe("ok");
-    expect(status.statusBar).toBe("MARKET DATA CURRENT");
+    const status = priceStatus({ latest: { sourceId: "massive", fetchedAt: "2026-10-23T22:00:00Z" }, priceSource, now });
+    expect(status).toMatchObject({ freshness: { status: "ok" } });
   });
   it("is stale when refreshes stop succeeding, and shows source errors", () => {
     const latest = { sourceId: "massive", fetchedAt: "2026-10-20T22:00:00Z" };
-    expect(priceStatus({ commodityName: "Corn", latest, hasKey: true, priceSource: { ...priceSource, lastOk: "2026-10-20T22:00:00Z" }, now }).statusBar).toBe("STALE MARKET DATA");
-    expect(priceStatus({ commodityName: "Corn", latest, hasKey: true, priceSource: { ...priceSource, state: "error" }, now }).statusBar).toBe("PRICE SOURCE ERROR");
+    expect(priceStatus({ latest, priceSource: { ...priceSource, lastOk: "2026-10-20T22:00:00Z" }, now })).toMatchObject({ freshness: { status: "stale" } });
+    expect(priceStatus({ latest, priceSource: { ...priceSource, state: "error" }, now })).toMatchObject({ freshness: { status: "error" } });
   });
 });

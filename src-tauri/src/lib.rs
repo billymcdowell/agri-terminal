@@ -70,9 +70,6 @@ pub fn run() {
             commands::get_secret_status,
             commands::test_connection,
             commands::set_source_enabled,
-            commands::list_workspaces,
-            commands::save_workspace,
-            commands::delete_workspace,
             commands::explain_moves,
             commands::crop_stress_timeline,
             commands::get_river_status,
@@ -95,7 +92,6 @@ pub fn run() {
             commands::list_stored_series,
             commands::get_stored_rows,
             commands::export_series_csv,
-            commands::export_workspace,
             commands::get_setting,
             commands::set_setting
         ])

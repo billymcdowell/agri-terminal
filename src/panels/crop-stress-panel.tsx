@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cropStressTimeline, type StressPoint } from "@/lib/ipc";
 import { usePalette } from "@/lib/theme";
 import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
-import type { PanelComponentProps } from "@/workspace/types";
-import { PanelHeader, usePanelCommodity } from "./panel-header";
+import { cropAdjective, cropName } from "@/lib/regions";
+import { useCrop } from "@/shell/crop";
+import { PanelHeader } from "./panel-header";
 
 /** Recharts range areas take a [low, high] pair; gaps are null so the band disappears off-season. */
 export function toChartRows(points: StressPoint[]) {
@@ -15,8 +16,8 @@ export function toChartRows(points: StressPoint[]) {
   }));
 }
 
-export function CropStressPanel({ api, params }: PanelComponentProps) {
-  const { commodity, change } = usePanelCommodity(params, api);
+export function CropStressPanel() {
+  const commodity = useCrop((state) => state.crop);
   const palette = usePalette();
   const timeline = useQuery({ queryKey: ["crop-stress", commodity], queryFn: () => cropStressTimeline(commodity) });
   const units = useUnits();
@@ -24,11 +25,10 @@ export function CropStressPanel({ api, params }: PanelComponentProps) {
   const hasCondition = rows.some((row) => row.condition !== null);
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow="COMBINED VIEW" title={`Crop stress timeline · ${commodity}`} api={api} params={params} commodity={commodity} onCommodityChange={change} />
+      <PanelHeader title={`${cropAdjective(commodity)} crop stress`} kind="crop-stress" />
       <Card className="terminal-card">
-        <CardHeader><CardTitle className="side-card-title">Price, crop condition and drought on one timeline</CardTitle></CardHeader>
         <CardContent>
-          <div className="stress-chart" role="img" aria-label={`Price, good-to-excellent crop condition against its five-year range, and drought area for ${commodity}`}>
+          <div className="stress-chart" role="img" aria-label={`Price, good-to-excellent crop condition against its five-year range, and drought area for ${cropName(commodity).toLowerCase()}`}>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
                 <CartesianGrid stroke={palette.grid} vertical={false} />
@@ -45,7 +45,7 @@ export function CropStressPanel({ api, params }: PanelComponentProps) {
             </ResponsiveContainer>
           </div>
           <p className="panel-freshness">
-            {timeline.isError ? String(timeline.error) : rows.length === 0 ? "No cached prices for this commodity yet." : !hasCondition ? "No crop condition is cached for this period; add a NASS key under Data sources, or the crop is out of season." : "Each weekly value appears only after its release, and gaps mean no current report. The band is the same week over the previous five years."}
+            {timeline.isError ? String(timeline.error) : rows.length === 0 ? "No cached prices for this commodity yet." : !hasCondition ? "No crop condition is cached for this period; add a NASS key in Settings › Data sources, or the crop is out of season." : "Each weekly value appears only after its release, and gaps mean no current report. The band is the same week over the previous five years."}
           </p>
         </CardContent>
       </Card>

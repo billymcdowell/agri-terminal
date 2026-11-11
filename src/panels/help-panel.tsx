@@ -1,40 +1,43 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { requestCommand } from "@/workspace/command-events";
-import { listPanels } from "@/workspace/registry";
-import { TEMPLATES } from "@/workspace/templates";
-import type { PanelComponentProps } from "@/workspace/types";
-import { GLOSSARY, guideTexts, matchesQuery, OTHER_COMMANDS, PANEL_GUIDES, SHORTCUT_NOTE, SHORTCUTS, START_HERE, STATUS_LABELS } from "./help-text";
+import { PAGES, SECTIONS, useNavigation, type Section } from "@/shell/navigation";
+import { GLOSSARY, guideTexts, matchesQuery, PANEL_GUIDES, SHORTCUT_NOTE, SHORTCUTS, START_HERE, STATUS_LABELS } from "./help-text";
 import { PanelGuide } from "./panel-guide";
-import { PanelHeader } from "./panel-header";
 
-/** Every command, what each panel shows, the status labels and a glossary, searchable in one place. */
-export function HelpPanel({ api, params }: PanelComponentProps) {
+const pageLabel = (section: Section) => PAGES.find((page) => page.id === section.page)?.label ?? section.page;
+
+/** Every section, command, status label and glossary term, searchable in one place. */
+export function HelpPanel() {
   const [query, setQuery] = useState("");
-  const [notice, setNotice] = useState("");
+  const go = useNavigation((state) => state.go);
+  const helpTopic = useNavigation((state) => state.helpTopic);
+  const helpQuery = useNavigation((state) => state.helpQuery);
+  // The section a "More in Help" link asked for: opened and scrolled to.
+  const [focused, setFocused] = useState<string | null>(null);
+  useEffect(() => {
+    if (helpQuery) { setQuery(helpQuery); useNavigation.getState().clearHelpTopic(); }
+  }, [helpQuery]);
+  useEffect(() => {
+    if (!helpTopic) return;
+    setQuery("");
+    setFocused(helpTopic);
+    useNavigation.getState().clearHelpTopic();
+    requestAnimationFrame(() => document.getElementById(`help-${helpTopic}`)?.scrollIntoView?.({ block: "start" }));
+  }, [helpTopic]);
   const searching = query.trim() !== "";
-  const panels = listPanels().filter((panel) => panel.type !== "help" && PANEL_GUIDES[panel.type] && matchesQuery(query, ...guideTexts(panel.title, PANEL_GUIDES[panel.type])));
-  const commands = [
-    ...TEMPLATES.map((template) => ({ usage: `TEMPLATE ${template.id}`, meaning: `Replace the layout with the ${template.name} set: ${template.description}` })),
-    ...OTHER_COMMANDS,
-  ].filter((item) => matchesQuery(query, item.usage, item.meaning));
+  const panels = SECTIONS.map((section) => ({ ...section, type: section.kind }))
+    .filter((panel) => PANEL_GUIDES[panel.type] && matchesQuery(query, ...guideTexts(panel.title, PANEL_GUIDES[panel.type])));
   const shortcuts = SHORTCUTS.filter((item) => matchesQuery(query, item.keys, item.action));
   const statuses = STATUS_LABELS.filter(([label, meaning]) => matchesQuery(query, label, meaning));
   const terms = GLOSSARY.filter(([term, meaning]) => matchesQuery(query, term, meaning));
-  const nothing = !panels.length && !commands.length && !shortcuts.length && !statuses.length && !terms.length;
-
-  function open(command: string) {
-    setNotice(requestCommand(command) ? "" : `Open this from the main window: press / and type ${command}.`);
-  }
+  const nothing = !panels.length && !shortcuts.length && !statuses.length && !terms.length;
 
   return (
     <div className="workspace-panel help-panel">
-      <PanelHeader eyebrow="HELP" title="Guide to AgriTerminal" api={api} params={params} />
       <Input className="help-search" type="search" aria-label="Search help" placeholder="Search help, such as ending stocks or COT" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
-      {notice && <p role="status" className="panel-freshness" data-status="stale">{notice}</p>}
       {nothing && <p className="panel-freshness">Nothing in the guide matches “{query.trim()}”.</p>}
 
       {!searching && (
@@ -46,33 +49,19 @@ export function HelpPanel({ api, params }: PanelComponentProps) {
 
       {panels.length > 0 && (
         <Card className="terminal-card">
-          <CardHeader><CardTitle className="side-card-title">Panels you can open</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="side-card-title">What each page shows</CardTitle></CardHeader>
           <CardContent>
             <ul className="help-panels">
               {panels.map((panel) => (
                 <li key={panel.type}>
                   <div className="help-panels-head">
                     <strong>{panel.title}</strong>
-                    <Button size="xs" variant="outline" aria-label={`Open ${panel.title}`} onClick={() => open(panel.command)}>Open</Button>
+                    <Button size="xs" variant="outline" aria-label={`Go to ${panel.title}`} onClick={() => go(panel.page)}>{pageLabel(panel)}</Button>
                   </div>
                   <p>{PANEL_GUIDES[panel.type].oneLine}</p>
-                  <p>Type <code>{PANEL_GUIDES[panel.type].usage}</code></p>
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {commands.length > 0 && (
-        <Card className="terminal-card">
-          <CardHeader><CardTitle className="side-card-title">Other commands</CardTitle></CardHeader>
-          <CardContent>
-            <Table className="help-table">
-              <TableBody>
-                {commands.map((item) => <TableRow key={item.usage}><TableCell><code>{item.usage}</code></TableCell><TableCell>{item.meaning}</TableCell></TableRow>)}
-              </TableBody>
-            </Table>
           </CardContent>
         </Card>
       )}
@@ -93,10 +82,10 @@ export function HelpPanel({ api, params }: PanelComponentProps) {
 
       {panels.length > 0 && (
         <Card className="terminal-card">
-          <CardHeader><CardTitle className="side-card-title">Reading each panel</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="side-card-title">Reading each section</CardTitle></CardHeader>
           <CardContent>
             {panels.map((panel) => (
-              <details key={panel.type} className="help-details" open={searching}>
+              <details key={panel.type} id={`help-${panel.type}`} className="help-details" open={searching || focused === panel.type}>
                 <summary><strong>{panel.title}</strong> · {PANEL_GUIDES[panel.type].oneLine}</summary>
                 <PanelGuide kind={panel.type} />
               </details>

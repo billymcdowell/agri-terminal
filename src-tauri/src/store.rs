@@ -374,38 +374,6 @@ pub fn load_weather_snapshot(
     })
 }
 
-pub fn save_workspace(
-    connection: &Connection,
-    id: &str,
-    name: &str,
-    json: &str,
-) -> Result<(), String> {
-    connection.execute(
-        "INSERT INTO workspaces (id, name, json, updated_at) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(id) DO UPDATE SET name = excluded.name, json = excluded.json, updated_at = excluded.updated_at",
-        params![id, name, json, Utc::now().to_rfc3339()],
-    ).map_err(|error| format!("Save workspace: {error}"))?;
-    Ok(())
-}
-
-pub fn list_workspaces(connection: &Connection) -> Result<Vec<(String, String, String)>, String> {
-    let mut statement = connection
-        .prepare("SELECT id, name, json FROM workspaces ORDER BY name")
-        .map_err(|error| format!("Prepare workspace list: {error}"))?;
-    statement
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-        .map_err(|error| format!("Query workspaces: {error}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("Read workspace: {error}"))
-}
-
-pub fn delete_workspace(connection: &Connection, id: &str) -> Result<(), String> {
-    connection
-        .execute("DELETE FROM workspaces WHERE id = ?1", params![id])
-        .map_err(|error| format!("Delete workspace: {error}"))?;
-    Ok(())
-}
-
 pub fn append_source_records(
     connection: &Connection,
     records: &[SourceRecord],
@@ -1482,41 +1450,6 @@ mod tests {
             query_stored_rows(&connection, "cot.ZC.managed_money_net").unwrap(),
             StoredRows::Metric(rows) if rows.len() == 1
         ));
-    }
-
-    #[test]
-    fn workspace_json_is_saved_and_listed() {
-        let connection = test_db();
-        save_workspace(
-            &connection,
-            "default",
-            "Market overview",
-            r#"{"version":1,"layout":{}}"#,
-        )
-        .unwrap();
-        let workspaces = list_workspaces(&connection).unwrap();
-        assert_eq!(
-            workspaces,
-            vec![(
-                "default".into(),
-                "Market overview".into(),
-                r#"{"version":1,"layout":{}}"#.into()
-            )]
-        );
-    }
-
-    #[test]
-    fn workspaces_are_kept_apart_and_deleted_by_id() {
-        let connection = test_db();
-        save_workspace(&connection, "default", "Market overview", "{}").unwrap();
-        save_workspace(&connection, "weather", "Weather", "{}").unwrap();
-        delete_workspace(&connection, "default").unwrap();
-        let names: Vec<_> = list_workspaces(&connection)
-            .unwrap()
-            .into_iter()
-            .map(|(_, name, _)| name)
-            .collect();
-        assert_eq!(names, vec!["Weather".to_string()]);
     }
 
     #[test]

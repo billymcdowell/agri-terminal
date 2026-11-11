@@ -136,7 +136,6 @@ export type StoredRows = { kind: "price"; rows: PriceBar[] } | { kind: "metric";
 export function listStoredSeries() { return invoke<StoredSeries[]>("list_stored_series"); }
 export function getStoredRows(seriesId: string) { return invoke<StoredRows>("get_stored_rows", { seriesId }); }
 export function exportSeriesCsv(seriesId: string) { return invoke<string>("export_series_csv", { seriesId }); }
-export function exportWorkspace(id: string) { return invoke<string>("export_workspace", { id }); }
 
 export type PluginSecret = { name: string; configured: boolean };
 export type PluginSummary = { id: string; name: string; version: string; description: string; licenseNote: string; builtin: boolean; hosts: string[]; secrets: PluginSecret[]; series: string[]; cadence: string; errors: string[] };
@@ -147,10 +146,6 @@ export function installPlugin(manifest: string) { return invoke<PluginSummary>("
 export function removePlugin(id: string) { return invoke<void>("remove_plugin", { id }); }
 export function savePluginSecret(pluginId: string, name: string, value: string) { return invoke<void>("save_plugin_secret", { pluginId, name, value }); }
 
-export type SavedWorkspace = [id: string, name: string, json: string];
-export function listWorkspaces() { return invoke<SavedWorkspace[]>("list_workspaces"); }
-export function saveWorkspace(id: string, name: string, json: string) { return invoke<void>("save_workspace", { id, name, json }); }
-export function deleteWorkspace(id: string) { return invoke<void>("delete_workspace", { id }); }
 
 export function subscribeToDataUpdates(
   callback: (seriesIds: string[]) => void,

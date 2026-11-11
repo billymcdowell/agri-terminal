@@ -1,0 +1,49 @@
+// @vitest-environment jsdom
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const settings = vi.hoisted(() => ({ getSetting: vi.fn(), setSetting: vi.fn() }));
+vi.mock("@/lib/ipc", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/ipc")>()), ...settings }));
+
+import { alertNotification, describeAlert, parseThreshold, ReportReminders, riverAlertStatus } from "./alerts-panel";
+
+describe("alerts panel helpers", () => {
+  it("accepts only positive prices", () => {
+    expect(parseThreshold("4.55")).toBe(4.55);
+    for (const bad of ["", "abc", "0", "-1", "Infinity"]) expect(parseThreshold(bad)).toBeNull();
+  });
+  it("shows stored bushel prices in metric tonnes when asked", () => {
+    expect(describeAlert({ symbol: "ZC", direction: "above", threshold: 4.5 }, "metric")).toBe("Corn at or above 177.16 USD/tonne");
+  });
+  it("describes an alert in plain words", () => {
+    expect(describeAlert({ symbol: "ZW", direction: "below", threshold: 5.5 })).toBe("Wheat at or below 5.50 USD/bu");
+  });
+  it("labels river alerts by their state", () => {
+    expect(riverAlertStatus({ rule: "below_restriction", enabled: true, state: 0 })).toBe("Armed");
+    expect(riverAlertStatus({ rule: "below_restriction", enabled: true, state: 1 })).toBe("Triggered");
+    expect(riverAlertStatus({ rule: "band_up", enabled: true, state: 2 })).toBe("At high");
+    expect(riverAlertStatus({ rule: "band_up", enabled: false, state: 2 })).toBe("Paused");
+  });
+  it("words a fired alert's notification in the display unit", () => {
+    const fired = { id: "a", symbol: "ZC", direction: "above" as const, threshold: 4.5, close: 4.55, date: "2026-10-23" };
+    expect(alertNotification(fired)).toEqual({ title: "Corn at or above 4.50 USD/bu", body: "Latest close 4.55 USD/bu on 2026-10-23." });
+    expect(alertNotification(fired, "metric")).toEqual({ title: "Corn at or above 177.16 USD/tonne", body: "Latest close 179.12 USD/tonne on 2026-10-23." });
+  });
+});
+
+describe("ReportReminders", () => {
+  afterEach(() => { cleanup(); vi.clearAllMocks(); });
+
+  it("saves how early to be reminded before a report, and shows a saved choice", async () => {
+    settings.getSetting.mockImplementation(async (key: string) => (key === "release-alert-lead-hours" ? "6" : null));
+    settings.setSetting.mockResolvedValue(undefined);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><ReportReminders /></QueryClientProvider>);
+    const select = screen.getByLabelText("Remind me") as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe("6"));
+    fireEvent.change(select, { target: { value: "0" } });
+    expect(settings.setSetting).toHaveBeenCalledWith("release-alert-lead-hours", "0");
+    await waitFor(() => expect(select.value).toBe("0"));
+  });
+});

@@ -34,10 +34,22 @@ const seriesOptions = (palette: Palette) => ({
   wickDownColor: palette.down,
 });
 
-export type MoveMarker = { date: string; direction: "up" | "down"; text: string };
-type PriceChartProps = { bars: PriceBar[]; markers?: MoveMarker[] };
+/** The chart reports a bar's time as given ("2026-10-28") or as a business day; both become a date string. */
+export function timeToDate(time: Time | undefined): string | undefined {
+  if (typeof time === "string") return time;
+  if (time && typeof time === "object") return `${time.year}-${String(time.month).padStart(2, "0")}-${String(time.day).padStart(2, "0")}`;
+  return undefined;
+}
 
-export function PriceChart({ bars, markers = [] }: PriceChartProps) {
+export type MoveMarker = { date: string; direction: "up" | "down"; text: string };
+type PriceChartProps = {
+  bars: PriceBar[];
+  markers?: MoveMarker[];
+  /** Called with a flagged day's date when the user clicks its bar or marker. */
+  onMarkerClick?: (date: string) => void;
+};
+
+export function PriceChart({ bars, markers = [], onMarkerClick }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -45,6 +57,9 @@ export function PriceChart({ bars, markers = [] }: PriceChartProps) {
   const palette = usePalette();
   const paletteRef = useRef(palette);
   paletteRef.current = palette;
+  // Read on click, so new markers or handlers apply without rebuilding the chart.
+  const clickRef = useRef({ markers, onMarkerClick });
+  clickRef.current = { markers, onMarkerClick };
   const data = useMemo(
     () =>
       bars.map((bar) => ({
@@ -67,6 +82,11 @@ export function PriceChart({ bars, markers = [] }: PriceChartProps) {
     chartRef.current = chart;
     seriesRef.current = series;
     markersRef.current = createSeriesMarkers(series, []);
+    chart.subscribeClick((param) => {
+      const date = timeToDate(param.time);
+      const { markers: current, onMarkerClick: handler } = clickRef.current;
+      if (date && handler && current.some((marker) => marker.date === date)) handler(date);
+    });
     const resizeObserver = new ResizeObserver(([entry]) => {
       if (entry)
         chart.resize(entry.contentRect.width, entry.contentRect.height);

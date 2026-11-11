@@ -39,7 +39,7 @@ function movesFor(bars: PriceBar[], commodity: string, thresholdSd: number): Mov
 }
 
 export function installMockBridge() {
-  // The app calls Tauri's isTauri() to choose between its database and browser storage for workspaces.
+  // The app calls Tauri's isTauri() to tell the desktop app from a plain browser.
   (window as unknown as { isTauri: boolean }).isTauri = true;
 
   const prices: Record<string, PriceBar[]> = { "price.ZC.close": buildPrices("ZC"), "price.ZS.close": buildPrices("ZS"), "price.ZW.close": buildPrices("ZW") };
@@ -50,12 +50,10 @@ export function installMockBridge() {
   let alerts = [...ALERTS];
   let riverAlerts = [...RIVER_ALERTS];
   let plugins = [...PLUGINS];
-  const workspaces: [string, string, string][] = JSON.parse(read("workspaces") ?? "[]");
   const settings: Record<string, string> = JSON.parse(read("settings") ?? "{}");
   if (!("profile" in settings) && !params.has("onboarding")) {
-    settings.profile = JSON.stringify({ role: "trader", commodities: ["ZC", "ZS"], region: "ia" });
+    settings.profile = JSON.stringify({ commodities: ["ZC", "ZS"], region: "ia" });
   }
-  const persistWorkspaces = () => write("workspaces", JSON.stringify(workspaces));
   const sym = (s: unknown) => String(s).toUpperCase();
 
   mockIPC((cmd, payload) => {
@@ -70,13 +68,6 @@ export function installMockBridge() {
       case "get_news_for_commodity": return news[sym(a.commodity)] ?? [];
       case "save_secret": case "save_plugin_secret": return null;
       case "get_secret_status": return true;
-      case "list_workspaces": return workspaces;
-      case "save_workspace": {
-        const i = workspaces.findIndex(([id]) => id === a.id);
-        if (i >= 0) workspaces[i] = [a.id, a.name, a.json]; else workspaces.push([a.id, a.name, a.json]);
-        persistWorkspaces(); return null;
-      }
-      case "delete_workspace": { const i = workspaces.findIndex(([id]) => id === a.id); if (i >= 0) workspaces.splice(i, 1); persistWorkspaces(); return null; }
       case "explain_moves": return movesFor(prices[`price.${sym(a.commodity)}.close`] ?? [], sym(a.commodity), a.thresholdSd ?? 2.5);
       case "crop_stress_timeline": {
         const s = sym(a.commodity);
@@ -110,7 +101,6 @@ export function installMockBridge() {
         return p ? { kind: "price", rows: p } : { kind: "metric", rows: metrics[a.seriesId] ?? [] };
       }
       case "export_series_csv": return `~/AgriTerminal/data/exports/${a.seriesId}.csv`;
-      case "export_workspace": return `~/AgriTerminal/data/exports/${a.id}.json`;
       case "get_setting": return settings[a.key] ?? null;
       case "set_setting": settings[a.key] = a.value; write("settings", JSON.stringify(settings)); return null;
       case "plugin:notification|is_permission_granted": return true;
