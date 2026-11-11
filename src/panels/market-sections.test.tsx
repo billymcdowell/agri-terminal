@@ -44,7 +44,7 @@ describe("Big moves", () => {
 
   it("lists the five newest moves with their leading driver, and the rest on request", async () => {
     withClient(<BigMovesSection onSelect={() => undefined} />);
-    expect(await screen.findByText(/2026-10-28 · ▲ 5.00%/)).toBeTruthy();
+    expect(await screen.findByText(/Oct 28, 2026 · ▲ 5.00%/)).toBeTruthy();
     expect(screen.getByText("likely driver: WASDE")).toBeTruthy();
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
     fireEvent.click(screen.getByRole("button", { name: "Show all 6 moves" }));
@@ -54,12 +54,13 @@ describe("Big moves", () => {
   it("opens a move's drivers, where they can be dismissed and restored but not pinned", async () => {
     const onSelect = vi.fn();
     withClient(<BigMovesSection onSelect={onSelect} />);
-    fireEvent.click(await screen.findByText(/2026-10-28 · ▲ 5.00%/));
+    fireEvent.click(await screen.findByText(/Oct 28, 2026 · ▲ 5.00%/));
     expect(onSelect).toHaveBeenCalledWith("2026-10-28");
     cleanup();
 
     withClient(<MoveDriversDrawer date="2026-10-28" onClose={() => undefined} />);
     const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getByText("Oct 28, 2026 · ▲ 5.00% · 10.0× a typical day")).toBeTruthy();
     expect(within(drawer).getByText("WASDE")).toBeTruthy();
     expect(within(drawer).queryByRole("button", { name: "Pin" })).toBeNull();
     fireEvent.click(within(drawer).getAllByRole("button", { name: "Dismiss" })[0]);

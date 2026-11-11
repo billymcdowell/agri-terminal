@@ -8,12 +8,14 @@ import { usePalette } from "@/lib/theme";
 import { toDisplayPrice, UNIT_LABELS, useUnits, type UnitSystem } from "@/lib/units";
 import { findGauge, GAUGES } from "@/lib/waterways";
 import { useRiverUpdates } from "@/state/use-series";
+import { cropName } from "@/lib/regions";
 import { useCrop } from "@/shell/crop";
 import { PanelHeader } from "./panel-header";
 import { RIVER_TEXT } from "./river-text";
 
 export type TimelineRange = "1Y" | "3Y" | "ALL";
 const RANGE_DAYS: Record<TimelineRange, number> = { "1Y": 366, "3Y": 3 * 366, ALL: Number.POSITIVE_INFINITY };
+const RANGE_LABELS: Record<TimelineRange, string> = { "1Y": "1 year", "3Y": "3 years", ALL: "All" };
 
 /** The last `range` of points, with the stage band as the [low, high] pair Recharts range areas take. */
 export function toTimelineRows(points: RiverPoint[], range: TimelineRange, commodity: string, units: UnitSystem) {
@@ -44,19 +46,19 @@ export function RiverTimelinePanel({ gauge: gaugeId }: { gauge?: string }) {
   return (
     <div className="workspace-panel">
       <PanelHeader
-        title={RIVER_TEXT.timelineTitle(gauge.name, commodity)}
+        title={RIVER_TEXT.timelineTitle(gauge.name)}
         kind="river-timeline"
         controls={(
           <div className="river-range" role="group" aria-label="Timeline range">
             {(Object.keys(RANGE_DAYS) as TimelineRange[]).map((option) => (
-              <Button key={option} size="xs" variant={option === range ? "secondary" : "ghost"} aria-pressed={option === range} onClick={() => setRange(option)}>{option}</Button>
+              <Button key={option} size="xs" variant={option === range ? "secondary" : "ghost"} aria-pressed={option === range} onClick={() => setRange(option)}>{RANGE_LABELS[option]}</Button>
             ))}
           </div>
         )}
       />
       <Card className="terminal-card">
         <CardContent>
-          <div className="river-chart" role="img" aria-label={`Stage at ${gauge.name} against its five-year range, the lowest forecast stage, thresholds and the ${commodity} close`}>
+          <div className="river-chart" role="img" aria-label={`Stage at ${gauge.name} against its five-year range, the lowest forecast stage, thresholds and the ${cropName(commodity).toLowerCase()} close`}>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={rows} syncId="river-timeline" margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
                 <CartesianGrid stroke={palette.grid} vertical={false} />
@@ -70,7 +72,7 @@ export function RiverTimelinePanel({ gauge: gaugeId }: { gauge?: string }) {
                 <Line yAxisId="stage" dataKey="forecastMin" name="Lowest forecast, next 7 days (ft)" stroke={palette.forecast} dot={false} strokeWidth={1} strokeDasharray="4 3" isAnimationActive={false} connectNulls={false} />
                 {thresholds && <ReferenceLine yAxisId="stage" y={thresholds.restriction} stroke={palette.threshold} strokeDasharray="2 4" label={{ value: "restriction", fill: palette.muted, fontSize: 10, position: "insideTopLeft" }} />}
                 {thresholds && <ReferenceLine yAxisId="stage" y={thresholds.critical} stroke={palette.threshold} label={{ value: "critical", fill: palette.muted, fontSize: 10, position: "insideTopLeft" }} />}
-                <Line yAxisId="price" dataKey="close" name={`${commodity} close (${UNIT_LABELS[units]})`} stroke={palette.price} dot={false} strokeWidth={1} isAnimationActive={false} connectNulls />
+                <Line yAxisId="price" dataKey="close" name={`${cropName(commodity)} close (${UNIT_LABELS[units]})`} stroke={palette.price} dot={false} strokeWidth={1} isAnimationActive={false} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
           </div>

@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cropStressTimeline, type StressPoint } from "@/lib/ipc";
 import { usePalette } from "@/lib/theme";
 import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
+import { cropAdjective, cropName } from "@/lib/regions";
 import { useCrop } from "@/shell/crop";
 import { PanelHeader } from "./panel-header";
 
@@ -24,10 +25,10 @@ export function CropStressPanel() {
   const hasCondition = rows.some((row) => row.condition !== null);
   return (
     <div className="workspace-panel">
-      <PanelHeader title={`Crop stress timeline · ${commodity}`} kind="crop-stress" />
+      <PanelHeader title={`${cropAdjective(commodity)} crop stress`} kind="crop-stress" />
       <Card className="terminal-card">
         <CardContent>
-          <div className="stress-chart" role="img" aria-label={`Price, good-to-excellent crop condition against its five-year range, and drought area for ${commodity}`}>
+          <div className="stress-chart" role="img" aria-label={`Price, good-to-excellent crop condition against its five-year range, and drought area for ${cropName(commodity).toLowerCase()}`}>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
                 <CartesianGrid stroke={palette.grid} vertical={false} />

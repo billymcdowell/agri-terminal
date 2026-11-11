@@ -5,6 +5,7 @@ import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, Comma
 import { useSettingsScreen } from "@/settings/use-settings-screen";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { useCrop } from "./crop";
+import { AttentionIndicator } from "./attention";
 import { CropSwitcher } from "./crop-switcher";
 import { ALWAYS_SHOWN, goToItems, goToScore, type GoToGroup, type GoToTarget } from "./go-to";
 import { PAGES, UTILITY_PAGES, useNavigation, type PageId } from "./navigation";
@@ -93,7 +94,10 @@ export function AppShell({ Market }: { Market: MarketComponent }) {
       <div className="app-main">
         <header className="app-topbar">
           <CropSwitcher />
-          <Button size="sm" variant="outline" onClick={() => setPaletteOpen(true)}><RiSearchLine aria-hidden="true" /> Go to… <kbd>/</kbd></Button>
+          <div className="app-topbar-actions">
+            <AttentionIndicator />
+            <Button size="sm" variant="outline" onClick={() => setPaletteOpen(true)}><RiSearchLine aria-hidden="true" /> Go to… <kbd>/</kbd></Button>
+          </div>
         </header>
         <main className="app-page" aria-labelledby="page-title">
           <div className="page-heading">

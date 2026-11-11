@@ -456,3 +456,11 @@ a.compact-main:hover { color: var(--tone-a8c393); text-decoration: underline; }
 .alert-text { flex: 1; min-width: 0; }
 /* In the fixed-height chart section the chart gives way, so the freshness line stays inside. */
 .page-chart .market-chart { min-height: 0; }
+.compact-aside { color: var(--tone-879187); font-size: 11px; }
+.app-topbar-actions { display: flex; align-items: center; gap: 8px; }
+.attention-indicator { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--tone-c49458) 55%, transparent); border-radius: 6px; background: transparent; color: var(--tone-c49458); font: inherit; font-size: 12px; cursor: pointer; }
+.attention-indicator:hover { background: color-mix(in srgb, var(--tone-c49458) 12%, transparent); }
+.attention-indicator svg { width: 15px; height: 15px; }
+/* A row that opens something says so: a chevron at its end. */
+button.compact-row { position: relative; padding-right: 18px; }
+button.compact-row::after { content: "›"; position: absolute; top: 50%; right: 4px; transform: translateY(-50%); color: var(--tone-899388); font-size: 16px; }

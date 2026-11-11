@@ -60,7 +60,7 @@ describe("RawDataViewer", () => {
     renderViewer();
     await screen.findByText("4.61");
     fireEvent.click(screen.getByRole("button", { name: "USDA NASS QuickStats" }));
-    expect(await screen.findByText(/LAST REFRESH FAILED · Authentication/)).toBeTruthy();
+    expect(await screen.findByText(/Last refresh failed · Authentication/)).toBeTruthy();
     expect(screen.getByText(/Nothing stored from this source yet/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Databento · GLBX.MDP3" }));
     expect(await screen.findByText("4.61")).toBeTruthy();

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { deleteAlert, listAlerts, listRiverAlerts, saveAlert, setAlertEnabled, setRiverAlertEnabled, type AlertFired, type PriceAlert, type RiverAlertRecord } from "@/lib/ipc";
-import { COMMODITIES } from "@/lib/regions";
+import { COMMODITIES, cropName } from "@/lib/regions";
 import { fromDisplayPrice, toDisplayPrice, UNIT_LABELS, useUnits, type UnitSystem } from "@/lib/units";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { DEFAULT_LEAD_HOURS, LEAD_HOUR_OPTIONS } from "@/shell/release-alerts";
@@ -32,7 +32,7 @@ export function ReportReminders() {
 
 /** Alerts are stored in USD per bushel and shown in the user's chosen unit. */
 export function describeAlert(alert: Pick<PriceAlert, "symbol" | "direction" | "threshold">, units: UnitSystem = "bushel") {
-  return `${alert.symbol} at or ${alert.direction} ${toDisplayPrice(alert.threshold, alert.symbol, units).toFixed(2)} ${UNIT_LABELS[units]}`;
+  return `${cropName(alert.symbol)} at or ${alert.direction} ${toDisplayPrice(alert.threshold, alert.symbol, units).toFixed(2)} ${UNIT_LABELS[units]}`;
 }
 
 /** The system notification for a fired alert, in the user's chosen unit. */
@@ -45,9 +45,9 @@ const BAND_NAMES = ["NORMAL", "ELEVATED", "HIGH"];
 
 /** The badge for a river alert: paused, armed, triggered, or the band the score has reached. */
 export function riverAlertStatus(alert: Pick<RiverAlertRecord, "rule" | "enabled" | "state">) {
-  if (!alert.enabled) return "PAUSED";
-  if (alert.rule === "band_up") return alert.state > 0 ? `AT ${BAND_NAMES[alert.state] ?? "HIGH"}` : "ARMED";
-  return alert.state > 0 ? "TRIGGERED" : "ARMED";
+  if (!alert.enabled) return "Paused";
+  if (alert.rule === "band_up") return alert.state > 0 ? `At ${(BAND_NAMES[alert.state] ?? "HIGH").toLowerCase()}` : "Armed";
+  return alert.state > 0 ? "Triggered" : "Armed";
 }
 
 /** Parses the threshold field; returns null for anything that is not a positive price. */
@@ -73,9 +73,9 @@ export function PriceAlertsSection() {
       <PanelHeader title="Price alerts" kind="alerts" subtitle="A notification when a daily close crosses a level you choose." />
       <form className="schema-form section-body" onSubmit={(event) => { event.preventDefault(); if (price !== null) void run(async () => { await saveAlert({ id: crypto.randomUUID(), symbol, direction, threshold: fromDisplayPrice(price, symbol, units) }); setThreshold(""); }); }}>
         <div className="schema-field">
-          <Label htmlFor="alert-symbol">Commodity</Label>
+          <Label htmlFor="alert-symbol">Crop</Label>
           <NativeSelect size="sm" id="alert-symbol" value={symbol} onChange={(event) => setSymbol(event.currentTarget.value)}>
-            {COMMODITIES.map((item) => <NativeSelectOption key={item} value={item}>{item}</NativeSelectOption>)}
+            {COMMODITIES.map((item) => <NativeSelectOption key={item} value={item}>{cropName(item)}</NativeSelectOption>)}
           </NativeSelect>
         </div>
         <div className="schema-field">
@@ -96,7 +96,7 @@ export function PriceAlertsSection() {
       <ul className="compact-list">
         {alerts.data?.map((alert) => (
           <li key={alert.id} className="alert-row">
-            <Badge variant={alert.triggered ? "secondary" : "outline"}>{!alert.enabled ? "PAUSED" : alert.triggered ? "TRIGGERED" : "ARMED"}</Badge>
+            <Badge variant={alert.triggered ? "secondary" : "outline"}>{!alert.enabled ? "Paused" : alert.triggered ? "Triggered" : "Armed"}</Badge>
             <span className="alert-text">{describeAlert(alert, units)}</span>
             <Button size="xs" variant="ghost" onClick={() => void run(() => setAlertEnabled(alert.id, !alert.enabled))}>{alert.enabled ? "Pause" : "Resume"}</Button>
             <Button size="xs" variant="ghost" onClick={() => void run(() => deleteAlert(alert.id))}>Delete</Button>

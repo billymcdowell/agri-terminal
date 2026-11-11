@@ -25,14 +25,14 @@ function ScoreCard({ status }: { status: RiverStatus }) {
           <>
             <div className="river-score">
               <span className="metric-value" aria-label="Constraint score out of 100">{Math.round(score.total)}</span>
-              <span className="river-band" data-band={score.band}>{BAND_LABELS[score.band].toUpperCase()}</span>
+              <span className="river-band" data-band={score.band}>{BAND_LABELS[score.band]}</span>
               {score.partial && <span className="river-partial">{RIVER_TEXT.partial}</span>}
+              {status.provisional && <span className="river-partial" title="This gauge's levels have not been checked against past low-water years yet">Provisional</span>}
             </div>
             <p className="metric-foot">{componentBreakdown(score)} (points of 100)</p>
             {score.partial && <p className="metric-foot river-detail">{RIVER_TEXT.partialNote}</p>}
           </>
         ) : <p className="metric-foot">{RIVER_TEXT.noScore}</p>}
-        <p className="metric-foot river-detail">{status.provisional ? RIVER_TEXT.provisional : RIVER_TEXT.calibrated}</p>
       </CardContent>
     </Card>
   );
@@ -139,7 +139,6 @@ function PressureCard({ status }: { status: RiverStatus }) {
             <p className="metric-foot river-detail">{describeSensitivity(pressure.sensitivity)}</p>
           </>
         )}
-        <p className="metric-foot river-detail">{RIVER_TEXT.pressureCaveat}</p>
       </CardContent>
     </Card>
   );
@@ -191,7 +190,6 @@ export function RiverPanel({ gauge: gaugeId, controls }: { gauge?: string; contr
             <PressureCard status={data} />
             <TrafficCard status={data} />
           </div>
-          {details && <p className="panel-freshness">{RIVER_TEXT.farmer}</p>}
           <Button size="xs" variant="ghost" className="show-all" aria-expanded={details} onClick={() => setDetails((open) => !open)}>{details ? "Hide details" : "Show details"}</Button>
         </>
       )}

@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatAge } from "@/lib/freshness";
 import { getWeatherForCommodity, refreshWeather } from "@/lib/ipc";
+import { cropAdjective } from "@/lib/regions";
 import { useCrop } from "@/shell/crop";
 import { PanelHeader } from "./panel-header";
 import { nextForecastsBySource } from "./weather";
@@ -45,7 +46,7 @@ export function WeatherPanel() {
 
   return (
     <div className="workspace-panel">
-      <PanelHeader title={`${commodity} forecast`} kind="weather" />
+      <PanelHeader title={`Weather in ${cropAdjective(commodity).toLowerCase()} states`} kind="weather" />
       {expanded && <WeatherMap locations={mapPoints} />}
       <Card className="terminal-card">
         <CardContent>
@@ -89,11 +90,8 @@ export function WeatherPanel() {
             </Button>
           )}
           <p className="panel-freshness" data-status={refreshError ? "error" : fetchedAt ? "ok" : "empty"}>
-            {fetchedAt ? `${refreshError ? "ERROR · CACHED FORECAST" : "OK"} · ${formatAge(fetchedAt, Date.now())}` : refreshError ? "ERROR · no cached forecast" : "WAITING · fetching first forecast"}
-            {refreshError ? ` · ${refreshError}` : ""}
-          </p>
-          <p className="panel-freshness">
-            Weather data by Open-Meteo.com (CC BY 4.0, non-commercial use) and the U.S. National Weather Service. Map tiles © OpenStreetMap contributors.
+            {fetchedAt ? `${refreshError ? "Update failed · showing the forecast from" : "Updated"} ${formatAge(fetchedAt, Date.now())}` : refreshError ? "Could not load yet" : "Loading the first forecast…"}
+            {" · Open-Meteo.com (CC BY 4.0) and the National Weather Service · map © OpenStreetMap"}
           </p>
         </CardContent>
       </Card>

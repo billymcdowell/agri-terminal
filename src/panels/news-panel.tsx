@@ -40,7 +40,7 @@ export function NewsPanel() {
       </ul>
       {news.data?.length === 0 && <p className="panel-freshness">No headlines cached yet.</p>}
       <ShowAll total={news.data?.length ?? 0} limit={LISTED} all={all} onToggle={toggle} noun="headlines" />
-      {refreshError && <p className="panel-freshness" data-status="error">ERROR · showing cached headlines · {refreshError}</p>}
+      {refreshError && <p className="panel-freshness" data-status="error">Update failed · showing saved headlines</p>}
     </div>
   );
 }

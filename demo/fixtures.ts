@@ -121,8 +121,9 @@ export const SOURCES: SourceStatus[] = [
   ["usgs-river-stage", "USGS river stage", 86400], ["nwps-river-stage", "NWS river stage", 86400], ["nwps-river-forecast", "NWS river forecasts", 86400],
   ["usda-agtransport", "USDA AgTransport barge rates and locks", 86400],
 ].map(([sourceId, name, cadenceSeconds]) => ({
-  sourceId: sourceId as string, name: name as string, state: "ok", lastOk: iso(NOW - 2 * 3600_000), error: null, isDemo: false,
-  lastAttempt: iso(NOW - 2 * 3600_000), nextExpected: iso(NOW + (cadenceSeconds as number) * 1000 - 2 * 3600_000), enabled: true, cadenceSeconds: cadenceSeconds as number,
+  // Each source last refreshed well within its schedule, so the demo opens with nothing out of date.
+  sourceId: sourceId as string, name: name as string, state: "ok", lastOk: iso(NOW - Math.min(2 * 3600_000, (cadenceSeconds as number) * 500)), error: null, isDemo: false,
+  lastAttempt: iso(NOW - Math.min(2 * 3600_000, (cadenceSeconds as number) * 500)), nextExpected: iso(NOW + (cadenceSeconds as number) * 1000 - 2 * 3600_000), enabled: true, cadenceSeconds: cadenceSeconds as number,
 }));
 
 export function buildStored(prices: Record<string, PriceBar[]>, metrics: Record<string, MetricPoint[]>): StoredSeries[] {

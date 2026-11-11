@@ -21,8 +21,15 @@ export function useMoves(commodity: string) {
   return useQuery({ queryKey: ["moves", commodity, THRESHOLD_SD], queryFn: () => explainMoves(commodity, THRESHOLD_SD) });
 }
 
+/** "Oct 21, 2026 · ▼ 4.42%". */
 export function describeMove(item: MoveExplanation) {
-  return `${item.move.date} · ${item.move.logReturn >= 0 ? "▲" : "▼"} ${(item.move.logReturn * 100).toFixed(2)}% · ${Math.abs(item.move.zScore).toFixed(1)} SD`;
+  const date = new Date(`${item.move.date}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return `${date} · ${item.move.logReturn >= 0 ? "▲" : "▼"} ${Math.abs(item.move.logReturn * 100).toFixed(2)}%`;
+}
+
+/** How big the move was against a typical recent day, such as "7.4× a typical day". */
+export function moveSize(item: MoveExplanation) {
+  return `${Math.abs(item.move.zScore).toFixed(1)}× a typical day`;
 }
 
 /** The newest flagged moves, each with its leading possible driver. Picking one opens all its drivers. */
@@ -43,7 +50,7 @@ export function BigMovesSection({ onSelect }: { onSelect: (date: string) => void
           return (
             <li key={item.move.date}>
               <button type="button" className="compact-row" onClick={() => onSelect(item.move.date)}>
-                <span className="compact-main" data-direction={item.move.logReturn >= 0 ? "up" : "down"}>{describeMove(item)}</span>
+                <span className="compact-main" data-direction={item.move.logReturn >= 0 ? "up" : "down"}>{describeMove(item)} <span className="compact-aside">· {moveSize(item)}</span></span>
                 <span className="compact-meta" title={lead?.title}>{lead ? `${lead.label.toLowerCase()}: ${lead.title}` : EXPLAINER_TEXT.none}</span>
               </button>
             </li>
@@ -59,7 +66,7 @@ function DriverRow({ driver, onDismiss }: { driver: Driver; onDismiss: () => voi
   return (
     <li className="driver-row">
       <div className="driver-head">
-        <Badge variant={driver.label === "Likely driver" ? "secondary" : "outline"}>{driver.label.toUpperCase()}</Badge>
+        <Badge variant={driver.label === "Likely driver" ? "secondary" : "outline"}>{driver.label}</Badge>
         <span className="driver-time">{new Date(driver.at).toLocaleString()} · {driver.source}</span>
       </div>
       {driver.url ? <a href={driver.url} target="_blank" rel="noreferrer">{driver.title}</a> : <span>{driver.title}</span>}
@@ -91,7 +98,7 @@ export function MoveDriversDrawer({ date, onClose }: { date: string | null; onCl
         {item && (
           <>
             <SheetHeader>
-              <SheetTitle>{describeMove(item)}</SheetTitle>
+              <SheetTitle>{describeMove(item)} · {moveSize(item)}</SheetTitle>
               <SheetDescription>{EXPLAINER_TEXT.intro}</SheetDescription>
             </SheetHeader>
             <div className="move-drawer-body">

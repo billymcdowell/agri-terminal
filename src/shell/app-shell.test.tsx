@@ -9,6 +9,8 @@ const ipc = vi.hoisted(() => ({
   setSetting: vi.fn(),
   saveSecret: vi.fn(),
   listCalendarEvents: vi.fn(async () => []),
+  listSources: vi.fn(async () => []),
+  subscribeToSourceStatus: () => Promise.resolve(() => undefined),
   subscribeToDataUpdates: () => Promise.resolve(() => undefined),
   subscribeToAlerts: () => Promise.resolve(() => undefined),
   subscribeToRiverAlerts: () => Promise.resolve(() => undefined),

@@ -25,6 +25,7 @@ const DEMO_COMMODITY = "ZC";
 /** The futures price source; its key is stored under this id like the other source keys. */
 const PRICE_SOURCE = "massive";
 const RANGES = ["1W", "1M", "ALL"] as const;
+const RANGE_LABELS: Record<(typeof RANGES)[number], string> = { "1W": "1 week", "1M": "1 month", ALL: "All" };
 
 /** The price chart. `onSelectMove` opens a flagged day's possible drivers. */
 export function MarketOverview({ commodity, onSelectMove }: { commodity: string; onSelectMove?: (date: string) => void }) {
@@ -50,7 +51,7 @@ export function MarketOverview({ commodity, onSelectMove }: { commodity: string;
       (moves.data ?? []).map((item) => ({
         date: item.move.date,
         direction: item.move.logReturn >= 0 ? "up" : "down",
-        text: `${Math.abs(item.move.zScore).toFixed(1)} SD`,
+        text: `${Math.abs(item.move.zScore).toFixed(1)}×`,
       })),
     [moves.data],
   );
@@ -176,7 +177,7 @@ export function MarketOverview({ commodity, onSelectMove }: { commodity: string;
                 aria-pressed={range === item}
                 onClick={() => setRange(item)}
               >
-                {item}
+                {RANGE_LABELS[item]}
               </Button>
             ))}
           </div>

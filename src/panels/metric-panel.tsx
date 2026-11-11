@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { classifyFreshness } from "@/lib/freshness";
-import { findRegion } from "@/lib/regions";
+import { cropAdjective, findRegion } from "@/lib/regions";
 import { percentileRank } from "@/lib/stats";
 import { getMetricSeries } from "@/lib/ipc";
 import { useSources } from "@/state/use-series";
@@ -14,10 +14,10 @@ import { balanceSheetRows, cotRows, cropConditionRows, droughtRows, type MetricR
 export type MetricPanelKind = "cot" | "crop-condition" | "wasde" | "drought";
 
 const DEFINITIONS: Record<MetricPanelKind, { title: (commodity: string, region: string) => string; sourceId: string; rows: (commodity: string, stateId: string) => MetricRow[] }> = {
-  cot: { title: (c) => `Commitments of Traders · ${c}`, sourceId: "cftc-cot", rows: (c) => cotRows(c) },
-  "crop-condition": { title: (c) => `Crop condition · ${c}`, sourceId: "usda-nass", rows: (c) => cropConditionRows(c) },
-  wasde: { title: (c) => `Balance sheet · ${c}`, sourceId: "usda-fas", rows: (c) => balanceSheetRows(c) },
-  drought: { title: (_, region) => `Drought Monitor · ${region}`, sourceId: "us-drought-monitor", rows: (_, stateId) => droughtRows(stateId) },
+  cot: { title: (c) => `${cropAdjective(c)} trader positioning`, sourceId: "cftc-cot", rows: (c) => cotRows(c) },
+  "crop-condition": { title: (c) => `${cropAdjective(c)} crop condition`, sourceId: "usda-nass", rows: (c) => cropConditionRows(c) },
+  wasde: { title: (c) => `${cropAdjective(c)} balance sheet`, sourceId: "usda-fas", rows: (c) => balanceSheetRows(c) },
+  drought: { title: (_, region) => `Drought in ${region}`, sourceId: "us-drought-monitor", rows: (_, stateId) => droughtRows(stateId) },
 };
 
 /** One table of the latest observation per series, with source-aware freshness beneath it. `region` is the state the Drought Monitor shows; the other kinds follow the crop. */
@@ -77,7 +77,6 @@ export function MetricPanel({ kind, region: regionId, controls }: { kind: Metric
           </Table>
           <p className="panel-freshness" role="status" data-status={freshness.status}>
             {freshness.label}{source ? ` · ${source.name}` : ""}
-            {source?.error ? ` · ${source.error}` : ""}
           </p>
         </CardContent>
       </Card>

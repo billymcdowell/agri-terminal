@@ -5,28 +5,23 @@ import type { ConstraintScore, RiverBand, RiverStatus } from "@/lib/ipc";
  * proven causes of a price move, so nothing here asserts cause; a test checks this.
  */
 export const RIVER_TEXT = {
-  title: (gauge: string) => `River status · ${gauge}`,
-  timelineTitle: (gauge: string, commodity: string) => `River timeline · ${gauge} · ${commodity}`,
+  title: (gauge: string) => `River at ${gauge}`,
+  timelineTitle: (gauge: string) => `River and freight over time at ${gauge}`,
   scoreHeading: "Constraint score",
   stageHeading: "River stage",
   forecastHeading: "Forecast, next 7 days",
   freightHeading: "Barge freight",
   trafficHeading: "Grain through locks",
-  partial: "PARTIAL",
+  partial: "Partial",
   partialNote: "Some inputs are missing or out of date, so the score uses the others, re-weighted.",
-  provisional: "Thresholds are provisional starting values until they are calibrated against past low-water years.",
-  calibrated: "Thresholds and weights were checked against 2020–2026. Help explains how well the score and alerts have worked.",
   trafficNote: "Shown for context. Lock tonnage follows the harvest calendar more than the river, so it is not part of the score.",
   noScore: "No river data yet. The stage, forecast and barge sources fill in after their first refresh.",
   noForecast: "No current forecast.",
   noFreight: "No current barge rate.",
   noTraffic: "No current lock tonnage.",
-  trader: "Low water tends to show up first in barge freight and in the gap between Gulf and interior basis, more than in futures. Treat a high score as a possible pressure on spreads, not a price call.",
-  farmer: "When the river runs low, barges carry less and freight costs more, so elevators that ship by river often bid less against futures (local basis weakens). A high score is a reason to check your local bids, not a price forecast.",
   timelineNoData: "No river stage is stored yet.",
   pressureHeading: "Freight pressure, next 14 days",
   noPressure: "Needs a current forecast reaching two weeks ahead and enough past low-water weeks to measure how freight reacted.",
-  pressureCaveat: "A rough average from past weeks, not a forecast of freight. Freight also moves with harvest demand and other traffic, and the fit shows how little of its movement river depth has explained.",
 } as const;
 
 export const BAND_LABELS: Record<RiverBand, string> = { NORMAL: "Normal", ELEVATED: "Elevated", HIGH: "High" };

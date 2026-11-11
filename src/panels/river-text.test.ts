@@ -6,7 +6,7 @@ const BANNED = ["caused by", "because of", "due to", "driven by", "resulted in",
 describe("river wording", () => {
   it("never asserts cause or predicts prices", () => {
     const { title, timelineTitle, ...plain } = RIVER_TEXT;
-    const strings = [...Object.values(plain), title("St. Louis, MO"), timelineTitle("Memphis, TN", "ZC")];
+    const strings = [...Object.values(plain), title("St. Louis, MO"), timelineTitle("Memphis, TN")];
     for (const text of strings) for (const phrase of BANNED) expect(text.toLowerCase()).not.toContain(phrase);
   });
   it("places the stage against the thresholds", () => {

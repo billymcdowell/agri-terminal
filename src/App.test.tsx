@@ -50,7 +50,7 @@ describe("MarketOverview", () => {
     expect(await screen.findByText("$4.55")).toBeTruthy();
     expect(screen.getAllByText(/4\.55/)).toHaveLength(1);
     expect(screen.getByText("-0.10 (-2.15%)").dataset.direction).toBe("down");
-    expect(screen.getByText((_, element) => element?.tagName === "SPAN" && /^OK · .+ · Massive$/.test(element.textContent ?? ""))).toBeTruthy();
+    expect(screen.getByText((_, element) => element?.tagName === "SPAN" && /^Updated .+ · Massive$/.test(element.textContent ?? ""))).toBeTruthy();
     expect(screen.getByRole("button", { name: "Data sources" })).toBeTruthy();
     expect(screen.queryByText(/sample corn prices/)).toBeNull();
   });

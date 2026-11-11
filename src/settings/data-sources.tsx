@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatAge } from "@/lib/freshness";
+import { formatAge, needsAttention } from "@/lib/freshness";
+import { useSettingsScreen } from "./use-settings-screen";
 import { getSecretStatus, installPlugin, listPlugins, previewPlugin, refreshSource, removePlugin, savePluginSecret, saveSecret, setSourceEnabled, testConnection, type PluginPreview, type PluginSummary, type SourceStatus } from "@/lib/ipc";
 import { useSources } from "@/state/use-series";
 import { permissionLines } from "./plugin-text";
@@ -45,12 +46,13 @@ export function sourceRows(sources: SourceStatus[], plugins: PluginSummary[]): S
   return rows.sort((a, b) => Number(b.source.sourceId === "massive") - Number(a.source.sourceId === "massive"));
 }
 
-/** One short status per source: paused, waiting for a key, failing, or how long since it last updated. */
-export function sourceStatus(source: Pick<SourceStatus, "enabled" | "state" | "lastOk">, missingKey: boolean, now: number): Status {
+/** One short status per source: paused, waiting for a key, failing, out of date, or how long since it last updated. */
+export function sourceStatus(source: Pick<SourceStatus, "enabled" | "state" | "lastOk" | "cadenceSeconds">, missingKey: boolean, now: number): Status {
   if (!source.enabled) return { status: "stale", label: "Paused" };
   if (missingKey) return { status: "stale", label: "Needs a key" };
   if (source.state === "error") return { status: "error", label: "Last refresh failed" };
-  if (source.lastOk) return { status: "ok", label: `Updated ${formatAge(source.lastOk, now).replace(/ old$/, " ago")}` };
+  if (source.lastOk && needsAttention({ ...source, lastOk: source.lastOk }, now)) return { status: "stale", label: `Out of date · updated ${formatAge(source.lastOk, now)}` };
+  if (source.lastOk) return { status: "ok", label: `Updated ${formatAge(source.lastOk, now)}` };
   return { status: "stale", label: "Not loaded yet" };
 }
 
@@ -207,17 +209,26 @@ export function DataSources() {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
-  const rows = sourceRows(sources.data ?? [], plugins.data ?? []);
-  const broken = (plugins.data ?? []).filter((plugin) => plugin.errors.length);
+  const problemsOnly = useSettingsScreen((state) => state.problemsOnly);
+  const allRows = sourceRows(sources.data ?? [], plugins.data ?? []);
+  const rows = problemsOnly ? allRows.filter((row) => needsAttention(row.source, now)) : allRows;
+  const broken = problemsOnly ? [] : (plugins.data ?? []).filter((plugin) => plugin.errors.length);
   return (
     <div className="settings-sources">
-      <p className="settings-intro">Where AgriTerminal gets its data. Each source refreshes on its own schedule. Keys stay in your operating system's keychain, never in the app's files.</p>
+      {problemsOnly ? (
+        <p className="settings-intro" role="status">
+          {rows.length === 0 ? "Every source is up to date now." : `${rows.length === 1 ? "This source is" : `These ${rows.length} sources are`} failing or out of date.`}{" "}
+          <Button size="xs" variant="outline" onClick={() => useSettingsScreen.getState().showAllSources()}>Show all sources</Button>
+        </p>
+      ) : (
+        <p className="settings-intro">Where AgriTerminal gets its data. Each source refreshes on its own schedule. Keys stay in your operating system's keychain, never in the app's files.</p>
+      )}
       {sources.isError && <p role="alert" className="source-error">{String(sources.error)}</p>}
       <ul className="source-list">
         {rows.map((row) => <SourceRow key={row.source.sourceId} {...row} now={now} />)}
         {broken.map((plugin) => <BrokenPluginRow key={plugin.id} plugin={plugin} />)}
       </ul>
-      <PluginInstaller />
+      {!problemsOnly && <PluginInstaller />}
     </div>
   );
 }

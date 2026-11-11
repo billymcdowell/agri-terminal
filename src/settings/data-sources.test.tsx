@@ -44,11 +44,12 @@ describe("sourceRows", () => {
 
 describe("sourceStatus", () => {
   it("says whether a source is paused, waiting for a key, failing, or how long since it updated", () => {
-    expect(sourceStatus({ enabled: false, state: "ok", lastOk: null }, true, NOW).label).toBe("Paused");
-    expect(sourceStatus({ enabled: true, state: "ok", lastOk: null }, true, NOW).label).toBe("Needs a key");
-    expect(sourceStatus({ enabled: true, state: "error", lastOk: null }, false, NOW)).toEqual({ status: "error", label: "Last refresh failed" });
-    expect(sourceStatus({ enabled: true, state: "ok", lastOk: "2026-11-01T10:00:00Z" }, false, NOW)).toEqual({ status: "ok", label: "Updated 2h ago" });
-    expect(sourceStatus({ enabled: true, state: "idle", lastOk: null }, false, NOW).label).toBe("Not loaded yet");
+    expect(sourceStatus({ enabled: false, state: "ok", cadenceSeconds: 86_400, lastOk: null }, true, NOW).label).toBe("Paused");
+    expect(sourceStatus({ enabled: true, state: "ok", cadenceSeconds: 86_400, lastOk: null }, true, NOW).label).toBe("Needs a key");
+    expect(sourceStatus({ enabled: true, state: "error", cadenceSeconds: 86_400, lastOk: null }, false, NOW)).toEqual({ status: "error", label: "Last refresh failed" });
+    expect(sourceStatus({ enabled: true, state: "ok", cadenceSeconds: 86_400, lastOk: "2026-11-01T10:00:00Z" }, false, NOW)).toEqual({ status: "ok", label: "Updated 2h ago" });
+    expect(sourceStatus({ enabled: true, state: "idle", cadenceSeconds: 86_400, lastOk: null }, false, NOW).label).toBe("Not loaded yet");
+    expect(sourceStatus({ enabled: true, state: "ok", cadenceSeconds: 3_600, lastOk: "2026-11-01T09:00:00Z" }, false, NOW)).toEqual({ status: "stale", label: "Out of date · updated 3h ago" });
   });
 });
 

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { listCalendarEvents, type CalendarEvent } from "@/lib/ipc";
+import { cropList } from "@/lib/regions";
 import { PanelHeader } from "./panel-header";
 import { ShowAll, useShowAll } from "./show-all";
 
@@ -29,7 +30,7 @@ export function CalendarPanel() {
         {shown.map((event) => (
           <li key={event.id} className="compact-row">
             <span className="compact-main" title={event.title}>{event.title}</span>
-            <span className="compact-meta">{formatWhen(event.scheduledAt)}{event.commodity ? ` · ${event.commodity}` : ""}</span>
+            <span className="compact-meta">{formatWhen(event.scheduledAt)}{event.commodity ? ` · ${cropList(event.commodity)}` : ""}</span>
           </li>
         ))}
       </ul>

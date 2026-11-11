@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getNewsForCommodity, getStoredRows, getWeatherForCommodity, listStoredSeries, subscribeToDataUpdates } from "@/lib/ipc";
-import { COMMODITIES } from "@/lib/regions";
+import { COMMODITIES, cropName } from "@/lib/regions";
 import { useSources } from "@/state/use-series";
 import { buildRawSources, formatCell, lastRefresh, rawColumns, totalRows, type RawSource, type RawSourceKind } from "./raw-data";
 
@@ -14,8 +14,8 @@ const PAGE_SIZE = 200;
 const OMIT: Record<RawSourceKind, string[]> = { series: ["seriesId", "sourceId"], weather: [], news: ["commodity"] };
 const NOTES: Record<RawSourceKind, string> = {
   series: "Every stored revision, newest period first, exactly as saved after parsing. period is the date a figure describes, releasedAt when it was published and fetchedAt when AgriTerminal downloaded it; revision counts up when an agency changes a published number, and the earlier value is kept. Prices are in USD per bushel and times in UTC.",
-  weather: "The cached forecast for the commodity's growing regions. The Weather panel refreshes it.",
-  news: "The newest 100 cached headlines for the commodity. The News panel refreshes them.",
+  weather: "The cached forecast for the crop's growing states. The Crop & weather page refreshes it.",
+  news: "The newest 100 cached headlines for the crop. The Market page refreshes them.",
 };
 
 function stateLabel(source: RawSource) {
@@ -58,8 +58,8 @@ export function RawDataViewer() {
   const [copyMessage, setCopyMessage] = useState("");
 
   const entries = buildRawSources(sources.data ?? [], stored.data ?? [], {
-    weather: COMMODITIES.map((commodity, index) => ({ id: commodity, label: `${commodity} growing regions`, rows: weather[index].data?.forecasts.length ?? 0, lastFetchedAt: weather[index].data?.fetchedAt ?? null })),
-    news: COMMODITIES.map((commodity, index) => ({ id: commodity, label: `${commodity} headlines`, rows: news[index].data?.length ?? 0, lastFetchedAt: null })),
+    weather: COMMODITIES.map((commodity, index) => ({ id: commodity, label: `${cropName(commodity)} growing regions`, rows: weather[index].data?.forecasts.length ?? 0, lastFetchedAt: weather[index].data?.fetchedAt ?? null })),
+    news: COMMODITIES.map((commodity, index) => ({ id: commodity, label: `${cropName(commodity)} headlines`, rows: news[index].data?.length ?? 0, lastFetchedAt: null })),
   });
   const source = entries.find((entry) => entry.id === selection.sourceId) ?? entries.find((entry) => totalRows(entry) > 0) ?? entries[0];
   const dataset = source.datasets.find((item) => item.id === selection.dataset) ?? source.datasets[0];
@@ -149,7 +149,7 @@ export function RawDataViewer() {
           <Button size="xs" variant="ghost" disabled={!rows.length} onClick={copy}>Copy JSON</Button>
         </div>
       </div>
-      {source.status?.error && <p role="alert" className="panel-freshness" data-status="error">LAST REFRESH FAILED · {source.status.error}</p>}
+      {source.status?.error && <p role="alert" className="panel-freshness" data-status="error">Last refresh failed · {source.status.error}</p>}
       {content}
       {rows.length > visible.length && (
         <div className="raw-more">

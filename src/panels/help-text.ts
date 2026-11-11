@@ -112,8 +112,8 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     howToRead: [
       "The score combines how far the river is below its normal level (depth, 60%) and how low the forecast goes over the next 7 days (forecast, 40%). 0 to 39 is Normal, 40 to 69 Elevated, 70 and above High.",
       "Lock tonnage is shown for context but not scored: it follows the harvest calendar more than the river, rising every September lull and falling at harvest even at record low water.",
-      "For traders: low water tends to show up first in barge freight and in the gap between Gulf and interior basis, more than in futures. Treat a high score as a possible pressure on spreads, not a price call.",
-      "PARTIAL means one part was missing or out of date, so the score was worked out from the other with its weight scaled up.",
+      "For farmers: when the river runs low, barges carry less and freight costs more, so elevators that ship by river often bid less against futures (local basis weakens). A high score is a reason to check your local bids, not a price forecast.",
+      "Partial means one part was missing or out of date, so the score was worked out from the other with its weight scaled up.",
       "River stage is the gauge reading in feet. It can be below zero: the zero is a fixed reference point, not the river bed. The five-year range is the same time of year in the previous five years.",
       "The restriction level is roughly where barges start loading lighter; the critical level is where restrictions become severe. They come from National Weather Service, Corps and extension sources and were checked against 2020 to 2026.",
       "How well it has worked, October 2020 to October 2026: in both big low-water years the score and alerts warned before barge freight jumped, by 39 and 35 days at St. Louis (September 2022 and August 2023) and by 7 and 34 days at Memphis. Most freight jumps happen for other reasons, such as harvest demand at high water, and the river alerts miss those by design. Only about one warning in five was followed by a freight jump of 25% or more within six weeks, because freight often stays high once the river is low. Treat the score as context, not a signal to trade on.",
@@ -125,6 +125,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
     terms: [
       ["Stage", "The height of the river at a gauge, in feet, above a fixed zero point."],
+      ["Provisional", "The gauge's restriction and critical levels are starting values that have not yet been checked against past low-water years."],
       ["Restriction level", "The stage below which barges usually have to carry less, set per gauge in config/waterways.json."],
       ["Percent of tariff", "How barge freight is quoted: a percentage of the 1976 benchmark rate for each origin. 500% at St. Louis is about $19.95 a short ton."],
       ["Lock tonnage", "Grain moving downriver through Mississippi Lock 27 and the Ohio River's Olmsted lock each week, from the Army Corps of Engineers."],
@@ -216,12 +217,13 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
 };
 
 export const START_HERE = [
-  "AgriTerminal puts U.S. grain market information side by side: prices, trader positioning, crop health, drought, weather, river conditions, supply and demand, news and report dates. Everything is saved on your computer, so it works offline.",
-  "Five pages in the sidebar each answer one question: Market, Crop & weather, Supply & demand, River and Alerts. Press 1 to 5 to jump to them. The app reopens where you left it.",
-  "Every page shows the crop chosen with Corn, Soybeans and Wheat at the top.",
-  "Each section says in one line what it shows. Its More in Help link opens the full explanation here. Press ? any time to come back to this guide.",
-  "Press / for Go to…: start typing a page, crop, section, setting, state, river gauge or market term, and pick it from the list.",
-  "Some data needs a key, added in Settings › Data sources (Settings is at the bottom of the sidebar). Free without any key: demonstration corn prices, CFTC positioning, drought, weather, river conditions and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
+  "AgriTerminal puts U.S. grain market data in one place: prices, trader positioning, crop health, drought, weather, river conditions, supply and demand, news and report dates. Everything is saved on your computer, so it works offline.",
+  "Pick a page in the sidebar. Each answers one question: Market (what is the price doing, and what moved it), Crop & weather (how is the crop doing), Supply & demand (is there enough grain, and how are traders positioned), River (can grain get downriver) and Alerts (tell me when something happens). Keys 1 to 5 jump to them.",
+  "Pick the crop with Corn, Soybeans or Wheat at the top. Every page follows it, and the app reopens on the page and crop you left.",
+  "Each section says in one line what it shows. Its More in Help link opens the full explanation here, and ? opens this guide from anywhere.",
+  "Press / for Go to…: type a page, crop, section, setting, state, river gauge or market term and pick it from the list.",
+  "If a ⚠ appears at the top right, a data source is failing or out of date. Click it to see which, and why.",
+  "Some data needs a free key, added in Settings › Data sources: USDA crop condition (NASS), supply and demand (FAS) and real futures prices (Massive). Without any key you get sample corn prices, CFTC positioning, drought, weather, river conditions and news.",
 ];
 
 export const SHORTCUTS: { keys: string; action: string }[] = [
@@ -235,10 +237,11 @@ export const SHORTCUT_NOTE = "Shortcuts work whenever you are not typing in a fi
 
 /** The freshness and origin labels panels show beneath their data. */
 export const STATUS_LABELS: [string, string][] = [
-  ["OK · 3h old", "The source refreshed on schedule. The age is how long ago it last confirmed the data was current."],
-  ["STALE", "No successful refresh for more than one and a half times the source's usual schedule (about 10 days for a weekly report), so the numbers may be out of date."],
-  ["ERROR · CACHED OBSERVATIONS", "The last refresh failed, so you are seeing the most recent saved data. The reason follows the label."],
-  ["WAITING · no data yet, or No cached data", "Nothing has been downloaded yet. Check whether the source needs a key in Settings › Data sources."],
+  ["Updated 3h ago", "The source refreshed on schedule. The time is when it last confirmed the data was current."],
+  ["Out of date", "No successful refresh for more than one and a half times the source's usual schedule (about 10 days for a weekly report), so the numbers may be old."],
+  ["Update failed · showing data from …", "The last refresh failed, so you are seeing the most recent saved data. The ⚠ at the top right says which sources failed and why."],
+  ["No data yet, or Could not load yet", "Nothing has been downloaded yet. Check whether the source needs a key in Settings › Data sources."],
+  ["⚠ 2", "Two data sources are failing or out of date. Click it to see them in Settings › Data sources."],
 ];
 
 export const GLOSSARY: [string, string][] = [
