@@ -1,0 +1,45 @@
+[
+  {
+    "id": "sample-2026-07-14-ne-hail",
+    "published_at": "2026-07-21T18:00:00Z",
+    "event_date": "2026-07-14",
+    "cause": "hail",
+    "states": [
+      "NE"
+    ],
+    "crop": "corn",
+    "affected_acres_p50": 80000,
+    "affected_acres_range": [
+      40000,
+      150000
+    ],
+    "confidence": "low",
+    "storm_report_refs": [
+      "sample-2026-07-14-ne-hail-report-1",
+      "sample-2026-07-14-ne-hail-report-2"
+    ],
+    "method": "Sample: invented for testing the app. No imagery was analysed."
+  },
+  {
+    "id": "sample-2026-08-04-ia-wind",
+    "published_at": "2026-08-18T18:00:00Z",
+    "event_date": "2026-08-04",
+    "cause": "wind",
+    "states": [
+      "IA",
+      "IL"
+    ],
+    "crop": "corn",
+    "affected_acres_p50": 290000,
+    "affected_acres_range": [
+      200000,
+      410000
+    ],
+    "confidence": "medium",
+    "storm_report_refs": [
+      "sample-2026-08-04-ia-wind-report-1",
+      "sample-2026-08-04-ia-wind-report-2"
+    ],
+    "method": "Sample: invented for testing the app. No imagery was analysed."
+  }
+]

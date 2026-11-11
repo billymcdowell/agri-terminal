@@ -107,6 +107,25 @@ fn parse_period(text: &str, format: Option<&str>) -> Option<NaiveDate> {
     }
 }
 
+/// The row's own release time. A row without one is treated as released when it was fetched, and a
+/// time after the fetch is never claimed, so an as-of join cannot see a row before it was public.
+fn row_release_time(
+    row: &Value,
+    field: &str,
+    fetched: DateTime<Utc>,
+) -> Result<DateTime<Utc>, SourceError> {
+    let Some(text) = row_field(row, field).filter(|text| !text.trim().is_empty()) else {
+        return Ok(fetched);
+    };
+    DateTime::parse_from_rfc3339(text.trim())
+        .map(|time| time.with_timezone(&Utc).min(fetched))
+        .map_err(|_| {
+            SourceError::Parse(format!(
+                "could not read \"{text}\" in field {field} as a time such as 2026-08-18T18:00:00Z"
+            ))
+        })
+}
+
 fn rows_from_body(manifest: &Manifest, body: &[u8]) -> Result<Vec<Value>, SourceError> {
     match manifest.response.format.as_str() {
         "csv" => {
@@ -172,15 +191,18 @@ pub fn extract(
                 ))
             })?;
         dated_rows += 1;
-        let released_at = manifest.release.as_ref().map_or(fetched, |release| {
-            scheduled_release(
-                period,
-                release.days_after_period,
-                release.hour_utc,
-                release.minute_utc,
-                fetched,
-            )
-        });
+        let released_at = match &manifest.response.released_at {
+            Some(spec) => row_release_time(row, &spec.field, fetched)?,
+            None => manifest.release.as_ref().map_or(fetched, |release| {
+                scheduled_release(
+                    period,
+                    release.days_after_period,
+                    release.hour_utc,
+                    release.minute_utc,
+                    fetched,
+                )
+            }),
+        };
         for series in &manifest.series {
             let Some(value) = row.get(&series.value).and_then(parse_value).or_else(|| {
                 row_field(row, &series.value)
@@ -376,6 +398,47 @@ hour_utc = 20
         )
         .unwrap_err();
         assert!(wrong.to_string().contains("did not point at an array"));
+    }
+
+    #[test]
+    fn a_row_release_time_is_used_but_never_after_the_fetch() {
+        let text = CSV_PLUGIN
+            .replace(
+                "format = \"%m/%d/%Y\"",
+                "format = \"%m/%d/%Y\"\n[response.released_at]\nfield = \"published\"",
+            )
+            .replace("[release]\ndays_after_period = 1\nhour_utc = 20\n", "");
+        let manifest = load(&text, false).unwrap();
+        let fetched = at("2026-10-24T12:00:00Z");
+        let body = "week,region,yield,published\n\
+            10/13/2026,IA,1,2026-10-14T18:00:00Z\n\
+            10/20/2026,IA,2,2026-10-25T18:00:00Z\n\
+            10/20/2026,IL,3,\n";
+        let rows = extract(&manifest, body.as_bytes(), fetched).unwrap();
+        let released: Vec<_> = rows
+            .iter()
+            .map(|row| row.released_at.to_rfc3339())
+            .collect();
+        assert_eq!(
+            released,
+            vec![
+                "2026-10-14T18:00:00+00:00",
+                // A claimed release after the fetch, and a missing one, both become the fetch time.
+                "2026-10-24T12:00:00+00:00",
+                "2026-10-24T12:00:00+00:00",
+            ]
+        );
+        let error = extract(
+            &manifest,
+            b"week,region,yield,published\n10/13/2026,IA,1,yesterday\n",
+            fetched,
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("could not read \"yesterday\" in field published")
+        );
     }
 
     #[test]

@@ -1393,7 +1393,7 @@ mod tests {
             .iter()
             .filter_map(|record| match record {
                 SourceRecord::Metric(row) => Some(row),
-                SourceRecord::Price(_) => None,
+                _ => None,
             })
             .collect();
         assert!(
@@ -1432,7 +1432,7 @@ mod tests {
             .iter()
             .filter_map(|record| match record {
                 SourceRecord::Metric(row) => Some(row),
-                SourceRecord::Price(_) => None,
+                _ => None,
             })
             .collect();
         assert!(rows.iter().any(|row| row.source_id.0 == NWPS_STAGE_SOURCE));

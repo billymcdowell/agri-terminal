@@ -1,0 +1,70 @@
+Value, Category, Count,  Acreage
+1, Corn, 60622798, 13482185.7
+4, Sorghum, 74840, 16644.0
+5, Soybeans, 42557170, 9464486.8
+6, Sunflowers, 6535, 1453.3
+11, Tobacco, 17, 3.8
+12, Sweet Corn, 50072, 11135.7
+13, Pop or Orn Corn, 53597, 11919.7
+21, Barley, 12433, 2765.0
+23, Spring Wheat, 9819, 2183.7
+24, Winter Wheat, 99097, 22038.6
+26, Dbl Crop WinWht/Soybeans, 21136, 4700.5
+27, Rye, 115326, 25647.9
+28, Oats, 552808, 122941.5
+29, Millet, 14944, 3323.5
+36, Alfalfa, 2265372, 503806.6
+37, Other Hay/Non Alfalfa, 1517136, 337402.9
+39, Buckwheat, 413, 91.8
+41, Sugarbeets, 503, 111.9
+42, Dry Beans, 13827, 3075.1
+43, Potatoes, 185, 41.1
+44, Other Crops, 6371, 1416.9
+47, Misc Vegs & Fruits, 2485, 552.7
+48, Watermelons, 79, 17.6
+49, Onions, 148, 32.9
+53, Peas, 7502, 1668.4
+54, Tomatoes, 3, 0.7
+57, Herbs, 11, 2.4
+58, Clover/Wildflowers, 42772, 9512.3
+59, Sod/Grass Seed, 29418, 6542.4
+60, Switchgrass, 77876, 17319.2
+61, Fallow/Idle Cropland, 61257, 13623.2
+68, Apples, 4965, 1104.2
+69, Grapes, 2413, 536.6
+70, Christmas Trees, 3606, 802.0
+71, Other Tree Crops, 3333, 741.2
+74, Pecans, 39, 8.7
+76, Walnuts, 959, 213.3
+111, Open Water, 1626175, 361652.6
+121, Developed/Open Space, 4456779, 991163.8
+122, Developed/Low Intensity, 5354267, 1190760.3
+123, Developed/Medium Intensity, 1552385, 345242.1
+124, Developed/High Intensity, 377074, 83859.2
+131, Barren, 776504, 172690.3
+141, Deciduous Forest, 10643649, 2367090.6
+142, Evergreen Forest, 218920, 48686.6
+143, Mixed Forest, 684980, 152335.9
+152, Shrubland, 416587, 92646.7
+176, Grass/Pasture, 23883214, 5311498.9
+190, Woody Wetlands, 1936164, 430592.5
+195, Herbaceous Wetlands, 1760859, 391605.6
+205, Triticale, 10616, 2360.9
+206, Carrots, 77, 17.1
+207, Asparagus, 7, 1.6
+216, Peppers, 435, 96.7
+219, Greens, 1, 0.2
+221, Strawberries, 73, 16.2
+222, Squash, 812, 180.6
+224, Vetch, 13, 2.9
+225, Dbl Crop WinWht/Corn, 809, 179.9
+226, Dbl Crop Oats/Corn, 120, 26.7
+228, Dbl Crop Triticale/Corn, 735, 163.5
+229, Pumpkins, 4279, 951.6
+236, Dbl Crop WinWht/Sorghum, 204, 45.4
+237, Dbl Crop Barley/Corn, 38, 8.5
+240, Dbl Crop Soybeans/Oats, 1066, 237.1
+241, Dbl Crop Corn/Soybeans, 92, 20.5
+242, Blueberries, 5, 1.1
+247, Turnips, 30, 6.7
+254, Dbl Crop Barley/Soybeans, 65, 14.5

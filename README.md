@@ -46,6 +46,7 @@ Backend (`src-tauri/src`)
 - River data for the Mississippi at St. Louis and Memphis: daily stage (USGS, and NWS with an Iowa Environmental Mesonet backfill), NWS forecasts by issue time, and weekly USDA barge rates and lock tonnage dated to the Grain Transportation Report that published them. Gauges, thresholds and weights are in `config/waterways.json` (a copy in the app data directory overrides it).
 - Price alerts that fire once per crossing and re-arm when the price moves back, built-in river alerts, CSV and workspace export into the app data directory, and a settings table.
 - `analytics`: an as-of join that cannot look ahead, seasonal ranges, move detection, scheduled-event, news and river attribution with confidence labels, combined crop stress and river timelines, a river constraint score with freight sensitivity, and backtest harnesses for the move explainer and the river alerts (see `docs/backtest.md` and `docs/river.md`).
+- Crop nowcast ingestion, switched off by default: two bundled manifests read the yield and acreage files of `docs/nowcast-data-contract.md` with each row's publish time as its release time, and a small source keeps the weekly brief and crop damage events whole in a documents table. For now they read invented sample output from `pipelines/crop-nowcast/sample_output/` and are labelled "(sample)". The pipeline itself is a Python project in `pipelines/crop-nowcast/` (see `docs/Crop Nowcast Plan.md`).
 
 Frontend (`src`)
 
@@ -64,6 +65,12 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml -- --ignored   # live provider contracts
+```
+
+The crop nowcast pipeline has its own checks, run from `pipelines/crop-nowcast` with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv run ruff check && uv run ruff format --check && uv run pytest
 ```
 
 ## Releases

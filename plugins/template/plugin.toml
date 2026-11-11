@@ -41,6 +41,9 @@ field = "date"              # the row field holding the date
 # [release]
 # days_after_period = 1
 # hour_utc = 20
+# Or, if each row carries its own publish time (such as 2026-08-18T18:00:00Z), use that instead:
+# [response.released_at]
+# field = "published_at"
 
 # Series ids must start with "plugin.<id>.". {field} and {field:lower} insert values from the row.
 [[series]]

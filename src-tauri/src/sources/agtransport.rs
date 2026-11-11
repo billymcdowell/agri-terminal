@@ -330,7 +330,7 @@ mod tests {
             .iter()
             .filter_map(|record| match record {
                 SourceRecord::Metric(row) => Some(row.series_id.0.clone()),
-                SourceRecord::Price(_) => None,
+                _ => None,
             })
             .collect();
         for expected in [
