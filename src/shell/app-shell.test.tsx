@@ -83,15 +83,40 @@ describe("AppShell", () => {
     await waitFor(() => expect(screen.getByTestId("page-body").textContent).toBe("river"));
   });
 
-  it("goes to the page a typed command names and switches the crop", async () => {
+  it("finds a crop by name or ticker in Go to… and switches to it", async () => {
     renderShell();
     await settled();
     fireEvent.keyDown(window, { key: "/" });
-    const input = await screen.findByLabelText("Command");
-    fireEvent.change(input, { target: { value: "ZS COT" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(screen.getByTestId("page-body").textContent).toBe("supply");
+    const input = await screen.findByLabelText("Search");
+    fireEvent.change(input, { target: { value: "zs" } });
+    fireEvent.click(await screen.findByRole("option", { name: /Soybeans/ }));
     expect(useCrop.getState().crop).toBe("ZS");
+  });
+
+  it("goes to the page of a section, a state or a setting picked in Go to…", async () => {
+    renderShell();
+    await settled();
+    const pick = async (text: string, name: RegExp) => {
+      fireEvent.keyDown(window, { key: "/" });
+      fireEvent.change(await screen.findByLabelText("Search"), { target: { value: text } });
+      fireEvent.click(await screen.findByRole("option", { name }));
+    };
+    await pick("commitments", /COT positioning/);
+    expect(screen.getByTestId("page-body").textContent).toBe("supply");
+    await pick("nebraska", /Drought in Nebraska/);
+    expect(screen.getByTestId("page-body").textContent).toBe("crop");
+    await pick("theme", /General settings/);
+    expect(screen.getByTestId("page-body").textContent).toBe("settings");
+  });
+
+  it("shows pages, crops and settings before anything is typed, and Help terms once searching", async () => {
+    renderShell();
+    fireEvent.keyDown(window, { key: "/" });
+    await screen.findByLabelText("Search");
+    expect(screen.getByRole("option", { name: /Supply & demand/ })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /Ending stocks/ })).toBeNull();
+    fireEvent.change(screen.getByLabelText("Search"), { target: { value: "ending" } });
+    expect(await screen.findByRole("option", { name: /Ending stocks/ })).toBeTruthy();
   });
 
   it("has no workspace, layout, pop-out or link-group controls", () => {

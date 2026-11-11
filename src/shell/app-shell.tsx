@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RiSearchLine } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useSettingsScreen } from "@/settings/use-settings-screen";
 import { usePersistedValue } from "@/state/use-persisted-list";
-import { planCommand, type CommandPlan } from "./commands";
 import { useCrop } from "./crop";
 import { CropSwitcher } from "./crop-switcher";
-import { PAGES, pageOf, SECTIONS, UTILITY_PAGES, useNavigation, type PageId } from "./navigation";
+import { ALWAYS_SHOWN, goToItems, goToScore, type GoToGroup, type GoToTarget } from "./go-to";
+import { PAGES, UTILITY_PAGES, useNavigation, type PageId } from "./navigation";
 import { Onboarding, type Profile } from "./onboarding";
 import { PageBody, useDroughtRegion, useRiverGauge, type MarketComponent } from "./pages";
 import { useAlertNotifications, useCropPersistence, useDataUpdateInvalidation, usePagePersistence, useReleaseAlerts } from "./use-app-effects";
@@ -36,20 +36,24 @@ export function AppShell({ Market }: { Market: MarketComponent }) {
   const [, setDroughtRegion] = useDroughtRegion();
   const [, setGauge] = useRiverGauge();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [command, setCommand] = useState("");
-  const [commandError, setCommandError] = useState("");
+  const [search, setSearch] = useState("");
+  const items = useMemo(goToItems, []);
+  const groups = useMemo(() => [...new Set(items.map((item) => item.group))], [items]);
 
-  const execute = useCallback((plan: CommandPlan) => {
-    if (plan.type === "error") { setCommandError(plan.message); return; }
-    if (plan.type === "settings") useSettingsScreen.getState().show();
-    else {
-      if (plan.crop) useCrop.getState().setCrop(plan.crop);
-      if (plan.params.region) setDroughtRegion(plan.params.region);
-      if (plan.params.gauge) setGauge(plan.params.gauge);
-      go(pageOf(plan.params.kind));
+  /** Does what a Go to… result names, then closes the search. */
+  const goTo = useCallback((target: GoToTarget) => {
+    switch (target.type) {
+      case "page": go(target.page); break;
+      case "crop": useCrop.getState().setCrop(target.crop); break;
+      case "settings": useSettingsScreen.getState().show(target.section); break;
+      case "drought": setDroughtRegion(target.region); go("crop"); break;
+      case "gauge": setGauge(target.gauge); go("river"); break;
+      case "help": useNavigation.getState().openHelp(target.topic ?? null, target.query); break;
     }
-    setCommand(""); setCommandError(""); setPaletteOpen(false);
+    setSearch(""); setPaletteOpen(false);
   }, [go, setDroughtRegion, setGauge]);
+  const searching = search.trim() !== "";
+  const visibleGroups = groups.filter((group: GoToGroup) => searching || ALWAYS_SHOWN.includes(group));
 
   const completeOnboarding = useCallback((chosen: Profile) => {
     setProfile(chosen);
@@ -104,36 +108,20 @@ export function AppShell({ Market }: { Market: MarketComponent }) {
         onComplete={completeOnboarding}
         onSkip={() => setProfile({ commodities: ["ZC"], region: "ia", skipped: true })}
       />
-      <CommandDialog open={paletteOpen} onOpenChange={(open) => { setPaletteOpen(open); if (!open) setCommandError(""); }} title="Go to" description="Go to a page or section, or type a command such as ZS COT.">
-        <Command>
-          <CommandInput
-            aria-label="Command"
-            value={command}
-            onValueChange={(value) => { setCommand(value); setCommandError(""); }}
-            placeholder="Go to a section, or type ZS COT, DROUGHT IOWA…"
-            onKeyDown={(event) => {
-              if (event.key !== "Enter" || !command.trim()) return;
-              const plan = planCommand(command);
-              // A typed command wins over whichever list item happens to be highlighted.
-              if (plan.type !== "error" || !SECTIONS.some((section) => `${section.title} ${section.command}`.toLowerCase().includes(command.trim().toLowerCase()))) {
-                event.preventDefault();
-                event.stopPropagation();
-                execute(plan);
-              }
-            }}
-          />
-          {commandError && <p role="alert" className="command-error">{commandError}</p>}
+      <CommandDialog open={paletteOpen} onOpenChange={(open) => { setPaletteOpen(open); if (!open) setSearch(""); }} title="Go to" description="Search pages, crops, sections, settings, states, gauges and Help.">
+        <Command filter={(_value, text, keywords = []) => goToScore(keywords[0] ?? "", keywords.slice(1), text)}>
+          <CommandInput aria-label="Search" value={search} onValueChange={setSearch} placeholder="Search pages, crops, sections, settings or Help…" />
           <CommandList>
-            <CommandEmpty>Nothing matches. Type HELP to see every command.</CommandEmpty>
-            <CommandGroup heading="Sections">
-              {SECTIONS.map((section) => (
-                <CommandItem key={section.kind} value={`${section.title} ${section.command}`} onSelect={() => { go(section.page); setCommand(""); setPaletteOpen(false); }}>
-                  {section.title}<span className="command-hint">{PAGES.find((item) => item.id === section.page)?.label}</span>
-                </CommandItem>
-              ))}
-              <CommandItem value="settings preferences theme units data sources keys plugins export stored raw data" onSelect={() => execute({ type: "settings" })}>Settings<span className="command-hint">SETTINGS</span></CommandItem>
-              <CommandItem value="help guide glossary commands" onSelect={() => execute(planCommand("HELP"))}>Help<span className="command-hint">?</span></CommandItem>
-            </CommandGroup>
+            <CommandEmpty>Nothing matches “{search.trim()}”.</CommandEmpty>
+            {visibleGroups.map((group) => (
+              <CommandGroup key={group} heading={group}>
+                {items.filter((item) => item.group === group).map((item) => (
+                  <CommandItem key={item.id} value={item.id} keywords={[item.label, ...item.keywords]} onSelect={() => goTo(item.target)}>
+                    {item.label}<span className="command-hint">{item.hint}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </CommandDialog>

@@ -1,11 +1,9 @@
 /**
- * All wording for the in-app guide: the HELP panel and each panel's About box. Written for someone
+ * All wording for the in-app guide: the Help page and each section's one-line description. Written for someone
  * new to grain markets, so every term a panel shows is explained here in plain language.
  */
 
 export type PanelGuide = {
-  /** How to type it in the command bar, with its variations. */
-  usage: string;
   /** One line for the list of panels. */
   oneLine: string;
   /** What the panel shows and why it matters. */
@@ -19,21 +17,19 @@ export type PanelGuide = {
 /** Keyed by section, as in SECTIONS in shell/navigation.ts. Every section needs an entry; a test checks this. */
 export const PANEL_GUIDES: Record<string, PanelGuide> = {
   market: {
-    usage: "ZC, ZS or ZW",
     oneLine: "What a corn, soybean or wheat futures contract costs, day by day.",
     summary: "The daily price of a corn (ZC), soybean (ZS) or wheat (ZW) futures contract on the Chicago Board of Trade. This is the benchmark most U.S. grain is priced from: local elevators quote their bids as this price plus or minus an adjustment.",
     howToRead: [
       "Each candle is one trading day. The thick body runs from the opening price to the closing price, and the thin lines reach the day's high and low. Green candles closed higher than they opened; red ones closed lower.",
       "The large number is the latest closing price. The change beside it is against the previous day's close.",
       "Prices are U.S. dollars per bushel. Switch to dollars per metric tonne in Settings.",
-      "Arrows labelled with a number such as 2.4 SD mark unusually large one-day moves. Open MOVES to see what might have caused them.",
+      "Arrows labelled with a number such as 2.4 SD mark unusually large one-day moves. Click one, or the move in Big moves, to see its possible drivers.",
       "1W, 1M and ALL change how much history the chart shows.",
       "The line under the chart says how current the prices are and which provider they come from. The price follows the contract nearest to expiry, so there can be a small jump when it rolls to the next one.",
       "A banner above the chart means you are looking at made-up sample prices for corn, bundled so you can try the app. Add key opens Settings › Data sources, where a free Massive key loads real ones.",
     ],
   },
   cot: {
-    usage: "ZC COT, ZS COT or ZW COT",
     oneLine: "Whether big groups of traders are betting on prices rising or falling.",
     summary: "Who holds futures positions, and on which side, from the weekly Commitments of Traders report by the U.S. Commodity Futures Trading Commission (CFTC). Traders watch it to see how crowded a bet has become: when funds are already heavily on one side, there are fewer left to keep pushing the price that way.",
     howToRead: [
@@ -49,7 +45,6 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   "crop-condition": {
-    usage: "CROP CONDITION",
     oneLine: "How healthy this year's U.S. crop looks, and how far planting and harvest have got.",
     summary: "The weekly national Crop Progress report from the USDA National Agricultural Statistics Service (NASS), published Mondays at 4 p.m. Eastern from spring to late autumn. Local observers rate the crop in every state, and the ratings are combined into national shares. It needs a free NASS key in Settings › Data sources.",
     howToRead: [
@@ -67,7 +62,6 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   wasde: {
-    usage: "WASDE",
     oneLine: "How much grain the U.S. has, how much it uses, and what is left over.",
     summary: "The U.S. supply and demand balance sheet for the crop, from the USDA Foreign Agricultural Service (FAS) Production, Supply and Distribution database. It carries the official estimates USDA publishes each month in the WASDE report. It needs a free FAS key in Settings › Data sources.",
     howToRead: [
@@ -86,7 +80,6 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   drought: {
-    usage: "DROUGHT and a state, such as DROUGHT IOWA or DROUGHT IA",
     oneLine: "How much of a growing state is dry or in drought this week.",
     summary: "The share of a state's area at each drought level, from the U.S. Drought Monitor by the National Drought Mitigation Center, USDA and NOAA. Maps describe conditions on Tuesday and are published on Thursday. Covers Iowa, Illinois, Nebraska, Minnesota, Indiana, Kansas, North Dakota, South Dakota and Ohio.",
     howToRead: [
@@ -104,7 +97,6 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   "crop-stress": {
-    usage: "STRESS",
     oneLine: "Price, crop health and drought on one chart, to see how the market reacted.",
     summary: "Price, crop condition and drought lined up on one timeline, so you can see whether the market reacted as the crop got better or worse during the season.",
     howToRead: [
@@ -115,7 +107,6 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   river: {
-    usage: "RIVER, RIVER MISS, RIVER ST LOUIS or RIVER MEMPHIS",
     oneLine: "Whether low water on the Mississippi is restricting barges, and what freight is doing.",
     summary: "A 0 to 100 river constraint score for a Mississippi gauge, with the river level, the National Weather Service forecast, the weekly USDA barge freight rate and grain moving through the locks. When the river runs low, barges must load lighter, so freight costs rise and the gap between Gulf and inland grain prices tends to widen. Pick the gauge with the picker at the top of the River page.",
     howToRead: [
@@ -141,7 +132,6 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   "river-timeline": {
-    usage: "RIVER TIMELINE, or RIVER TIMELINE MEMPHIS",
     oneLine: "River level, forecast, barge freight and the constraint score beside the futures price.",
     summary: "The river stage against its five-year range, the lowest forecast stage, the restriction and critical levels, barge freight and the constraint score on one timeline with the futures close, to see how freight and prices behaved as the river fell or rose.",
     howToRead: [
@@ -153,7 +143,6 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   moves: {
-    usage: "MOVES",
     oneLine: "Days the price moved unusually far, and news or reports that might explain why.",
     summary: "Days when the price moved much further than usual, each listed with scheduled reports and headlines that might explain it. Drivers are matched by timing, subject and direction; they are leads to check, not proof of cause.",
     howToRead: [
@@ -170,7 +159,6 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   alerts: {
-    usage: "ALERTS",
     oneLine: "A notification when a closing price crosses a level you choose, or the river runs low.",
     summary: "Notifications when a daily closing price crosses a level you set, for example corn closing at or above $4.50 a bushel, and built-in river alerts for each Mississippi gauge.",
     howToRead: [
@@ -188,23 +176,21 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   calendar: {
-    usage: "CALENDAR",
     oneLine: "When the next government reports are due. Prices often jump when they come out.",
-    summary: "When the next scheduled government reports are expected, in your local time. Markets often move sharply as these come out, so traders plan around them. Choose how early to be reminded under Report reminders in ALERTS.",
+    summary: "When the next scheduled government reports are expected, in your local time. Markets often move sharply as these come out, so traders plan around them. Choose how early to be reminded under Report reminders on the Alerts page.",
     howToRead: [
       "Next reports on the Market page lists the five soonest, with the crops each covers after its time. Show all lists every report, including recent ones.",
       "Times come from a schedule kept in the app, and some are expected windows. Check the agency's own calendar before relying on one.",
     ],
     terms: [
-      ["Commitments of Traders", "CFTC, weekly on Friday afternoon: trader positioning. See ZC COT."],
-      ["Crop Progress", "USDA NASS, Mondays at 4 p.m. Eastern in season: crop condition and planting or harvest progress. See CROP CONDITION."],
+      ["Commitments of Traders", "CFTC, weekly on Friday afternoon: trader positioning. On the Supply & demand page."],
+      ["Crop Progress", "USDA NASS, Mondays at 4 p.m. Eastern in season: crop condition and planting or harvest progress. On the Crop & weather page."],
       ["Export Sales", "USDA FAS, Thursday mornings: how much U.S. grain foreign buyers ordered last week."],
-      ["WASDE", "USDA, monthly around the 10th at noon Eastern: the official supply and demand estimates. See WASDE."],
-      ["Grain Transportation Report", "USDA AMS, Thursdays: barge freight rates, lock tonnage and other grain transport data. See RIVER."],
+      ["WASDE", "USDA, monthly around the 10th at noon Eastern: the official supply and demand estimates. On the Supply & demand page."],
+      ["Grain Transportation Report", "USDA AMS, Thursdays: barge freight rates, lock tonnage and other grain transport data. On the River page."],
     ],
   },
   weather: {
-    usage: "WX IOWA (shows every main growing state for the crop)",
     oneLine: "Forecasts for the main growing states of the selected crop.",
     summary: "The next forecast period for each main growing state of the selected crop, from Open-Meteo and the U.S. National Weather Service. Weather is the biggest unknown for a crop in the ground, so traders watch the forecast for growing areas closely.",
     howToRead: [
@@ -215,7 +201,6 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   news: {
-    usage: "NEWS",
     oneLine: "Recent headlines about the crop.",
     summary: "Recent headlines that mention the crop, from GDELT (a global news index) and USDA NASS news feeds. Only headlines and links are shown; click one to read the article at its source.",
     howToRead: [
@@ -224,9 +209,8 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
     ],
   },
   help: {
-    usage: "HELP or ?",
-    oneLine: "This guide: every command, what each panel shows, and a glossary.",
-    summary: "Every command, what each panel shows and how to read it, what the status labels mean, and a glossary of market terms.",
+    oneLine: "This guide: what each section shows, and a glossary.",
+    summary: "What each section shows and how to read it, what the status labels mean, and a glossary of market terms.",
     howToRead: ["Type in the search box to find a term or section."],
   },
 };
@@ -236,19 +220,14 @@ export const START_HERE = [
   "Five pages in the sidebar each answer one question: Market, Crop & weather, Supply & demand, River and Alerts. Press 1 to 5 to jump to them. The app reopens where you left it.",
   "Every page shows the crop chosen with Corn, Soybeans and Wheat at the top.",
   "Each section says in one line what it shows. Its More in Help link opens the full explanation here. Press ? any time to come back to this guide.",
-  "Press / to open the command bar and type a command such as ZS COT to go straight to a section.",
+  "Press / for Go to…: start typing a page, crop, section, setting, state, river gauge or market term, and pick it from the list.",
   "Some data needs a key, added in Settings › Data sources (Settings is at the bottom of the sidebar). Free without any key: demonstration corn prices, CFTC positioning, drought, weather, river conditions and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
 ];
 
-export const OTHER_COMMANDS: { usage: string; meaning: string }[] = [
-  { usage: "SETTINGS", meaning: "Open Settings: theme and units, every data source and its key, plugins, exports and the stored data viewer." },
-  { usage: "HELP or ?", meaning: "Open this guide." },
-];
-
 export const SHORTCUTS: { keys: string; action: string }[] = [
-  { keys: "/", action: "Open the command bar" },
+  { keys: "/", action: "Go to… a page, crop, section, setting or Help topic" },
   { keys: "?", action: "Open this guide" },
-  { keys: "Enter", action: "Run the typed command, or the highlighted one in the list" },
+  { keys: "↑ ↓ and Enter", action: "Pick a result in Go to…" },
   { keys: "1 – 5", action: "Go to Market, Crop & weather, Supply & demand, River or Alerts" },
 ];
 
@@ -263,16 +242,16 @@ export const STATUS_LABELS: [string, string][] = [
 ];
 
 export const GLOSSARY: [string, string][] = [
-  ["Balance sheet", "A table of a crop's supply (stocks, harvest, imports) against its use (consumption, exports). See WASDE."],
-  ["Barge rate", "Freight for moving grain downriver by barge, quoted weekly by USDA as a percent of a 1976 benchmark tariff. See RIVER."],
+  ["Balance sheet", "A table of a crop's supply (stocks, harvest, imports) against its use (consumption, exports). On the Supply & demand page."],
+  ["Barge rate", "Freight for moving grain downriver by barge, quoted weekly by USDA as a percent of a 1976 benchmark tariff. On the River page."],
   ["Basis", "The local cash price minus the futures price. It reflects local supply, demand and transport costs, such as barge freight when the river is low."],
   ["Bushel", "The unit U.S. grain is traded in. A bushel of corn weighs 56 lb (25.4 kg); soybeans and wheat weigh 60 lb (27.2 kg)."],
   ["CBOT", "Chicago Board of Trade, the exchange where U.S. corn, soybean and wheat futures trade. It is part of CME Group."],
   ["CFTC", "Commodity Futures Trading Commission, the U.S. regulator of futures markets. It publishes the Commitments of Traders report."],
   ["Close", "The last price of the trading day, used for the chart, alerts and flagged moves."],
-  ["Commitments of Traders (COT)", "A weekly CFTC report of how many contracts each type of trader holds long and short. See ZC COT."],
+  ["Commitments of Traders (COT)", "A weekly CFTC report of how many contracts each type of trader holds long and short. On the Supply & demand page."],
   ["Continuous front month", "The contract nearest to expiry, switched to the next one as each expires so the price line is unbroken. There can be small jumps on the switch days."],
-  ["Crop condition", "Weekly USDA ratings of the crop from very poor to excellent. See CROP CONDITION."],
+  ["Crop condition", "Weekly USDA ratings of the crop from very poor to excellent. On the Crop & weather page."],
   ["D0–D4", "U.S. Drought Monitor levels, from D0 abnormally dry to D4 exceptional drought. D1 and above is drought."],
   ["Ending stocks", "Grain expected to be left at the end of the marketing year, also called carryout. The headline number in a balance sheet."],
   ["Export sales", "Weekly USDA figures for how much U.S. grain foreign buyers ordered, a gauge of overseas demand."],
@@ -287,7 +266,7 @@ export const GLOSSARY: [string, string][] = [
   ["Net position", "Long contracts minus short contracts. Positive is net long, negative is net short."],
   ["OHLC candle", "Open, high, low and close for one day, drawn as a box (open to close) with lines to the high and low."],
   ["Percentile", "Where a value sits against its own history, from 0 (the lowest stored) to 100 (the highest)."],
-  ["River constraint score", "AgriTerminal's 0 to 100 measure of how much low water is limiting barges at a gauge, from river depth, the forecast and lock traffic. See RIVER."],
+  ["River constraint score", "AgriTerminal's 0 to 100 measure of how much low water is limiting barges at a gauge, from river depth, the forecast and lock traffic. On the River page."],
   ["Short", "Holding a position that gains when the price falls."],
   ["Speculator", "A trader with no physical grain who aims to profit from price changes."],
   ["Stage", "The height of a river at a gauge, in feet above a fixed zero point. Low readings mean shallower water for barges."],
@@ -305,5 +284,5 @@ export function matchesQuery(query: string, ...texts: string[]) {
 
 /** Every text in a panel guide, for searching. */
 export function guideTexts(title: string, guide: PanelGuide) {
-  return [title, guide.usage, guide.oneLine, guide.summary, ...guide.howToRead, ...(guide.terms ?? []).flat()];
+  return [title, guide.oneLine, guide.summary, ...guide.howToRead, ...(guide.terms ?? []).flat()];
 }

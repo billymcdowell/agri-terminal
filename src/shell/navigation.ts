@@ -20,36 +20,32 @@ export const UTILITY_PAGES: { id: PageId; label: string }[] = [
 const PAGE_IDS = new Set<string>([...PAGES, ...UTILITY_PAGES].map((page) => page.id));
 export function isPageId(value: unknown): value is PageId { return typeof value === "string" && PAGE_IDS.has(value); }
 
-/** Every section of every page, with the command-bar text that goes to it. Keys match the Help guides. */
-export type Section = { kind: string; title: string; page: PageId; command: string };
+/** Every section of every page. Keys match the Help guides. */
+export type Section = { kind: string; title: string; page: PageId };
 export const SECTIONS: Section[] = [
-  { kind: "market", title: "Price chart", page: "market", command: "ZC" },
-  { kind: "moves", title: "Move explainer", page: "market", command: "MOVES" },
-  { kind: "calendar", title: "Report calendar", page: "market", command: "CALENDAR" },
-  { kind: "news", title: "Market news", page: "market", command: "NEWS" },
-  { kind: "crop-stress", title: "Crop stress timeline", page: "crop", command: "STRESS" },
-  { kind: "crop-condition", title: "Crop condition", page: "crop", command: "CROP CONDITION" },
-  { kind: "drought", title: "Drought Monitor", page: "crop", command: "DROUGHT IOWA" },
-  { kind: "weather", title: "Weather", page: "crop", command: "WX IOWA" },
-  { kind: "wasde", title: "Supply and demand", page: "supply", command: "WASDE" },
-  { kind: "cot", title: "COT positioning", page: "supply", command: "ZC COT" },
-  { kind: "river", title: "River status", page: "river", command: "RIVER" },
-  { kind: "river-timeline", title: "River timeline", page: "river", command: "RIVER TIMELINE" },
-  { kind: "alerts", title: "Price alerts", page: "alerts", command: "ALERTS" },
+  { kind: "market", title: "Price chart", page: "market" },
+  { kind: "moves", title: "Move explainer", page: "market" },
+  { kind: "calendar", title: "Report calendar", page: "market" },
+  { kind: "news", title: "Market news", page: "market" },
+  { kind: "crop-stress", title: "Crop stress timeline", page: "crop" },
+  { kind: "crop-condition", title: "Crop condition", page: "crop" },
+  { kind: "drought", title: "Drought Monitor", page: "crop" },
+  { kind: "weather", title: "Weather", page: "crop" },
+  { kind: "wasde", title: "Supply and demand", page: "supply" },
+  { kind: "cot", title: "COT positioning", page: "supply" },
+  { kind: "river", title: "River status", page: "river" },
+  { kind: "river-timeline", title: "River timeline", page: "river" },
+  { kind: "alerts", title: "Price alerts", page: "alerts" },
 ];
-
-/** The page that shows a section, such as "supply" for "cot". Help is its own page. */
-export function pageOf(kind: string): PageId {
-  if (kind === "help") return "help";
-  return SECTIONS.find((section) => section.kind === kind)?.page ?? "market";
-}
 
 type Navigation = {
   page: PageId;
   /** The section Help opens at, such as "cot", set by a section's "More in Help" link. */
   helpTopic: string | null;
+  /** A search Help starts with, such as a glossary term picked in Go to…. */
+  helpQuery: string | null;
   go: (page: PageId) => void;
-  openHelp: (topic: string) => void;
+  openHelp: (topic: string | null, query?: string) => void;
   clearHelpTopic: () => void;
 };
 
@@ -57,7 +53,8 @@ type Navigation = {
 export const useNavigation = create<Navigation>((set) => ({
   page: "market",
   helpTopic: null,
+  helpQuery: null,
   go: (page) => set({ page }),
-  openHelp: (topic) => set({ page: "help", helpTopic: topic }),
-  clearHelpTopic: () => set({ helpTopic: null }),
+  openHelp: (topic, query) => set({ page: "help", helpTopic: topic, helpQuery: query ?? null }),
+  clearHelpTopic: () => set({ helpTopic: null, helpQuery: null }),
 }));

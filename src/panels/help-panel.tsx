@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { PAGES, SECTIONS, useNavigation, type Section } from "@/shell/navigation";
-import { GLOSSARY, guideTexts, matchesQuery, OTHER_COMMANDS, PANEL_GUIDES, SHORTCUT_NOTE, SHORTCUTS, START_HERE, STATUS_LABELS } from "./help-text";
+import { GLOSSARY, guideTexts, matchesQuery, PANEL_GUIDES, SHORTCUT_NOTE, SHORTCUTS, START_HERE, STATUS_LABELS } from "./help-text";
 import { PanelGuide } from "./panel-guide";
 
 const pageLabel = (section: Section) => PAGES.find((page) => page.id === section.page)?.label ?? section.page;
@@ -14,8 +14,12 @@ export function HelpPanel() {
   const [query, setQuery] = useState("");
   const go = useNavigation((state) => state.go);
   const helpTopic = useNavigation((state) => state.helpTopic);
+  const helpQuery = useNavigation((state) => state.helpQuery);
   // The section a "More in Help" link asked for: opened and scrolled to.
   const [focused, setFocused] = useState<string | null>(null);
+  useEffect(() => {
+    if (helpQuery) { setQuery(helpQuery); useNavigation.getState().clearHelpTopic(); }
+  }, [helpQuery]);
   useEffect(() => {
     if (!helpTopic) return;
     setQuery("");
@@ -26,11 +30,10 @@ export function HelpPanel() {
   const searching = query.trim() !== "";
   const panels = SECTIONS.map((section) => ({ ...section, type: section.kind }))
     .filter((panel) => PANEL_GUIDES[panel.type] && matchesQuery(query, ...guideTexts(panel.title, PANEL_GUIDES[panel.type])));
-  const commands = OTHER_COMMANDS.filter((item) => matchesQuery(query, item.usage, item.meaning));
   const shortcuts = SHORTCUTS.filter((item) => matchesQuery(query, item.keys, item.action));
   const statuses = STATUS_LABELS.filter(([label, meaning]) => matchesQuery(query, label, meaning));
   const terms = GLOSSARY.filter(([term, meaning]) => matchesQuery(query, term, meaning));
-  const nothing = !panels.length && !commands.length && !shortcuts.length && !statuses.length && !terms.length;
+  const nothing = !panels.length && !shortcuts.length && !statuses.length && !terms.length;
 
   return (
     <div className="workspace-panel help-panel">
@@ -56,23 +59,9 @@ export function HelpPanel() {
                     <Button size="xs" variant="outline" aria-label={`Go to ${panel.title}`} onClick={() => go(panel.page)}>{pageLabel(panel)}</Button>
                   </div>
                   <p>{PANEL_GUIDES[panel.type].oneLine}</p>
-                  <p>Type <code>{PANEL_GUIDES[panel.type].usage}</code></p>
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {commands.length > 0 && (
-        <Card className="terminal-card">
-          <CardHeader><CardTitle className="side-card-title">Other commands</CardTitle></CardHeader>
-          <CardContent>
-            <Table className="help-table">
-              <TableBody>
-                {commands.map((item) => <TableRow key={item.usage}><TableCell><code>{item.usage}</code></TableCell><TableCell>{item.meaning}</TableCell></TableRow>)}
-              </TableBody>
-            </Table>
           </CardContent>
         </Card>
       )}

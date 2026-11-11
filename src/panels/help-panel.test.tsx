@@ -1,22 +1,35 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { planCommand } from "@/shell/commands";
-import { pageOf, SECTIONS, useNavigation } from "@/shell/navigation";
+import { goToItems } from "@/shell/go-to";
+import { SECTIONS, useNavigation } from "@/shell/navigation";
 import { HelpPanel } from "./help-panel";
 import { PANEL_GUIDES } from "./help-text";
 import { PanelHeader } from "./panel-header";
 
 describe("HelpPanel", () => {
-  afterEach(() => { cleanup(); useNavigation.setState({ page: "market", helpTopic: null }); });
+  afterEach(() => { cleanup(); useNavigation.setState({ page: "market", helpTopic: null, helpQuery: null }); });
 
-  it("has a guide for every section, and every section's command goes to its page", () => {
+  it("has a guide for every section, and Go to… reaches every section and its guide", () => {
+    const items = goToItems();
     for (const section of SECTIONS) {
       expect(PANEL_GUIDES[section.kind], section.kind).toBeDefined();
-      const plan = planCommand(section.command);
-      expect(plan, section.command).toMatchObject({ type: "open", params: { kind: section.kind } });
-      if (plan.type === "open") expect(pageOf(plan.params.kind)).toBe(section.page);
+      expect(items.find((item) => item.id === `section:${section.kind}`)?.target, section.kind).toEqual({ type: "page", page: section.page });
+      expect(items.find((item) => item.id === `help:${section.kind}`)?.target, section.kind).toEqual({ type: "help", topic: section.kind });
     }
+  });
+
+  it("asks the reader to learn no commands", () => {
+    render(<HelpPanel />);
+    const text = document.body.textContent ?? "";
+    for (const command of ["ZC COT", "DROUGHT IOWA", "RIVER TIMELINE", "WASDE.", "Type ", "command bar", "Other commands"]) expect(text).not.toContain(command);
+  });
+
+  it("starts with a search a Go to… glossary result asked for", () => {
+    useNavigation.getState().openHelp(null, "Basis");
+    render(<HelpPanel />);
+    expect((screen.getByLabelText("Search help") as HTMLInputElement).value).toBe("Basis");
+    expect(screen.queryByText("Start here")).toBeNull();
   });
 
   it("goes to the page that shows a listed section", () => {
@@ -44,7 +57,7 @@ describe("HelpPanel", () => {
 });
 
 describe("PanelHeader", () => {
-  afterEach(() => { cleanup(); useNavigation.setState({ page: "market", helpTopic: null }); });
+  afterEach(() => { cleanup(); useNavigation.setState({ page: "market", helpTopic: null, helpQuery: null }); });
 
   it("says in one line what the section shows, with no ⓘ toggle", () => {
     render(<PanelHeader title="Commitments of Traders · ZC" kind="cot" />);
