@@ -304,6 +304,11 @@ button {
 .workspace-menu-error { margin: 0; color: var(--tone-d77b68); font-size: 12px; }
 .workspace-save-error { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tone-d77b68); font-size: 11px; }
 .workspace-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+.crop-switcher { display: flex; gap: 2px; padding: 2px; border: 1px solid rgba(var(--line-rgb),.14); border-radius: 6px; }
+.crop-switcher button { height: 26px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent; color: var(--tone-899388); font: inherit; font-size: 12px; cursor: pointer; }
+.crop-switcher button:hover { color: var(--tone-c1d0b3); }
+.crop-switcher button[aria-pressed="true"] { color: var(--tone-c1d0b3); background: rgba(var(--accent-rgb), 0.13); }
+.crop-switcher button:focus-visible { outline: 2px solid rgba(var(--accent-rgb), .6); outline-offset: 1px; }
 .workspace-toolbar kbd { margin-left: 5px; color: var(--tone-899388); font-size: 10px; }
 .dockview-host { min-width: 0; min-height: 0; }
 .dockview-theme-abyss {
@@ -344,7 +349,6 @@ button {
 .news-meta { color:var(--tone-879187); font-size:10px; margin-top:5px; }
 
 .panel-header-controls { display: flex; align-items: center; gap: 8px; }
-.link-group-button { gap: 5px; font-size: 10px; letter-spacing: .06em; color: var(--tone-9ba69a); }
 .panel-freshness[data-status="stale"] { color: var(--tone-c49458); }
 .panel-freshness[data-status="error"] { color: var(--tone-d77b68); }
 .command-error { margin: 0; padding: 8px 14px; color: var(--tone-d77b68); font-size: 12px; border-bottom: 1px solid rgba(var(--line-rgb),.14); }

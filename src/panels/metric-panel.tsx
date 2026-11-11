@@ -8,23 +8,24 @@ import { percentileRank } from "@/lib/stats";
 import { getMetricSeries } from "@/lib/ipc";
 import { useSources } from "@/state/use-series";
 import type { PanelComponentProps } from "@/workspace/types";
-import { PanelHeader, usePanelCommodity } from "./panel-header";
+import { useCrop } from "@/workspace/crop";
+import { PanelHeader } from "./panel-header";
 import { balanceSheetRows, cotRows, cropConditionRows, droughtRows, type MetricRow } from "./series";
 
 type MetricPanelKind = "cot" | "crop-condition" | "wasde" | "drought";
 
-const DEFINITIONS: Record<MetricPanelKind, { eyebrow: string; title: (commodity: string, region: string) => string; sourceId: string; rows: (commodity: string, stateId: string) => MetricRow[]; usesCommodity: boolean }> = {
-  cot: { eyebrow: "COT PANEL", title: (c) => `Commitments of Traders · ${c}`, sourceId: "cftc-cot", rows: (c) => cotRows(c), usesCommodity: true },
-  "crop-condition": { eyebrow: "CROP CONDITION PANEL", title: (c) => `Crop condition · ${c}`, sourceId: "usda-nass", rows: (c) => cropConditionRows(c), usesCommodity: true },
-  wasde: { eyebrow: "SUPPLY AND DEMAND PANEL", title: (c) => `Balance sheet · ${c}`, sourceId: "usda-fas", rows: (c) => balanceSheetRows(c), usesCommodity: true },
-  drought: { eyebrow: "DROUGHT PANEL", title: (_, region) => `Drought Monitor · ${region}`, sourceId: "us-drought-monitor", rows: (_, stateId) => droughtRows(stateId), usesCommodity: false },
+const DEFINITIONS: Record<MetricPanelKind, { eyebrow: string; title: (commodity: string, region: string) => string; sourceId: string; rows: (commodity: string, stateId: string) => MetricRow[] }> = {
+  cot: { eyebrow: "COT PANEL", title: (c) => `Commitments of Traders · ${c}`, sourceId: "cftc-cot", rows: (c) => cotRows(c) },
+  "crop-condition": { eyebrow: "CROP CONDITION PANEL", title: (c) => `Crop condition · ${c}`, sourceId: "usda-nass", rows: (c) => cropConditionRows(c) },
+  wasde: { eyebrow: "SUPPLY AND DEMAND PANEL", title: (c) => `Balance sheet · ${c}`, sourceId: "usda-fas", rows: (c) => balanceSheetRows(c) },
+  drought: { eyebrow: "DROUGHT PANEL", title: (_, region) => `Drought Monitor · ${region}`, sourceId: "us-drought-monitor", rows: (_, stateId) => droughtRows(stateId) },
 };
 
 /** One table of the latest observation per series, with source-aware freshness beneath it. */
 export function MetricPanel({ api, params }: PanelComponentProps) {
   const kind = params.kind as MetricPanelKind;
   const definition = DEFINITIONS[kind];
-  const { commodity, change } = usePanelCommodity(params, api);
+  const commodity = useCrop((state) => state.crop);
   const region = findRegion(params.region) ?? findRegion("ia")!;
   const rows = definition.rows(commodity, region.id);
   const queries = useQueries({ queries: rows.map((row) => ({ queryKey: ["metric-series", row.seriesId], queryFn: () => getMetricSeries(row.seriesId), staleTime: 60_000 })) });
@@ -52,7 +53,7 @@ export function MetricPanel({ api, params }: PanelComponentProps) {
 
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow={definition.eyebrow} title={definition.title(commodity, region.name)} api={api} params={params} commodity={definition.usesCommodity ? commodity : undefined} onCommodityChange={change} />
+      <PanelHeader eyebrow={definition.eyebrow} title={definition.title(commodity, region.name)} api={api} params={params} />
       <Card className="terminal-card">
         <CardHeader><CardTitle className="side-card-title">Latest available observations</CardTitle></CardHeader>
         <CardContent>

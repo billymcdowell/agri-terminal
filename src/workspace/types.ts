@@ -1,8 +1,6 @@
 export type PanelParams = {
   kind: string;
-  commodity?: string;
   region?: string;
-  linkGroup?: string;
   workspaceName?: string;
   /** Move explainer sensitivity in standard deviations. */
   threshold?: number;

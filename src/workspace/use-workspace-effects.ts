@@ -5,7 +5,7 @@ import { listCalendarEvents, subscribeToAlerts, subscribeToDataUpdates, subscrib
 import { useUnits } from "@/lib/units";
 import { alertNotification } from "@/panels/alerts-panel";
 import { usePersistedValue } from "@/state/use-persisted-list";
-import { useLinkGroups } from "./link-groups";
+import { useCrop } from "./crop";
 import { DEFAULT_LEAD_HOURS, describeLead, dueAlerts } from "./release-alerts";
 
 const SENT_PREFIX = "report-alert:";
@@ -53,18 +53,16 @@ export function useReleaseAlerts() {
   }, [leadHours]);
 }
 
-type StoredGroups = Record<string, { commodity: string }>;
-
-/** Restores link-group commodities on launch and saves them as they change. */
-export function useLinkGroupPersistence() {
-  const [saved, save, ready] = usePersistedValue<StoredGroups | null>("link-groups", null);
+/** Restores the crop on launch and saves it as it changes. */
+export function useCropPersistence() {
+  const [saved, save, ready] = usePersistedValue<string | null>("crop", null);
   const hydrated = useRef(false);
   useEffect(() => {
     if (!ready || hydrated.current) return;
     hydrated.current = true;
-    for (const [group, value] of Object.entries(saved ?? {})) useLinkGroups.getState().setCommodity(group, value.commodity);
+    if (saved) useCrop.getState().setCrop(saved);
   }, [ready, saved]);
-  useEffect(() => useLinkGroups.subscribe((state) => { if (hydrated.current) save(state.groups); }), [save]);
+  useEffect(() => useCrop.subscribe((state) => { if (hydrated.current) save(state.crop); }), [save]);
 }
 
 /** Shows a system notification whenever the backend reports that a price alert fired. */

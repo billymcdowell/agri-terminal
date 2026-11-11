@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import App, { MarketOverview } from "./App";
 import { queryClient } from "@/state/query-client";
-import { startLinkGroupSync } from "@/workspace/link-sync";
+import { startCropSync } from "@/workspace/crop";
 import { PopoutRoot } from "@/workspace/popout-app";
 import { readPopout } from "@/workspace/popout";
 import { initTheme } from "@/lib/theme";
@@ -13,7 +13,7 @@ import "./terminal.css";
 
 initTheme();
 const popout = readPopout(window.location.search);
-if (!popout) startLinkGroupSync();
+if (!popout) startCropSync();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

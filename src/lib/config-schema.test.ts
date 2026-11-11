@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { coerceValue, LINK_GROUP_PROPERTY } from "./config-schema";
+import { coerceValue, type ConfigProperty } from "./config-schema";
+
+const gauge: ConfigProperty = { type: "string", title: "Gauge", enum: ["", "stl", "mem"], enumLabels: { "": "None" } };
 
 describe("coerceValue", () => {
   it("accepts only listed enum values", () => {
-    expect(coerceValue(LINK_GROUP_PROPERTY, "B")).toBe("B");
-    expect(coerceValue(LINK_GROUP_PROPERTY, "Z")).toBeNull();
+    expect(coerceValue(gauge, "mem")).toBe("mem");
+    expect(coerceValue(gauge, "xyz")).toBeNull();
   });
   it("clamps numbers into range and rejects non-numbers", () => {
     const property = { type: "number", title: "SD", minimum: 1, maximum: 4 } as const;

@@ -12,13 +12,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AboutButton, PanelAbout } from "@/panels/panel-guide";
 import { PriceChart, type MoveMarker } from "@/panels/price-chart";
 import { explainMoves, getSecretStatus, refreshSource } from "@/lib/ipc";
+import { CROP_NAMES } from "@/lib/regions";
 import { toDisplayPrice, UNIT_LABELS, useUnits } from "@/lib/units";
 import { priceStatus } from "@/panels/price-status";
 import { useSettingsScreen } from "@/settings/use-settings-screen";
 import { useSeries, useSources } from "@/state/use-series";
 import { WorkspaceShell } from "@/workspace/shell";
 
-const COMMODITY_NAMES: Record<string, string> = { ZC: "Corn", ZS: "Soybeans", ZW: "Wheat" };
 /** The only commodity with a demonstration series, so the only one that has prices without a key. */
 const DEMO_COMMODITY = "ZC";
 /** The futures price source; its key is stored under this id like the other source keys. */
@@ -26,7 +26,7 @@ const PRICE_SOURCE = "massive";
 const RANGES = ["1W", "1M", "ALL"] as const;
 
 export function MarketOverview({ commodity }: { commodity: string }) {
-  const commodityName = COMMODITY_NAMES[commodity] ?? commodity;
+  const commodityName = CROP_NAMES[commodity] ?? commodity;
   const seriesId = `price.${commodity}.close`;
   const [range, setRange] = useState<(typeof RANGES)[number]>("ALL");
   const [refreshing, setRefreshing] = useState(false);

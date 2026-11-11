@@ -5,7 +5,6 @@ import "dockview/dist/styles/dockview.css";
 import { RiAddLine, RiCheckLine, RiExternalLinkLine, RiQuestionLine, RiSaveLine, RiSettings3Line } from "@remixicon/react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { registerBuiltInPanels, type MarketComponent } from "@/panels/register";
 import { SettingsDialog } from "@/settings/settings-dialog";
@@ -13,11 +12,11 @@ import { useSettingsScreen } from "@/settings/use-settings-screen";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import { planCommand, type CommandPlan } from "@/workspace/commands";
 import { onCommandRequest } from "@/workspace/command-events";
-import { usePalette } from "@/lib/theme";
 import { Onboarding } from "@/workspace/onboarding";
 import { panelTitle } from "@/workspace/panel-title";
-import { getTemplate, linkGroupTargets, planTemplate, TEMPLATES, type Profile } from "@/workspace/templates";
-import { LINK_GROUPS, useLinkGroups } from "@/workspace/link-groups";
+import { getTemplate, planTemplate, TEMPLATES, type Profile } from "@/workspace/templates";
+import { useCrop } from "@/workspace/crop";
+import { CropSwitcher } from "@/workspace/crop-switcher";
 import { panelRootContent } from "@/workspace/panel-root";
 import { getPanel, listPanels } from "@/workspace/registry";
 import { openPopout } from "@/workspace/popout";
@@ -25,7 +24,7 @@ import { restoreWorkspace, serializeWorkspace } from "@/workspace/serialization"
 import { listSavedWorkspaces, readLocalLayout, removeWorkspace, slugify, storeWorkspace, uniqueWorkspaceId, upsertSummary, type WorkspaceSummary } from "@/workspace/saved-workspaces";
 import { WorkspaceMenu } from "@/workspace/workspace-menu";
 import type { PanelApiLike, PanelParams } from "@/workspace/types";
-import { useAlertNotifications, useDataUpdateInvalidation, useLinkGroupPersistence, useReleaseAlerts } from "@/workspace/use-workspace-effects";
+import { useAlertNotifications, useCropPersistence, useDataUpdateInvalidation, useReleaseAlerts } from "@/workspace/use-workspace-effects";
 import { createRoot, type Root } from "react-dom/client";
 
 type Props = { MarketOverview: MarketComponent };
@@ -50,7 +49,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
   useDataUpdateInvalidation();
   useReleaseAlerts();
   useAlertNotifications();
-  useLinkGroupPersistence();
+  useCropPersistence();
   const [profile, setProfile, profileReady] = usePersistedValue<(Profile & { skipped?: boolean }) | null>("profile", null);
   const queryClient = useQueryClient();
   const dockApi = useRef<DockviewApi | null>(null);
@@ -65,8 +64,6 @@ export function WorkspaceShell({ MarketOverview }: Props) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [command, setCommand] = useState("");
   const [commandError, setCommandError] = useState("");
-  const groups = useLinkGroups((state) => state.groups);
-  const palette = usePalette();
   const [savedWorkspaces, setSavedWorkspaces] = useState<WorkspaceSummary[]>([]);
   const refreshSavedWorkspaces = useCallback(async () => {
     const all = await listSavedWorkspaces().catch(() => []);
@@ -299,12 +296,12 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     }
   }, []);
 
-  /** Replaces the dock with a template's panels and points link groups at the profile's crops. */
+  /** Replaces the dock with a template's panels and switches to the profile's first crop. */
   const applyTemplate = useCallback((templateId: string, chosen: Pick<Profile, "commodities" | "region">) => {
     const api = dockApi.current;
     const template = getTemplate(templateId);
     if (!api || !template) return;
-    for (const [group, commodity] of Object.entries(linkGroupTargets(chosen.commodities))) useLinkGroups.getState().setCommodity(group, commodity);
+    if (chosen.commodities[0]) useCrop.getState().setCrop(chosen.commodities[0]);
     api.clear();
     const ids: string[] = [];
     for (const item of planTemplate(template, chosen)) {
@@ -339,7 +336,7 @@ export function WorkspaceShell({ MarketOverview }: Props) {
     } else if (plan.type === "template") {
       applyTemplate(plan.id, profile ?? { commodities: ["ZC"], region: "ia" });
     } else {
-      if (plan.retarget) useLinkGroups.getState().setCommodity(plan.retarget.group, plan.retarget.commodity);
+      if (plan.crop) useCrop.getState().setCrop(plan.crop);
       addPanel(plan.params);
     }
     setCommand(""); setCommandError(""); setPaletteOpen(false);
@@ -381,12 +378,8 @@ export function WorkspaceShell({ MarketOverview }: Props) {
             />
           </div>
         </div>
+        <CropSwitcher />
         <div className="workspace-toolbar-actions">
-          {LINK_GROUPS.map((group) => (
-            <Badge key={group} variant="outline" aria-label={`Link group ${group} is ${groups[group].commodity}`}>
-              <span aria-hidden="true" style={{ color: palette.groups[group] }}>●</span> {group} · {groups[group].commodity}
-            </Badge>
-          ))}
           <Button size="sm" variant="outline" onClick={() => void popOutActive()}><RiExternalLinkLine /> Pop out <kbd>⌥P</kbd></Button>
           <Button size="sm" variant="outline" onClick={() => setPaletteOpen(true)}><RiAddLine /> Add panel <kbd>/</kbd></Button>
           <Button size="sm" variant="outline" onClick={() => useSettingsScreen.getState().show()}><RiSettings3Line /> Settings</Button>

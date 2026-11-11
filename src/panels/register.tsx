@@ -1,9 +1,9 @@
 import type { ComponentType } from "react";
-import { LINK_GROUP_PROPERTY, type ConfigSchema } from "@/lib/config-schema";
+import type { ConfigSchema } from "@/lib/config-schema";
 import { REGIONS } from "@/lib/regions";
 import { GAUGES } from "@/lib/waterways";
+import { useCrop } from "@/workspace/crop";
 import { getPanel, registerPanel } from "@/workspace/registry";
-import type { PanelComponentProps } from "@/workspace/types";
 import { AlertsPanel } from "./alerts-panel";
 import { CalendarPanel } from "./calendar-panel";
 import { CropStressPanel } from "./crop-stress-panel";
@@ -14,9 +14,7 @@ import { RiverPanel } from "./river-panel";
 import { RiverTimelinePanel } from "./river-timeline-panel";
 import { NewsPanel } from "./news-panel";
 import { WeatherPanel } from "./weather-panel";
-import { usePanelCommodity } from "./panel-header";
 
-const linkSchema: ConfigSchema = { type: "object", properties: { linkGroup: LINK_GROUP_PROPERTY } };
 const droughtSchema: ConfigSchema = {
   type: "object",
   properties: {
@@ -32,7 +30,6 @@ const gaugeSchema: ConfigSchema = {
 const movesSchema: ConfigSchema = {
   type: "object",
   properties: {
-    ...linkSchema.properties,
     threshold: { type: "number", title: "Sensitivity (standard deviations)", description: "Lower flags more moves.", minimum: 1, maximum: 4, multipleOf: 0.5 },
   },
 };
@@ -42,22 +39,21 @@ export type MarketComponent = ComponentType<{ commodity: string }>;
 /** Registers every built-in panel type once. The market panel is supplied by the app because it owns source setup. */
 export function registerBuiltInPanels(Market: MarketComponent) {
   if (getPanel("market")) return;
-  function MarketPanel({ api, params }: PanelComponentProps) {
-    const { commodity } = usePanelCommodity(params, api);
-    return <Market commodity={commodity} />;
+  function MarketPanel() {
+    return <Market commodity={useCrop((state) => state.crop)} />;
   }
-  registerPanel({ type: "market", title: "Price chart", description: "Daily futures price chart", command: "ZC", defaultConfig: { commodity: "ZC", linkGroup: "A" }, component: MarketPanel });
-  registerPanel({ type: "cot", configSchema: linkSchema, title: "COT positioning", description: "Commitments of Traders with historical percentile", command: "ZC COT", defaultConfig: { linkGroup: "A" }, component: MetricPanel });
-  registerPanel({ type: "crop-condition", configSchema: linkSchema, title: "Crop condition", description: "NASS crop condition and progress", command: "CROP CONDITION", defaultConfig: { linkGroup: "A" }, component: MetricPanel });
-  registerPanel({ type: "wasde", configSchema: linkSchema, title: "Supply and demand", description: "FAS PSD balance sheet", command: "WASDE", defaultConfig: { linkGroup: "A" }, component: MetricPanel });
-  registerPanel({ type: "drought", configSchema: { type: "object", properties: { ...droughtSchema.properties, ...linkSchema.properties } }, title: "Drought Monitor", description: "Weekly drought area by severity", command: "DROUGHT IOWA", defaultConfig: { region: "ia" }, component: MetricPanel });
-  registerPanel({ type: "crop-stress", configSchema: linkSchema, title: "Crop stress timeline", description: "Price, crop condition and drought on one timeline", command: "STRESS", defaultConfig: { linkGroup: "A" }, component: CropStressPanel });
+  registerPanel({ type: "market", title: "Price chart", description: "Daily futures price chart", command: "ZC", defaultConfig: {}, component: MarketPanel });
+  registerPanel({ type: "cot", title: "COT positioning", description: "Commitments of Traders with historical percentile", command: "ZC COT", defaultConfig: {}, component: MetricPanel });
+  registerPanel({ type: "crop-condition", title: "Crop condition", description: "NASS crop condition and progress", command: "CROP CONDITION", defaultConfig: {}, component: MetricPanel });
+  registerPanel({ type: "wasde", title: "Supply and demand", description: "FAS PSD balance sheet", command: "WASDE", defaultConfig: {}, component: MetricPanel });
+  registerPanel({ type: "drought", configSchema: droughtSchema, title: "Drought Monitor", description: "Weekly drought area by severity", command: "DROUGHT IOWA", defaultConfig: { region: "ia" }, component: MetricPanel });
+  registerPanel({ type: "crop-stress", title: "Crop stress timeline", description: "Price, crop condition and drought on one timeline", command: "STRESS", defaultConfig: {}, component: CropStressPanel });
   registerPanel({ type: "river", configSchema: gaugeSchema, title: "River status", description: "Low-water constraint score, stage, forecast, barge freight and lock traffic", command: "RIVER", defaultConfig: { gauge: GAUGES[0].id }, component: RiverPanel });
-  registerPanel({ type: "river-timeline", configSchema: { type: "object", properties: { ...gaugeSchema.properties, ...linkSchema.properties } }, title: "River timeline", description: "River stage, forecast, barge freight and the constraint score beside price", command: "RIVER TIMELINE", defaultConfig: { gauge: GAUGES[0].id, linkGroup: "A" }, component: RiverTimelinePanel });
-  registerPanel({ type: "moves", configSchema: movesSchema, title: "Move explainer", description: "Flagged price moves with possible drivers", command: "MOVES", defaultConfig: { linkGroup: "A" }, component: MoveExplainerPanel });
+  registerPanel({ type: "river-timeline", configSchema: gaugeSchema, title: "River timeline", description: "River stage, forecast, barge freight and the constraint score beside price", command: "RIVER TIMELINE", defaultConfig: { gauge: GAUGES[0].id }, component: RiverTimelinePanel });
+  registerPanel({ type: "moves", configSchema: movesSchema, title: "Move explainer", description: "Flagged price moves with possible drivers", command: "MOVES", defaultConfig: {}, component: MoveExplainerPanel });
   registerPanel({ type: "alerts", title: "Price alerts", description: "Notify when a daily close crosses a price", command: "ALERTS", defaultConfig: {}, component: AlertsPanel });
   registerPanel({ type: "calendar", title: "Report calendar", description: "Upcoming report release schedule", command: "CALENDAR", defaultConfig: {}, component: CalendarPanel });
-  registerPanel({ type: "weather", configSchema: linkSchema, title: "Weather", description: "Regional forecasts for the commodity's growing areas", command: "WX IOWA", defaultConfig: { linkGroup: "A" }, component: WeatherPanel });
-  registerPanel({ type: "news", configSchema: linkSchema, title: "Market news", description: "GDELT and USDA RSS headlines", command: "NEWS", defaultConfig: { linkGroup: "A" }, component: NewsPanel });
+  registerPanel({ type: "weather", title: "Weather", description: "Regional forecasts for the commodity's growing areas", command: "WX IOWA", defaultConfig: {}, component: WeatherPanel });
+  registerPanel({ type: "news", title: "Market news", description: "GDELT and USDA RSS headlines", command: "NEWS", defaultConfig: {}, component: NewsPanel });
   registerPanel({ type: "help", title: "Help", description: "Every command, what each panel shows, and a glossary", command: "HELP", defaultConfig: {}, component: HelpPanel });
 }

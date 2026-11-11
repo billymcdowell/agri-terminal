@@ -7,7 +7,8 @@ import { explainMoves, type Driver, type MoveExplanation } from "@/lib/ipc";
 import { usePersistedValue } from "@/state/use-persisted-list";
 import type { PanelComponentProps } from "@/workspace/types";
 import { EXPLAINER_TEXT } from "./explainer-text";
-import { PanelHeader, usePanelCommodity } from "./panel-header";
+import { useCrop } from "@/workspace/crop";
+import { PanelHeader } from "./panel-header";
 
 /** Most recent flagged moves shown; older ones stay available through a higher threshold. */
 const MAX_MOVES = 25;
@@ -35,7 +36,7 @@ function DriverRow({ driver, pinned, onPin, onDismiss }: { driver: Driver; pinne
 }
 
 export function MoveExplainerPanel({ api, params }: PanelComponentProps) {
-  const { commodity, change } = usePanelCommodity(params, api);
+  const commodity = useCrop((state) => state.crop);
   const threshold = params.threshold ?? 2;
   const moves = useQuery({ queryKey: ["moves", commodity, threshold], queryFn: () => explainMoves(commodity, threshold) });
   const [pinned, setPinned] = usePersistedValue<string[]>("explainer.pinned", []);
@@ -46,7 +47,7 @@ export function MoveExplainerPanel({ api, params }: PanelComponentProps) {
 
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow={EXPLAINER_TEXT.eyebrow} title={EXPLAINER_TEXT.heading(commodity)} api={api} params={params} commodity={commodity} onCommodityChange={change} />
+      <PanelHeader eyebrow={EXPLAINER_TEXT.eyebrow} title={EXPLAINER_TEXT.heading(commodity)} api={api} params={params} />
       <p className="panel-freshness">{EXPLAINER_TEXT.intro}</p>
       <div className="explainer-controls">
         <span>Sensitivity: {threshold} standard deviations (change it in panel settings)</span>

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { planCommand } from "./commands";
 
 describe("planCommand", () => {
-  it("retargets the default link group when a commodity is named", () => {
-    expect(planCommand("zw cot")).toEqual({ type: "open", params: { kind: "cot", linkGroup: "A" }, retarget: { group: "A", commodity: "ZW" } });
-    expect(planCommand("ZS")).toMatchObject({ params: { kind: "market" }, retarget: { commodity: "ZS" } });
+  it("switches to the crop a command names", () => {
+    expect(planCommand("zw cot")).toEqual({ type: "open", params: { kind: "cot" }, crop: "ZW" });
+    expect(planCommand("ZS")).toEqual({ type: "open", params: { kind: "market" }, crop: "ZS" });
   });
   it("resolves drought states by name or abbreviation", () => {
     expect(planCommand("DROUGHT Iowa")).toEqual({ type: "open", params: { kind: "drought", region: "ia" } });
@@ -15,15 +15,15 @@ describe("planCommand", () => {
     expect(planCommand("DROUGHT Atlantis")).toMatchObject({ type: "error" });
     expect(planCommand("nonsense words")).toMatchObject({ type: "error" });
   });
-  it("opens the combined view and the move explainer in the default link group", () => {
-    expect(planCommand("stress")).toEqual({ type: "open", params: { kind: "crop-stress", linkGroup: "A" } });
-    expect(planCommand("moves")).toEqual({ type: "open", params: { kind: "moves", linkGroup: "A" } });
+  it("opens the combined view and the move explainer for the current crop", () => {
+    expect(planCommand("stress")).toEqual({ type: "open", params: { kind: "crop-stress" } });
+    expect(planCommand("moves")).toEqual({ type: "open", params: { kind: "moves" } });
   });
   it("opens the river panels at a gauge, a river or the default gauge", () => {
     expect(planCommand("RIVER")).toEqual({ type: "open", params: { kind: "river", gauge: "stlouis" } });
     expect(planCommand("RIVER MISS")).toEqual({ type: "open", params: { kind: "river", gauge: "stlouis" } });
     expect(planCommand("river memphis")).toEqual({ type: "open", params: { kind: "river", gauge: "memphis" } });
-    expect(planCommand("RIVER TIMELINE")).toEqual({ type: "open", params: { kind: "river-timeline", gauge: "stlouis", linkGroup: "A" } });
+    expect(planCommand("RIVER TIMELINE")).toEqual({ type: "open", params: { kind: "river-timeline", gauge: "stlouis" } });
     expect(planCommand("RIVER TIMELINE Memphis")).toMatchObject({ params: { kind: "river-timeline", gauge: "memphis" } });
     expect(planCommand("RIVER Rhine")).toMatchObject({ type: "error", message: expect.stringContaining("RIVER MEMPHIS") });
   });

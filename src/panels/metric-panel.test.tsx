@@ -30,7 +30,7 @@ function renderPanel(kind = "cot") {
   const api = { setTitle: vi.fn(), updateParameters: vi.fn() };
   return render(
     <QueryClientProvider client={client}>
-      <MetricPanel api={api} params={{ kind, commodity: "ZC" }} />
+      <MetricPanel api={api} params={{ kind }} />
     </QueryClientProvider>,
   );
 }

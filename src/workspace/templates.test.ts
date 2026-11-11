@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { registerBuiltInPanels } from "@/panels/register";
 import { getPanel } from "./registry";
-import { linkGroupTargets, planTemplate, TEMPLATES } from "./templates";
+import { planTemplate, TEMPLATES } from "./templates";
 
 describe("workspace templates", () => {
   registerBuiltInPanels(() => null);
@@ -23,16 +23,12 @@ describe("workspace templates", () => {
     expect(planned.find((item) => item.params.kind === "drought")?.params.region).toBe("ks");
     expect(planned[0].position).toBeUndefined();
   });
-  it("gives the farmer river panel plain basis wording and leaves it unlinked", () => {
+  it("gives the farmer river panel plain basis wording", () => {
     const farmer = planTemplate(TEMPLATES.find((template) => template.id === "farmer")!, { region: "ia" });
-    expect(farmer.find((item) => item.params.kind === "river")?.params).toEqual({ kind: "river", linkGroup: undefined, audience: "farmer" });
+    expect(farmer.find((item) => item.params.kind === "river")?.params).toEqual({ kind: "river", audience: "farmer" });
     for (const id of ["trader", "analyst"]) {
       const kinds = TEMPLATES.find((template) => template.id === id)!.panels.map((panel) => panel.kind);
       expect(kinds, id).toEqual(expect.arrayContaining(["river", "river-timeline"]));
     }
-  });
-  it("assigns the first two commodities to link groups A and B", () => {
-    expect(linkGroupTargets(["ZW", "ZS", "ZC"])).toEqual({ A: "ZW", B: "ZS" });
-    expect(linkGroupTargets(["ZC"])).toEqual({ A: "ZC" });
   });
 });

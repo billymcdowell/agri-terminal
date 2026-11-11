@@ -3,7 +3,7 @@ import { popoutUrl, readPopout } from "./popout";
 
 describe("pop-out urls", () => {
   it("round trips panel params through the query string", () => {
-    const params = { kind: "drought", region: "ia", linkGroup: "A" };
+    const params = { kind: "drought", region: "ia" };
     expect(readPopout(popoutUrl("index.html", params).replace("index.html", ""))).toEqual(params);
   });
   it("treats a missing or malformed parameter as the main window", () => {

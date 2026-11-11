@@ -5,10 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { saveSecret } from "@/lib/ipc";
-import { COMMODITIES, REGIONS } from "@/lib/regions";
+import { COMMODITIES, CROP_NAMES, REGIONS } from "@/lib/regions";
 import { TEMPLATES, type Profile, type Role } from "./templates";
 
-const COMMODITY_NAMES: Record<string, string> = { ZC: "Corn", ZS: "Soybeans", ZW: "Wheat" };
 
 type OnboardingProps = { open: boolean; onComplete: (profile: Profile) => void; onSkip: () => void };
 
@@ -73,7 +72,7 @@ export function Onboarding({ open, onComplete, onSkip }: OnboardingProps) {
           {COMMODITIES.map((symbol) => (
             <label key={symbol} className="schema-check">
               <input type="checkbox" checked={commodities.includes(symbol)} onChange={() => toggle(symbol)} />
-              {COMMODITY_NAMES[symbol] ?? symbol}
+              {CROP_NAMES[symbol] ?? symbol}
             </label>
           ))}
         </fieldset>

@@ -147,7 +147,7 @@ export const PANEL_GUIDES: Record<string, PanelGuide> = {
       "The top chart shows the stage in feet (left axis) and the futures close (right axis). The shaded band is the stage range for the same days over the previous five years; the dashed line is the lowest stage forecast over the next 7 days.",
       "The bottom chart shows the constraint score (left, 0 to 100) and the barge rate in percent of tariff (right).",
       "Every value appears only from the day it was published, so the chart shows what was known at the time. A barge rate published on Thursday is not on Wednesday.",
-      "1Y, 3Y and ALL change how much history is shown. The futures close follows the panel's link group.",
+      "1Y, 3Y and ALL change how much history is shown. The futures close is for the crop chosen at the top.",
     ],
   },
   moves: {
@@ -233,7 +233,7 @@ export const START_HERE = [
   "AgriTerminal puts U.S. grain market information side by side: prices, trader positioning, crop health, drought, weather, river conditions, supply and demand, news and report dates. Everything is saved on your computer, so it works offline.",
   "Press / to open the command bar, then type a command such as ZC for corn prices, or pick one from the list. Press ? any time to come back to this guide.",
   "Click the ⓘ button at the top of any panel for a plain-language explanation of what it shows.",
-  "Panels with the same coloured LINK letter follow the same crop: change the crop in one and the others switch too. Click LINK to change the group or unlink a panel.",
+  "Every panel shows the crop chosen with Corn, Soybeans and Wheat at the top. Typing ZC, ZS or ZW in the command bar switches it too.",
   "Drag a panel's tab to rearrange the layout. It saves automatically; use the menu beside the workspace name to keep several layouts.",
   "Some data needs a key, added in Settings › Data sources (the Settings button at the top). Free without any key: demonstration corn prices, CFTC positioning, drought, weather, river conditions and news. Free key: USDA crop condition (NASS), supply and demand (FAS), and real futures prices (Massive).",
 ];
@@ -280,7 +280,6 @@ export const GLOSSARY: [string, string][] = [
   ["FAS", "USDA Foreign Agricultural Service. Publishes the supply and demand database and export sales."],
   ["Futures contract", "An agreement to buy or sell a set amount of grain (5,000 bushels at CBOT) at an agreed price on a future date. Most are closed before delivery; the price works as the market's benchmark."],
   ["Hedger", "Someone who owns or needs physical grain, such as a farmer or processor, and uses futures to lock in a price."],
-  ["Link group", "A coloured letter (A, B, C…) shared by panels that follow the same crop."],
   ["Lock", "A chamber that lifts or lowers barges past a dam. Weekly grain tonnage through the last locks on the Mississippi and Ohio shows how much grain is moving downriver."],
   ["Long", "Holding a position that gains when the price rises."],
   ["Managed money", "Hedge funds and trading advisers speculating on price, as counted in the COT report."],

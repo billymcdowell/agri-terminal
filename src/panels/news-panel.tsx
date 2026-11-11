@@ -3,13 +3,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getNewsForCommodity, refreshNews } from "@/lib/ipc";
 import type { PanelComponentProps } from "@/workspace/types";
-import { PanelHeader, usePanelCommodity } from "./panel-header";
+import { useCrop } from "@/workspace/crop";
+import { PanelHeader } from "./panel-header";
 
 const REFRESH_MS = 30 * 60_000;
 
 /** Headlines and links only. Cached headlines show immediately while feeds refresh in the background. */
 export function NewsPanel({ api, params }: PanelComponentProps) {
-  const { commodity, change } = usePanelCommodity(params, api);
+  const commodity = useCrop((state) => state.crop);
   const queryClient = useQueryClient();
   const news = useQuery({ queryKey: ["news", commodity], queryFn: () => getNewsForCommodity(commodity) });
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export function NewsPanel({ api, params }: PanelComponentProps) {
 
   return (
     <div className="workspace-panel">
-      <PanelHeader eyebrow="MARKET NEWS" title={`${commodity} headlines`} api={api} params={params} commodity={commodity} onCommodityChange={change} />
+      <PanelHeader eyebrow="MARKET NEWS" title={`${commodity} headlines`} api={api} params={params} />
       <Card className="terminal-card">
         <CardHeader><CardTitle className="side-card-title">Recent headlines · headlines and links only</CardTitle></CardHeader>
         <CardContent>

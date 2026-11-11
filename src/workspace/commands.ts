@@ -8,11 +8,9 @@ export type CommandPlan =
   | { type: "workspace"; name: string }
   | { type: "template"; id: string }
   | { type: "settings" }
-  /** Open the panel, or bring forward an existing one of the same kind, and retarget the link group. */
-  | { type: "open"; params: PanelParams; retarget?: { group: string; commodity: string } }
+  /** Open the panel, or bring forward an existing one of the same kind, and switch to the crop it names. */
+  | { type: "open"; params: PanelParams; crop?: string }
   | { type: "error"; message: string };
-
-const DEFAULT_GROUP = "A";
 
 export function planCommand(input: string): CommandPlan {
   const command = parseCommand(input);
@@ -27,25 +25,25 @@ export function planCommand(input: string): CommandPlan {
       if (message) return { type: "error", message };
       return {
         type: "open",
-        params: { kind: command.kind === "cot" ? "cot" : "market", linkGroup: DEFAULT_GROUP },
-        retarget: { group: DEFAULT_GROUP, commodity: command.symbol },
+        params: { kind: command.kind === "cot" ? "cot" : "market" },
+        crop: command.symbol,
       };
     }
     case "cropCondition":
-      return { type: "open", params: { kind: "crop-condition", linkGroup: DEFAULT_GROUP } };
+      return { type: "open", params: { kind: "crop-condition" } };
     case "wasde":
-      return { type: "open", params: { kind: "wasde", linkGroup: DEFAULT_GROUP } };
+      return { type: "open", params: { kind: "wasde" } };
     case "template":
       return getTemplate(command.id) ? { type: "template", id: command.id } : { type: "error", message: `Unknown template ${command.id}. Try farmer, trader, analyst or student.` };
     case "stress":
-      return { type: "open", params: { kind: "crop-stress", linkGroup: DEFAULT_GROUP } };
+      return { type: "open", params: { kind: "crop-stress" } };
     case "river":
     case "riverTimeline": {
       const gauge = command.gauge ? findGauge(command.gauge) : GAUGES[0];
       if (!gauge) return { type: "error", message: `Unknown river or gauge ${command.gauge}. Try ${GAUGES.map((item) => `RIVER ${item.id.toUpperCase()}`).join(", ")} or RIVER MISS.` };
       return command.kind === "river"
         ? { type: "open", params: { kind: "river", gauge: gauge.id } }
-        : { type: "open", params: { kind: "river-timeline", gauge: gauge.id, linkGroup: DEFAULT_GROUP } };
+        : { type: "open", params: { kind: "river-timeline", gauge: gauge.id } };
     }
     case "help":
       return { type: "open", params: { kind: "help" } };
@@ -54,13 +52,13 @@ export function planCommand(input: string): CommandPlan {
     case "alerts":
       return { type: "open", params: { kind: "alerts" } };
     case "moves":
-      return { type: "open", params: { kind: "moves", linkGroup: DEFAULT_GROUP } };
+      return { type: "open", params: { kind: "moves" } };
     case "calendar":
       return { type: "open", params: { kind: "calendar" } };
     case "news":
-      return { type: "open", params: { kind: "news", linkGroup: DEFAULT_GROUP } };
+      return { type: "open", params: { kind: "news" } };
     case "weather":
-      return { type: "open", params: { kind: "weather", linkGroup: DEFAULT_GROUP } };
+      return { type: "open", params: { kind: "weather" } };
     case "drought": {
       const region = findRegion(command.region);
       if (!region) return { type: "error", message: `Unknown state ${command.region}. Use a state such as IOWA or IA.` };

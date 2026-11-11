@@ -3,17 +3,17 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { registerBuiltInPanels, type MarketComponent } from "@/panels/register";
 import { SettingsDialog } from "@/settings/settings-dialog";
 import { queryClient } from "@/state/query-client";
-import { startLinkGroupSync } from "./link-sync";
+import { startCropSync } from "./crop";
 import { getPanel } from "./registry";
 import type { PanelApiLike, PanelParams } from "./types";
 import { useDataUpdateInvalidation } from "./use-workspace-effects";
 
-/** A single panel in its own window. It reads the same local database and shares link groups through events. */
+/** A single panel in its own window. It reads the same local database and follows the crop through events. */
 export function PopoutApp({ initial, Market }: { initial: PanelParams; Market: MarketComponent }) {
   registerBuiltInPanels(Market);
   useDataUpdateInvalidation();
   const [params, setParams] = useState(initial);
-  useEffect(() => startLinkGroupSync(), []);
+  useEffect(() => startCropSync(), []);
   const api = useMemo<PanelApiLike>(() => ({
     setTitle: (title) => { document.title = title; },
     updateParameters: (next) => setParams((current) => ({ ...current, ...next }) as PanelParams),
